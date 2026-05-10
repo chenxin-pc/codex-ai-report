@@ -4,9 +4,79 @@
         "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.example.aimilvusweb.repository.ReportChunkMapper">
 
+    <resultMap id="ReportChunkResultMap" type="com.example.aimilvusweb.entity.ReportChunk">
+        <id property="id" column="id"/>
+        <result property="reportId" column="report_id"/>
+        <result property="chunkIndex" column="chunk_index"/>
+        <result property="chunkUid" column="chunk_uid"/>
+        <result property="parentChunkUid" column="parent_chunk_uid"/>
+        <result property="chunkType" column="chunk_type"/>
+        <result property="sectionPath" column="section_path"/>
+        <result property="chunkText" column="chunk_text"/>
+        <result property="tokenCount" column="token_count"/>
+        <result property="pageNumber" column="page_number"/>
+        <result property="createdAt" column="created_at"/>
+    </resultMap>
+
     <insert id="insert" parameterType="com.example.aimilvusweb.entity.ReportChunk" useGeneratedKeys="true" keyProperty="id">
-        INSERT INTO report_chunk(report_id, chunk_index, chunk_uid, chunk_text, page_number, created_at)
-        VALUES(#{reportId}, #{chunkIndex}, #{chunkUid}, #{chunkText}, #{pageNumber}, #{createdAt})
+        INSERT INTO report_chunk(
+            report_id,
+            chunk_index,
+            chunk_uid,
+            parent_chunk_uid,
+            chunk_type,
+            section_path,
+            chunk_text,
+            token_count,
+            page_number,
+            created_at
+        )
+        VALUES(
+            #{reportId},
+            #{chunkIndex},
+            #{chunkUid},
+            #{parentChunkUid},
+            #{chunkType},
+            #{sectionPath},
+            #{chunkText},
+            #{tokenCount},
+            #{pageNumber},
+            #{createdAt}
+        )
     </insert>
+
+    <select id="selectByChunkUid" parameterType="string" resultMap="ReportChunkResultMap">
+        SELECT id,
+               report_id,
+               chunk_index,
+               chunk_uid,
+               parent_chunk_uid,
+               chunk_type,
+               section_path,
+               chunk_text,
+               token_count,
+               page_number,
+               created_at
+        FROM report_chunk
+        WHERE chunk_uid = #{chunkUid}
+    </select>
+
+    <select id="selectChildrenByParentChunkUid" parameterType="string" resultMap="ReportChunkResultMap">
+        SELECT id,
+               report_id,
+               chunk_index,
+               chunk_uid,
+               parent_chunk_uid,
+               chunk_type,
+               section_path,
+               chunk_text,
+               token_count,
+               page_number,
+               created_at
+        FROM report_chunk
+        WHERE parent_chunk_uid = #{parentChunkUid}
+          AND chunk_type = 'CHILD'
+        ORDER BY chunk_index ASC
+    </select>
 
 </mapper>

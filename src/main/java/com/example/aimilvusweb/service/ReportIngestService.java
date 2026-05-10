@@ -1,7 +1,8 @@
 package com.example.aimilvusweb.service;
 
 import com.example.aimilvusweb.common.util.PdfUtils;
-import com.example.aimilvusweb.common.util.SemanticChunkUtils;
+import com.example.aimilvusweb.common.util.SemanticChunkUtils.ReportChunkSlice;
+import com.example.aimilvusweb.common.util.SemanticChunkUtils.ReportSemanticChunks;
 import com.example.aimilvusweb.dto.ReportUploadRespDTO;
 import com.example.aimilvusweb.entity.ReportChunk;
 import com.example.aimilvusweb.entity.ReportDocument;
@@ -21,6 +22,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 public class ReportIngestService {
@@ -28,24 +30,27 @@ public class ReportIngestService {
     private final ReportDocumentMapper reportDocumentMapper;
     private final ReportChunkMapper reportChunkMapper;
     private final ObjectProvider<VectorStore> vectorStoreProvider;
+    private final ReportSemanticChunkService reportSemanticChunkService;
 
     public ReportIngestService(ReportDocumentMapper reportDocumentMapper,
                                ReportChunkMapper reportChunkMapper,
-                               ObjectProvider<VectorStore> vectorStoreProvider) {
+                               ObjectProvider<VectorStore> vectorStoreProvider,
+                               ReportSemanticChunkService reportSemanticChunkService) {
         this.reportDocumentMapper = reportDocumentMapper;
         this.reportChunkMapper = reportChunkMapper;
         this.vectorStoreProvider = vectorStoreProvider;
+        this.reportSemanticChunkService = reportSemanticChunkService;
     }
 
     @Transactional
     public ReportUploadRespDTO ingest(MultipartFile file, String title, String source, String institution, LocalDate publishDate) {
         VectorStore vectorStore = requireVectorStore();
         validateFile(file);
-        List<String> chunks = parseAndChunk(file);
+        ReportSemanticChunks chunks = parseAndChunk(file);
         ReportDocument report = persistReportDocument(file, title, source, institution, publishDate);
-        List<ReportChunk> persistedChunks = persistChunks(report, chunks);
-        vectorStore.add(buildVectorDocuments(report, persistedChunks));
-        return buildUploadResp(report, persistedChunks.size());
+        List<ReportChunk> persistedChildChunks = persistChunks(report, chunks);
+        vectorStore.add(buildVectorDocuments(report, persistedChildChunks));
+        return buildUploadResp(report, persistedChildChunks.size());
     }
 
     private VectorStore requireVectorStore() {
@@ -62,9 +67,9 @@ public class ReportIngestService {
         }
     }
 
-    private List<String> parseAndChunk(MultipartFile file) {
+    private ReportSemanticChunks parseAndChunk(MultipartFile file) {
         String parsedText = PdfUtils.extractText(file);
-        List<String> chunks = SemanticChunkUtils.chunkByParagraphWindow(parsedText, 3, 1);
+        ReportSemanticChunks chunks = reportSemanticChunkService.chunk(parsedText);
         if (chunks.isEmpty()) {
             throw new IllegalArgumentException("No valid chunks generated from PDF");
         }
@@ -82,20 +87,44 @@ public class ReportIngestService {
         return report;
     }
 
-    private List<ReportChunk> persistChunks(ReportDocument report, List<String> chunks) {
-        List<ReportChunk> persistedChunks = new ArrayList<>();
-        for (int i = 0; i < chunks.size(); i++) {
-            ReportChunk chunk = new ReportChunk();
-            chunk.setReportId(report.getId());
-            chunk.setChunkIndex(i);
-            chunk.setChunkUid(UUID.randomUUID().toString().replace("-", ""));
-            chunk.setChunkText(chunks.get(i));
-            chunk.setPageNumber(0);
-            chunk.setCreatedAt(Instant.now());
-            reportChunkMapper.insert(chunk);
-            persistedChunks.add(chunk);
+    private List<ReportChunk> persistChunks(ReportDocument report, ReportSemanticChunks chunks) {
+        Map<Integer, String> parentUidByIndex = chunks.parents().stream()
+                .collect(Collectors.toMap(ReportChunkSlice::parentIndex, ignored -> newChunkUid()));
+
+        for (ReportChunkSlice parentSlice : chunks.parents()) {
+            ReportChunk parentChunk = buildReportChunk(report, parentSlice, parentUidByIndex.get(parentSlice.parentIndex()), null);
+            reportChunkMapper.insert(parentChunk);
         }
-        return persistedChunks;
+
+        List<ReportChunk> persistedChildChunks = new ArrayList<>();
+        for (int i = 0; i < chunks.children().size(); i++) {
+            ReportChunkSlice childSlice = chunks.children().get(i);
+            String parentChunkUid = parentUidByIndex.get(childSlice.parentIndex());
+            ReportChunk childChunk = buildReportChunk(report, childSlice, newChunkUid(), parentChunkUid);
+            childChunk.setChunkIndex(i);
+            reportChunkMapper.insert(childChunk);
+            persistedChildChunks.add(childChunk);
+        }
+        return persistedChildChunks;
+    }
+
+    private ReportChunk buildReportChunk(ReportDocument report, ReportChunkSlice slice, String chunkUid, String parentChunkUid) {
+        ReportChunk chunk = new ReportChunk();
+        chunk.setReportId(report.getId());
+        chunk.setChunkIndex(slice.chunkType().equals("PARENT") ? slice.parentIndex() : slice.chunkIndexInParent());
+        chunk.setChunkUid(chunkUid);
+        chunk.setParentChunkUid(parentChunkUid);
+        chunk.setChunkType(slice.chunkType());
+        chunk.setSectionPath(slice.sectionPath());
+        chunk.setChunkText(slice.text());
+        chunk.setTokenCount(slice.tokenCount());
+        chunk.setPageNumber(0);
+        chunk.setCreatedAt(Instant.now());
+        return chunk;
+    }
+
+    private String newChunkUid() {
+        return UUID.randomUUID().toString().replace("-", "");
     }
 
     private List<Document> buildVectorDocuments(ReportDocument report, List<ReportChunk> chunks) {
@@ -105,7 +134,11 @@ public class ReportIngestService {
             metadata.put("reportId", report.getId());
             metadata.put("chunkId", chunk.getId());
             metadata.put("chunkUid", chunk.getChunkUid());
+            metadata.put("parentChunkUid", chunk.getParentChunkUid() == null ? "" : chunk.getParentChunkUid());
+            metadata.put("chunkType", chunk.getChunkType());
             metadata.put("chunkIndex", chunk.getChunkIndex());
+            metadata.put("sectionPath", chunk.getSectionPath() == null ? "" : chunk.getSectionPath());
+            metadata.put("tokenCount", chunk.getTokenCount() == null ? 0 : chunk.getTokenCount());
             metadata.put("title", report.getTitle());
             metadata.put("source", report.getSource());
             metadata.put("institution", report.getInstitution() == null ? "" : report.getInstitution());

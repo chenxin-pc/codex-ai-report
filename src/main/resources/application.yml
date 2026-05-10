@@ -33,8 +33,9 @@ spring:
     vectorstore:
       type: ${VECTOR_STORE_TYPE:none}
       milvus:
-        host: ${MILVUS_HOST:localhost}
-        port: ${MILVUS_PORT:19530}
+        client:
+          host: ${MILVUS_HOST:localhost}
+          port: ${MILVUS_PORT:19530}
         database-name: ${MILVUS_DATABASE:default}
         collection-name: ${MILVUS_COLLECTION:report_chunks}
         embedding-dimension: ${MILVUS_DIMENSION:1024}

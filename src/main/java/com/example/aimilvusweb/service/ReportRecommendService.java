@@ -2,9 +2,12 @@ package com.example.aimilvusweb.service;
 
 import com.example.aimilvusweb.common.llm.QwenClient;
 import com.example.aimilvusweb.common.prompt.PromptTemplateService;
+import com.example.aimilvusweb.common.util.SemanticChunkUtils;
 import com.example.aimilvusweb.dto.LlmRecommendRespDTO;
 import com.example.aimilvusweb.dto.RecommendRespDTO;
 import com.example.aimilvusweb.dto.TopResultRespDTO;
+import com.example.aimilvusweb.entity.ReportChunk;
+import com.example.aimilvusweb.repository.ReportChunkMapper;
 import com.alibaba.fastjson2.JSON;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.SearchRequest;
@@ -27,15 +30,18 @@ public class ReportRecommendService {
     private final ObjectProvider<StringRedisTemplate> redisTemplateProvider;
     private final QwenClient qwenClient;
     private final PromptTemplateService promptTemplateService;
+    private final ReportChunkMapper reportChunkMapper;
 
     public ReportRecommendService(ObjectProvider<VectorStore> vectorStoreProvider,
                                   ObjectProvider<StringRedisTemplate> redisTemplateProvider,
                                   QwenClient qwenClient,
-                                  PromptTemplateService promptTemplateService) {
+                                  PromptTemplateService promptTemplateService,
+                                  ReportChunkMapper reportChunkMapper) {
         this.vectorStoreProvider = vectorStoreProvider;
         this.redisTemplateProvider = redisTemplateProvider;
         this.qwenClient = qwenClient;
         this.promptTemplateService = promptTemplateService;
+        this.reportChunkMapper = reportChunkMapper;
     }
 
     public RecommendRespDTO recommend(String query) {
@@ -66,8 +72,9 @@ public class ReportRecommendService {
             evidenceBuilder.append("[Chunk ").append(i + 1).append("] ")
                     .append("title=").append(title)
                     .append(", source=").append(source)
+                    .append(", section=").append(doc.getMetadata().getOrDefault("sectionPath", ""))
                     .append("\n")
-                    .append(chunkText)
+                    .append(expandContext(doc, chunkText))
                     .append("\n\n");
         }
 
@@ -103,6 +110,39 @@ public class ReportRecommendService {
             return number.doubleValue();
         }
         return null;
+    }
+
+    private String expandContext(Document doc, String fallbackText) {
+        String parentChunkUid = String.valueOf(doc.getMetadata().getOrDefault("parentChunkUid", ""));
+        if (parentChunkUid.isBlank()) {
+            return fallbackText;
+        }
+        ReportChunk parentChunk = reportChunkMapper.selectByChunkUid(parentChunkUid);
+        if (parentChunk == null || parentChunk.getChunkText() == null || parentChunk.getChunkText().isBlank()) {
+            return fallbackText;
+        }
+        return limitTokens(parentChunk.getChunkText(), 4500);
+    }
+
+    private String limitTokens(String text, int maxTokens) {
+        if (SemanticChunkUtils.estimateTokens(text) <= maxTokens) {
+            return text;
+        }
+        String[] paragraphs = text.split("\\n\\s*\\n");
+        StringBuilder limited = new StringBuilder();
+        int tokens = 0;
+        for (String paragraph : paragraphs) {
+            int paragraphTokens = SemanticChunkUtils.estimateTokens(paragraph);
+            if (tokens > 0 && tokens + paragraphTokens > maxTokens) {
+                break;
+            }
+            if (!limited.isEmpty()) {
+                limited.append("\n\n");
+            }
+            limited.append(paragraph.trim());
+            tokens += paragraphTokens;
+        }
+        return limited.toString();
     }
 
     private VectorStore requireVectorStore() {
