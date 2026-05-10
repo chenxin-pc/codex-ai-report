@@ -48,4 +48,19 @@ class SemanticChunkerTests {
         Assertions.assertTrue(chunks.children().get(0).text().contains("Section: 投资要点"));
         Assertions.assertTrue(chunks.children().stream().anyMatch(chunk -> chunk.sectionPath().equals("风险提示")));
     }
+
+    @Test
+    void shouldSplitOversizedSingleParagraphIntoMultipleChildren() {
+        String text = """
+                核心观点
+
+                我们认为行业景气仍将持续，供给端约束仍然存在，因此价格中枢有望维持高位。我们认为行业景气仍将持续，供给端约束仍然存在，因此价格中枢有望维持高位。我们认为行业景气仍将持续，供给端约束仍然存在，因此价格中枢有望维持高位。我们认为行业景气仍将持续，供给端约束仍然存在，因此价格中枢有望维持高位。我们认为行业景气仍将持续，供给端约束仍然存在，因此价格中枢有望维持高位。我们认为行业景气仍将持续，供给端约束仍然存在，因此价格中枢有望维持高位。我们认为行业景气仍将持续，供给端约束仍然存在，因此价格中枢有望维持高位。我们认为行业景气仍将持续，供给端约束仍然存在，因此价格中枢有望维持高位。我们认为行业景气仍将持续，供给端约束仍然存在，因此价格中枢有望维持高位。我们认为行业景气仍将持续，供给端约束仍然存在，因此价格中枢有望维持高位。我们认为行业景气仍将持续，供给端约束仍然存在，因此价格中枢有望维持高位。我们认为行业景气仍将持续，供给端约束仍然存在，因此价格中枢有望维持高位。
+                """;
+
+        ChunkingOptions options = new ChunkingOptions(30, 40, 300, 1000, 10);
+        ReportSemanticChunks chunks = SemanticChunkUtils.chunkReport(text, options);
+
+        Assertions.assertTrue(chunks.children().size() > 1);
+        Assertions.assertTrue(chunks.children().stream().allMatch(chunk -> chunk.tokenCount() <= options.childMaxTokens()));
+    }
 }

@@ -21,11 +21,17 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Service
 public class ReportIngestService {
+    private static final int EMBEDDING_BATCH_SIZE = 10;
+    private static final int MIN_SLICE_TOKEN_COUNT = 40;
+    private static final Set<String> EXCLUDED_SECTION_KEYWORDS = Set.of(
+            "免责声明", "免责条款", "法律声明", "分析师承诺", "评级说明", "投资评级说明", "风险披露"
+    );
 
     private final ReportDocumentMapper reportDocumentMapper;
     private final ReportChunkMapper reportChunkMapper;
@@ -49,7 +55,7 @@ public class ReportIngestService {
         ReportSemanticChunks chunks = parseAndChunk(file);
         ReportDocument report = persistReportDocument(file, title, source, institution, publishDate);
         List<ReportChunk> persistedChildChunks = persistChunks(report, chunks);
-        vectorStore.add(buildVectorDocuments(report, persistedChildChunks));
+        addVectorDocumentsInBatches(vectorStore, buildVectorDocuments(report, persistedChildChunks));
         return buildUploadResp(report, persistedChildChunks.size());
     }
 
@@ -88,17 +94,24 @@ public class ReportIngestService {
     }
 
     private List<ReportChunk> persistChunks(ReportDocument report, ReportSemanticChunks chunks) {
-        Map<Integer, String> parentUidByIndex = chunks.parents().stream()
+        List<ReportChunkSlice> filteredParents = chunks.parents().stream()
+                .filter(this::shouldKeepSlice)
+                .toList();
+        Map<Integer, String> parentUidByIndex = filteredParents.stream()
                 .collect(Collectors.toMap(ReportChunkSlice::parentIndex, ignored -> newChunkUid()));
 
-        for (ReportChunkSlice parentSlice : chunks.parents()) {
+        for (ReportChunkSlice parentSlice : filteredParents) {
             ReportChunk parentChunk = buildReportChunk(report, parentSlice, parentUidByIndex.get(parentSlice.parentIndex()), null);
             reportChunkMapper.insert(parentChunk);
         }
 
         List<ReportChunk> persistedChildChunks = new ArrayList<>();
-        for (int i = 0; i < chunks.children().size(); i++) {
-            ReportChunkSlice childSlice = chunks.children().get(i);
+        List<ReportChunkSlice> filteredChildren = chunks.children().stream()
+                .filter(this::shouldKeepSlice)
+                .filter(slice -> parentUidByIndex.containsKey(slice.parentIndex()))
+                .toList();
+        for (int i = 0; i < filteredChildren.size(); i++) {
+            ReportChunkSlice childSlice = filteredChildren.get(i);
             String parentChunkUid = parentUidByIndex.get(childSlice.parentIndex());
             ReportChunk childChunk = buildReportChunk(report, childSlice, newChunkUid(), parentChunkUid);
             childChunk.setChunkIndex(i);
@@ -146,6 +159,52 @@ public class ReportIngestService {
             vectorDocuments.add(new Document(chunk.getChunkText(), metadata));
         }
         return vectorDocuments;
+    }
+
+    private void addVectorDocumentsInBatches(VectorStore vectorStore, List<Document> documents) {
+        for (int start = 0; start < documents.size(); start += EMBEDDING_BATCH_SIZE) {
+            int end = Math.min(documents.size(), start + EMBEDDING_BATCH_SIZE);
+            vectorStore.add(documents.subList(start, end));
+        }
+    }
+
+    private boolean shouldKeepSlice(ReportChunkSlice slice) {
+        String sectionPath = slice.sectionPath() == null ? "" : slice.sectionPath().trim();
+        if (!sectionPath.isBlank()) {
+            for (String keyword : EXCLUDED_SECTION_KEYWORDS) {
+                if (sectionPath.contains(keyword)) {
+                    return false;
+                }
+            }
+        }
+        return !isLikelyLowSemanticSlice(slice);
+    }
+
+    private boolean isLikelyLowSemanticSlice(ReportChunkSlice slice) {
+        if (slice.tokenCount() < MIN_SLICE_TOKEN_COUNT) {
+            return true;
+        }
+        String text = slice.text() == null ? "" : slice.text();
+        String normalized = text.replaceAll("\\s+", "");
+        if (normalized.length() < 60) {
+            return true;
+        }
+        int han = 0;
+        int digits = 0;
+        int symbols = 0;
+        for (int i = 0; i < normalized.length(); i++) {
+            char ch = normalized.charAt(i);
+            if (Character.UnicodeScript.of(ch) == Character.UnicodeScript.HAN) {
+                han++;
+            } else if (Character.isDigit(ch)) {
+                digits++;
+            } else if (!Character.isLetter(ch)) {
+                symbols++;
+            }
+        }
+        double hanRatio = han / (double) normalized.length();
+        double noiseRatio = (digits + symbols) / (double) normalized.length();
+        return hanRatio < 0.20D || noiseRatio > 0.65D;
     }
 
     private ReportUploadRespDTO buildUploadResp(ReportDocument report, int chunkCount) {

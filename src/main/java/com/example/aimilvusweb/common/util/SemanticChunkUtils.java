@@ -245,23 +245,28 @@ public final class SemanticChunkUtils {
         String previousText = "";
         int currentTokens = 0;
 
+        int sectionPrefixTokens = estimateTokens(formatChunkText(parentDraft.sectionPath(), ""));
+        int bodyTokenBudget = Math.max(1, options.childMaxTokens() - sectionPrefixTokens);
         for (String paragraph : parentDraft.paragraphs()) {
-            int paragraphTokens = estimateTokens(paragraph);
-            boolean exceedsHardMax = currentTokens > 0 && currentTokens + paragraphTokens > options.childMaxTokens();
-            boolean reachedTargetAtSemanticBoundary = currentTokens >= options.childTargetTokens() && startsNewAnalyticalUnit(paragraph);
-            if ((exceedsHardMax || reachedTargetAtSemanticBoundary) && !buffer.isEmpty()) {
-                previousText = addChildSlice(slices, parentDraft.sectionPath(), buffer, previousText, parentIndex, options);
-                buffer.clear();
-                currentTokens = 0;
+            List<String> normalizedParagraphs = splitOversizedParagraph(paragraph, bodyTokenBudget);
+            for (String normalizedParagraph : normalizedParagraphs) {
+                int paragraphTokens = estimateTokens(normalizedParagraph);
+                boolean exceedsHardMax = currentTokens > 0 && currentTokens + paragraphTokens > options.childMaxTokens();
+                boolean reachedTargetAtSemanticBoundary = currentTokens >= options.childTargetTokens() && startsNewAnalyticalUnit(normalizedParagraph);
+                if ((exceedsHardMax || reachedTargetAtSemanticBoundary) && !buffer.isEmpty()) {
+                    previousText = addChildSlice(slices, parentDraft.sectionPath(), buffer, previousText, parentIndex, options);
+                    buffer.clear();
+                    currentTokens = 0;
+                }
+                buffer.add(normalizedParagraph);
+                currentTokens += paragraphTokens;
             }
-            buffer.add(paragraph);
-            currentTokens += paragraphTokens;
         }
 
         if (!buffer.isEmpty()) {
             addChildSlice(slices, parentDraft.sectionPath(), buffer, previousText, parentIndex, options);
         }
-        return slices;
+        return normalizeChildSliceSize(slices, options);
     }
 
     private static String addChildSlice(List<ReportChunkSlice> slices,
@@ -313,6 +318,139 @@ public final class SemanticChunkUtils {
 
     private static String formatChunkText(String sectionPath, String text) {
         return "Section: " + sectionPath + "\n\n" + text.trim();
+    }
+
+    private static List<String> splitOversizedParagraph(String paragraph, int childMaxTokens) {
+        if (estimateTokens(paragraph) <= childMaxTokens) {
+            return List.of(paragraph);
+        }
+        List<String> units = splitToSentenceLikeUnits(paragraph);
+        List<String> normalized = new ArrayList<>();
+        StringBuilder buffer = new StringBuilder();
+        int bufferTokens = 0;
+
+        for (String unit : units) {
+            int unitTokens = estimateTokens(unit);
+            if (unitTokens > childMaxTokens) {
+                if (!buffer.isEmpty()) {
+                    normalized.add(buffer.toString().trim());
+                    buffer.setLength(0);
+                    bufferTokens = 0;
+                }
+                normalized.addAll(hardSplitByTokenBudget(unit, childMaxTokens));
+                continue;
+            }
+            if (bufferTokens > 0 && bufferTokens + unitTokens > childMaxTokens) {
+                normalized.add(buffer.toString().trim());
+                buffer.setLength(0);
+                bufferTokens = 0;
+            }
+            if (buffer.length() > 0) {
+                buffer.append(' ');
+            }
+            buffer.append(unit.trim());
+            bufferTokens += unitTokens;
+        }
+
+        if (!buffer.isEmpty()) {
+            normalized.add(buffer.toString().trim());
+        }
+        if (normalized.isEmpty()) {
+            return hardSplitByTokenBudget(paragraph, childMaxTokens);
+        }
+        return normalized;
+    }
+
+    private static List<String> splitToSentenceLikeUnits(String text) {
+        String[] coarse = text.split("(?<=[。！？；.!?;])\\s+|\\n+");
+        List<String> units = new ArrayList<>();
+        for (String item : coarse) {
+            String normalized = item == null ? "" : item.trim();
+            if (!normalized.isBlank()) {
+                units.add(normalized);
+            }
+        }
+        if (!units.isEmpty()) {
+            return units;
+        }
+        List<String> fallback = new ArrayList<>();
+        for (String part : text.split("\\s+")) {
+            if (!part.isBlank()) {
+                fallback.add(part.trim());
+            }
+        }
+        return fallback;
+    }
+
+    private static List<ReportChunkSlice> normalizeChildSliceSize(List<ReportChunkSlice> slices, ChunkingOptions options) {
+        List<ReportChunkSlice> normalized = new ArrayList<>();
+        for (ReportChunkSlice slice : slices) {
+            if (slice.tokenCount() <= options.childMaxTokens()) {
+                normalized.add(new ReportChunkSlice(
+                        slice.chunkType(),
+                        slice.parentIndex(),
+                        normalized.size(),
+                        slice.sectionPath(),
+                        slice.text(),
+                        slice.tokenCount()
+                ));
+                continue;
+            }
+            String body = stripSectionPrefix(slice.text());
+            int sectionPrefixTokens = estimateTokens(formatChunkText(slice.sectionPath(), ""));
+            int bodyTokenBudget = Math.max(1, options.childMaxTokens() - sectionPrefixTokens);
+            List<String> parts = splitOversizedParagraph(body, bodyTokenBudget);
+            for (String part : parts) {
+                String text = formatChunkText(slice.sectionPath(), part);
+                normalized.add(new ReportChunkSlice(
+                        "CHILD",
+                        slice.parentIndex(),
+                        normalized.size(),
+                        slice.sectionPath(),
+                        text,
+                        estimateTokens(text)
+                ));
+            }
+        }
+        return normalized;
+    }
+
+    private static List<String> hardSplitByTokenBudget(String text, int tokenBudget) {
+        List<String> parts = new ArrayList<>();
+        if (text == null || text.isBlank()) {
+            return parts;
+        }
+        String normalized = text.trim();
+        StringBuilder buffer = new StringBuilder();
+        for (int i = 0; i < normalized.length(); i++) {
+            buffer.append(normalized.charAt(i));
+            if (estimateTokens(buffer.toString()) > tokenBudget) {
+                int lastIndex = buffer.length() - 1;
+                String prefix = buffer.substring(0, lastIndex).trim();
+                if (!prefix.isBlank()) {
+                    parts.add(prefix);
+                }
+                buffer.setLength(0);
+                buffer.append(normalized.charAt(i));
+            }
+        }
+        String tail = buffer.toString().trim();
+        if (!tail.isBlank()) {
+            parts.add(tail);
+        }
+        return parts;
+    }
+
+    private static String stripSectionPrefix(String text) {
+        int separatorIndex = text.indexOf("\n\n");
+        if (separatorIndex < 0) {
+            return text;
+        }
+        String prefix = text.substring(0, separatorIndex).trim();
+        if (prefix.startsWith("Section:")) {
+            return text.substring(separatorIndex + 2).trim();
+        }
+        return text;
     }
 
     private static String resolveSegmentSectionPath(List<ParagraphAtom> atoms, SemanticSegment segment) {
