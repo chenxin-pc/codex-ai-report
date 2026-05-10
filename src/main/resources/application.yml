@@ -1,0 +1,29 @@
+spring:
+  application:
+    name: codex-ai-report
+  ai:
+    vectorstore:
+      # Keep startup-first by default. Set to "milvus" when you want to enable Milvus vector store.
+      type: ${VECTOR_STORE_TYPE:none}
+      milvus:
+        # Placeholder config for Milvus integration. Fill these values for real connection.
+        host: ${MILVUS_HOST:localhost}
+        port: ${MILVUS_PORT:19530}
+        database-name: ${MILVUS_DATABASE:default}
+        collection-name: ${MILVUS_COLLECTION:documents}
+        embedding-dimension: ${MILVUS_DIMENSION:1536}
+        index-type: ${MILVUS_INDEX_TYPE:IVF_FLAT}
+        metric-type: ${MILVUS_METRIC_TYPE:COSINE}
+        initialize-schema: ${MILVUS_INIT_SCHEMA:false}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: always
+
+server:
+  port: ${SERVER_PORT:8080}

@@ -1,0 +1,16 @@
+spring:
+  config:
+    activate:
+      on-profile: dev
+  ai:
+    vectorstore:
+      type: ${VECTOR_STORE_TYPE:none}
+      milvus:
+        host: localhost
+        port: 19530
+        database-name: default
+        collection-name: documents
+        embedding-dimension: 1536
+        index-type: IVF_FLAT
+        metric-type: COSINE
+        initialize-schema: false
