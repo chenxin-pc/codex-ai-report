@@ -2,9 +2,11 @@ package com.example.aimilvusweb;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.ActiveProfiles;
 
 @SpringBootTest
-class AiMilvusWebApplicationTests {
+@ActiveProfiles("test")
+class CodexAiReportApplicationTests {
 
     @Test
     void contextLoads() {

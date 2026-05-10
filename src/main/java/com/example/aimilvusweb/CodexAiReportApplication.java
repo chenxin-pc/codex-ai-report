@@ -4,9 +4,9 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
 @SpringBootApplication
-public class AiMilvusWebApplication {
+public class CodexAiReportApplication {
 
     public static void main(String[] args) {
-        SpringApplication.run(AiMilvusWebApplication.class, args);
+        SpringApplication.run(CodexAiReportApplication.class, args);
     }
 }

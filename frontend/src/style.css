@@ -1,0 +1,73 @@
+:root {
+  font-family: "Noto Sans SC", "PingFang SC", sans-serif;
+  color: #1a1f36;
+  background: linear-gradient(140deg, #f8fafc, #eef4ff);
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; }
+
+.container {
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 24px 16px 40px;
+}
+
+.card {
+  background: #fff;
+  border-radius: 16px;
+  padding: 16px;
+  box-shadow: 0 8px 22px rgba(31, 60, 136, 0.1);
+  margin-bottom: 16px;
+}
+
+input, textarea, button {
+  font: inherit;
+}
+
+input, textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #dbe3f3;
+  border-radius: 10px;
+}
+
+button {
+  background: #2659e0;
+  color: white;
+  border: none;
+  border-radius: 10px;
+  padding: 10px 14px;
+  cursor: pointer;
+}
+
+button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+
+h1, h2, h3 {
+  margin-top: 0;
+}
+
+.top-item {
+  border: 1px solid #e5ebf8;
+  border-radius: 10px;
+  padding: 10px;
+}
+
+.meta {
+  color: #54627a;
+  font-size: 13px;
+}
+
+pre {
+  white-space: pre-wrap;
+  margin: 8px 0;
+}

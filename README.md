@@ -1,42 +1,100 @@
 # codex-ai-report
 
-Spring Boot 3 + Spring AI + Milvus minimal web starter project.
+基于 `Java 17 + Spring Boot + Spring AI + Milvus + MySQL + Redis + 通义千问` 的研报推荐系统 V1。
 
-## Requirements
+## 核心能力
 
-- Java 17
-- Maven 3.9+
+- `POST /api/reports/upload`：上传 PDF，自动完成解析、语义切片、MySQL 元数据落库、Milvus 向量入库。
+- `POST /api/reports/recommend`：基于 Milvus 检索 Top5，并调用通义千问输出结构化推荐 JSON。
+- 推荐结果增加 Redis 缓存（默认 30 分钟）。
+- 持久层框架使用 MyBatis。
 
-## Run
+## 本地一键基础设施（Milvus + MySQL）
+
+项目已提供 `docker-compose.yml`，包含：`etcd`、`minio`、`milvus`、`mysql`。
 
 ```bash
+docker compose up -d
+```
+
+查看状态：
+
+```bash
+docker compose ps
+```
+
+停止并保留数据卷：
+
+```bash
+docker compose down
+```
+
+## 应用环境变量
+
+复制模板：
+
+```bash
+cp .env.example .env
+```
+
+你当前给定的连接参数：
+
+- MySQL: `localhost:3306`，`root/123456`
+- Redis: `localhost:6379`，密码 `123456`
+- Milvus: `localhost:19530`
+
+你需要至少确认：
+
+- `DASHSCOPE_API_KEY`
+- `VECTOR_STORE_TYPE=milvus`
+- `MILVUS_HOST=localhost`
+- `MILVUS_PORT=19530`
+- `MYSQL_*`
+- `REDIS_*`
+
+## 启动后端
+
+```bash
+set -a
+source .env
+set +a
 mvn spring-boot:run
 ```
 
-## Build
+健康检查：
+
+- `GET http://localhost:8080/api/ping`
+- `GET http://localhost:8080/actuator/health`
+
+## 启动前端
 
 ```bash
-mvn -q -DskipTests package
+cd frontend
+npm install
+npm run dev
 ```
 
-## Verify
+默认前端地址：`http://localhost:5173`
 
-- Ping endpoint: `GET http://localhost:8080/api/ping` -> `pong`
-- Health endpoint: `GET http://localhost:8080/actuator/health`
+## API 示例
 
-## Milvus config
+### 上传研报
 
-Configure via environment variables or `application-dev.yml`:
+```bash
+curl -X POST http://localhost:8080/api/reports/upload \
+  -F "file=@/path/to/report.pdf" \
+  -F "title=某行业深度报告" \
+  -F "source=券商研报" \
+  -F "institution=XX证券" \
+  -F "publishDate=2026-05-10"
+```
 
-- `VECTOR_STORE_TYPE` (default: `none`, set to `milvus` to enable Milvus vector store)
-- `MILVUS_HOST` (default: `localhost`)
-- `MILVUS_PORT` (default: `19530`)
-- `MILVUS_DATABASE` (default: `default`)
-- `MILVUS_COLLECTION` (default: `documents`)
-- `MILVUS_DIMENSION` (default: `1536`)
-- `MILVUS_INDEX_TYPE` (default: `IVF_FLAT`)
-- `MILVUS_METRIC_TYPE` (default: `COSINE`)
-- `MILVUS_INIT_SCHEMA` (default: `false`)
+### 检索推荐
 
-Current setup is startup-first: app starts by default without a live Milvus.
-When you want to connect Milvus, set `VECTOR_STORE_TYPE=milvus` and fill Milvus host/port settings.
+```bash
+curl -X POST http://localhost:8080/api/reports/recommend \
+  -H "Content-Type: application/json" \
+  -d '{"query":"AI 算力产业链未来一年景气度如何？"}'
+```
+
+返回字段包含：`query`、`top5[]`、`analysis`、`recommendation`、`risks[]`、`citations[]`。

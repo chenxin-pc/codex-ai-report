@@ -1,20 +1,52 @@
 spring:
   application:
     name: codex-ai-report
+  datasource:
+    url: ${MYSQL_URL:jdbc:mysql://localhost:3306/ai_report?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai}
+    username: ${MYSQL_USERNAME:root}
+    password: ${MYSQL_PASSWORD:123456}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:123456}
+      timeout: 5s
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath:schema.sql
+  servlet:
+    multipart:
+      max-file-size: 30MB
+      max-request-size: 30MB
   ai:
+    openai:
+      api-key: ${DASHSCOPE_API_KEY:}
+      base-url: ${DASHSCOPE_BASE_URL:https://dashscope.aliyuncs.com/compatible-mode}
+      chat:
+        options:
+          model: ${QWEN_CHAT_MODEL:qwen-plus}
+      embedding:
+        options:
+          model: ${QWEN_EMBEDDING_MODEL:text-embedding-v3}
     vectorstore:
-      # Keep startup-first by default. Set to "milvus" when you want to enable Milvus vector store.
       type: ${VECTOR_STORE_TYPE:none}
       milvus:
-        # Placeholder config for Milvus integration. Fill these values for real connection.
         host: ${MILVUS_HOST:localhost}
         port: ${MILVUS_PORT:19530}
         database-name: ${MILVUS_DATABASE:default}
-        collection-name: ${MILVUS_COLLECTION:documents}
-        embedding-dimension: ${MILVUS_DIMENSION:1536}
+        collection-name: ${MILVUS_COLLECTION:report_chunks}
+        embedding-dimension: ${MILVUS_DIMENSION:1024}
         index-type: ${MILVUS_INDEX_TYPE:IVF_FLAT}
         metric-type: ${MILVUS_METRIC_TYPE:COSINE}
-        initialize-schema: ${MILVUS_INIT_SCHEMA:false}
+        initialize-schema: ${MILVUS_INIT_SCHEMA:true}
+
+mybatis:
+  mapper-locations: classpath:/mapper/*.xml
+  type-aliases-package: com.example.aimilvusweb.entity
+  configuration:
+    map-underscore-to-camel-case: true
 
 management:
   endpoints:
