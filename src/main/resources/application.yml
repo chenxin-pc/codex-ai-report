@@ -60,3 +60,9 @@ management:
 
 server:
   port: ${SERVER_PORT:8080}
+
+app:
+  ocr:
+    endpoint: ${OCR_ENDPOINT:}
+    api-key: ${OCR_API_KEY:}
+    file-field: ${OCR_FILE_FIELD:file}

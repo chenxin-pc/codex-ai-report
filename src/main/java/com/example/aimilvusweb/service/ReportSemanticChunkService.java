@@ -9,6 +9,8 @@ import com.example.aimilvusweb.common.util.SemanticChunkUtils.ReportSemanticChun
 import com.example.aimilvusweb.common.util.SemanticChunkUtils.SemanticSegment;
 import com.example.aimilvusweb.dto.LlmChunkPlanRespDTO;
 import com.example.aimilvusweb.dto.LlmChunkSegmentRespDTO;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -20,6 +22,7 @@ import java.util.Map;
 @Service
 public class ReportSemanticChunkService {
 
+    private static final Logger log = LoggerFactory.getLogger(ReportSemanticChunkService.class);
     private static final int LLM_BATCH_PARAGRAPHS = 60;
     private static final int MAX_SEGMENT_TOKENS = 6000;
     private static final double MIN_CONFIDENCE = 0.35D;
@@ -35,18 +38,18 @@ public class ReportSemanticChunkService {
     public ReportSemanticChunks chunk(String parsedText) {
         List<ParagraphAtom> atoms = SemanticChunkUtils.atomizeReportParagraphs(parsedText);
         if (atoms.isEmpty()) {
-            return SemanticChunkUtils.chunkReport(parsedText);
+            return new ReportSemanticChunks(List.of(), List.of());
         }
 
         List<SemanticSegment> plannedSegments = planSemanticSegments(atoms);
         List<SemanticSegment> repairedSegments = validateAndRepairSegments(atoms, plannedSegments);
         if (repairedSegments.isEmpty()) {
-            return SemanticChunkUtils.chunkReport(parsedText);
+            throw new IllegalStateException("LLM semantic chunk plan produced no valid segments");
         }
 
         ReportSemanticChunks chunks = SemanticChunkUtils.chunkReportBySegments(atoms, repairedSegments);
         if (chunks.isEmpty()) {
-            return SemanticChunkUtils.chunkReport(parsedText);
+            throw new IllegalStateException("No chunks generated from LLM semantic segments");
         }
         return chunks;
     }
@@ -58,7 +61,7 @@ public class ReportSemanticChunkService {
             List<ParagraphAtom> batch = atoms.subList(start, end);
             LlmChunkPlanRespDTO plan = requestChunkPlan(batch);
             if (plan == null || plan.segments() == null || plan.segments().isEmpty()) {
-                return List.of();
+                throw new IllegalStateException("LLM semantic chunk plan is empty for paragraph batch " + (start + 1) + "-" + end);
             }
             for (LlmChunkSegmentRespDTO segment : plan.segments()) {
                 if (segment.startParagraphId() != null && segment.endParagraphId() != null) {
@@ -82,7 +85,8 @@ public class ReportSemanticChunkService {
                     Map.of("paragraphs", toParagraphJson(atoms)));
             return qwenClient.chatForEntity(systemPrompt, userPrompt, LlmChunkPlanRespDTO.class);
         } catch (Exception e) {
-            return null;
+            log.warn("LLM semantic chunk plan request failed", e);
+            throw new IllegalStateException("LLM semantic chunk plan request failed: " + e.getMessage(), e);
         }
     }
 

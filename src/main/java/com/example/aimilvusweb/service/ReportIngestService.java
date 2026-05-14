@@ -1,6 +1,5 @@
 package com.example.aimilvusweb.service;
 
-import com.example.aimilvusweb.common.util.PdfUtils;
 import com.example.aimilvusweb.common.util.SemanticChunkUtils.ReportChunkSlice;
 import com.example.aimilvusweb.common.util.SemanticChunkUtils.ReportSemanticChunks;
 import com.example.aimilvusweb.dto.ReportUploadRespDTO;
@@ -36,15 +35,18 @@ public class ReportIngestService {
     private final ReportDocumentMapper reportDocumentMapper;
     private final ReportChunkMapper reportChunkMapper;
     private final ObjectProvider<VectorStore> vectorStoreProvider;
+    private final ReportOcrParseService reportOcrParseService;
     private final ReportSemanticChunkService reportSemanticChunkService;
 
     public ReportIngestService(ReportDocumentMapper reportDocumentMapper,
                                ReportChunkMapper reportChunkMapper,
                                ObjectProvider<VectorStore> vectorStoreProvider,
+                               ReportOcrParseService reportOcrParseService,
                                ReportSemanticChunkService reportSemanticChunkService) {
         this.reportDocumentMapper = reportDocumentMapper;
         this.reportChunkMapper = reportChunkMapper;
         this.vectorStoreProvider = vectorStoreProvider;
+        this.reportOcrParseService = reportOcrParseService;
         this.reportSemanticChunkService = reportSemanticChunkService;
     }
 
@@ -69,15 +71,15 @@ public class ReportIngestService {
 
     private void validateFile(MultipartFile file) {
         if (file == null || file.isEmpty()) {
-            throw new IllegalArgumentException("PDF file is required");
+            throw new IllegalArgumentException("Report file is required");
         }
     }
 
     private ReportSemanticChunks parseAndChunk(MultipartFile file) {
-        String parsedText = PdfUtils.extractText(file);
-        ReportSemanticChunks chunks = reportSemanticChunkService.chunk(parsedText);
+        String ocrText = reportOcrParseService.parse(file);
+        ReportSemanticChunks chunks = reportSemanticChunkService.chunk(ocrText);
         if (chunks.isEmpty()) {
-            throw new IllegalArgumentException("No valid chunks generated from PDF");
+            throw new IllegalArgumentException("No valid chunks generated from OCR text");
         }
         return chunks;
     }
