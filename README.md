@@ -9,9 +9,10 @@
 - 推荐结果增加 Redis 缓存（默认 30 分钟）。
 - 持久层框架使用 MyBatis。
 
-## 本地一键基础设施（Milvus + MySQL）
+## 本地一键基础设施（Milvus + MySQL + Redis）
 
-项目已提供 `docker-compose.yml`，包含：`etcd`、`minio`、`milvus`、`mysql`。
+项目已提供 `docker-compose.yml`，包含：`milvus-etcd`、`milvus-minio`、`milvus-standalone`、`mysql8`、`redis`。
+后续本项目统一使用这份 Compose 配置启动基础设施，固定镜像版本、容器名和端口，避免与手动启动或其他 Compose 文件产生差异。
 
 ```bash
 docker compose up -d
@@ -49,7 +50,7 @@ cp .env.example .env
 - `VECTOR_STORE_TYPE=milvus`
 - `MILVUS_HOST=localhost`
 - `MILVUS_PORT=19530`
-- `MYSQL_*`
+- `MYSQL_*`（默认数据库：`ai_report_rag`）
 - `REDIS_*`
 
 ## 启动后端
