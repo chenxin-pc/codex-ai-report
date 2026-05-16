@@ -81,5 +81,8 @@ class SemanticChunkerTests {
         Assertions.assertEquals(3, chunks.parents().get(0).startPageNumber());
         Assertions.assertEquals(4, chunks.parents().get(0).endPageNumber());
         Assertions.assertEquals(3, chunks.children().get(0).startPageNumber());
+        Assertions.assertEquals("INVESTMENT_VIEW", chunks.parents().get(0).segmentType());
+        Assertions.assertEquals("INVESTMENT_VIEW", chunks.children().get(0).segmentType());
+        Assertions.assertFalse(chunks.children().get(0).text().contains("[Page"));
     }
 }

@@ -1,5 +1,6 @@
 package com.example.aimilvusweb.service;
 
+import com.alibaba.fastjson2.JSON;
 import com.example.aimilvusweb.common.util.SemanticChunkUtils.ReportChunkSlice;
 import com.example.aimilvusweb.common.util.SemanticChunkUtils.ReportSemanticChunks;
 import com.example.aimilvusweb.common.util.SemanticChunkUtils.ParagraphAtom;
@@ -38,7 +39,15 @@ import java.util.stream.Collectors;
 public class ReportIngestService {
     private static final int EMBEDDING_BATCH_SIZE = 10;
     private static final Set<String> EXCLUDED_SECTION_KEYWORDS = Set.of(
-            "免责声明", "免责条款", "法律声明", "分析师承诺", "评级说明", "投资评级说明", "风险披露"
+            "免责声明", "免责条款", "法律声明", "分析师承诺", "评级说明", "投资评级说明", "风险披露",
+            "分析师声明", "研究所联系方式", "联系方式", "券商简介", "机构介绍", "中邮证券研究所"
+    );
+    private static final Set<String> EXCLUDED_SEGMENT_TYPES = Set.of(
+            "DISCLAIMER", "ANALYST_DECLARATION", "BROKER_PROFILE", "CONTACT_INFO", "LAYOUT_NOISE"
+    );
+    private static final Set<String> FINANCIAL_TABLE_KEYWORDS = Set.of(
+            "盈利预测", "财务指标", "财务报表", "主要财务比率", "利润表", "资产负债表", "现金流量表",
+            "营业收入", "归母净利润", "每股收益", "EPS", "P/E", "P/B", "市盈率", "市净率"
     );
 
     private final ReportDocumentMapper reportDocumentMapper;
@@ -292,6 +301,10 @@ public class ReportIngestService {
     }
 
     private String resolveFilterReason(ReportChunkSlice slice) {
+        String segmentType = normalizedSegmentType(slice);
+        if (EXCLUDED_SEGMENT_TYPES.contains(segmentType)) {
+            return "EXCLUDED_SEGMENT_TYPE:" + segmentType;
+        }
         String sectionPath = slice.sectionPath() == null ? "" : slice.sectionPath().trim();
         if (!sectionPath.isBlank()) {
             for (String keyword : EXCLUDED_SECTION_KEYWORDS) {
@@ -308,6 +321,9 @@ public class ReportIngestService {
             return "LOW_TOKEN_COUNT:" + slice.tokenCount();
         }
         String text = slice.text() == null ? "" : slice.text();
+        if (isFinancialTableCandidate(slice)) {
+            return null;
+        }
         String normalized = text.replaceAll("\\s+", "");
         if (normalized.length() < 60) {
             return "SHORT_TEXT:" + normalized.length();
@@ -337,13 +353,37 @@ public class ReportIngestService {
     }
 
     private String buildChunkDiagnostics(ReportChunkSlice slice, String filterReason) {
-        return "{"
-                + "\"startParagraphId\":" + slice.startParagraphId()
-                + ",\"endParagraphId\":" + slice.endParagraphId()
-                + ",\"startPageNumber\":" + slice.startPageNumber()
-                + ",\"endPageNumber\":" + slice.endPageNumber()
-                + ",\"filterReason\":\"" + (filterReason == null ? "" : filterReason) + "\""
-                + "}";
+        Map<String, Object> diagnostics = new HashMap<>();
+        diagnostics.put("startParagraphId", slice.startParagraphId());
+        diagnostics.put("endParagraphId", slice.endParagraphId());
+        diagnostics.put("startPageNumber", slice.startPageNumber());
+        diagnostics.put("endPageNumber", slice.endPageNumber());
+        diagnostics.put("segmentType", normalizedSegmentType(slice));
+        diagnostics.put("financialTableCandidate", isFinancialTableCandidate(slice));
+        diagnostics.put("filterReason", filterReason == null ? "" : filterReason);
+        return JSON.toJSONString(diagnostics);
+    }
+
+    private String normalizedSegmentType(ReportChunkSlice slice) {
+        String segmentType = slice.segmentType();
+        if (segmentType == null || segmentType.isBlank()) {
+            return "OTHER";
+        }
+        return segmentType.trim().toUpperCase();
+    }
+
+    private boolean isFinancialTableCandidate(ReportChunkSlice slice) {
+        String segmentType = normalizedSegmentType(slice);
+        if ("FINANCIAL_TABLE".equals(segmentType) || "FINANCIAL_FORECAST".equals(segmentType)) {
+            return true;
+        }
+        String haystack = ((slice.sectionPath() == null ? "" : slice.sectionPath()) + "\n" + (slice.text() == null ? "" : slice.text())).toUpperCase();
+        for (String keyword : FINANCIAL_TABLE_KEYWORDS) {
+            if (haystack.contains(keyword.toUpperCase())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private ReportUploadRespDTO buildUploadResp(ReportDocument report, int chunkCount) {

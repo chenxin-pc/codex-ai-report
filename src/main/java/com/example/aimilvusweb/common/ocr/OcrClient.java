@@ -138,12 +138,23 @@ public class OcrClient {
                 "input", Map.of(
                         "messages", List.of(Map.of(
                                 "role", "user",
-                                "content", List.of(Map.of(
-                                        "image", imageDataUrl,
-                                        "min_pixels", 3072,
-                                        "max_pixels", 8388608,
-                                        "enable_rotate", false
-                                ))
+                                "content", List.of(
+                                        Map.of("text", """
+                                                请识别这页研报内容并只输出纯文本。
+                                                要求：
+                                                1. 不要输出 Markdown 代码块、LaTeX 命令或排版标签。
+                                                2. 不要输出 ```、\\begin、\\end、\\section、\\subsection、\\textbf 等标记。
+                                                3. 不要输出页眉、页脚、页码、水印、券商免责声明、投资评级说明、分析师声明、联系方式。
+                                                4. 表格请转为可读的纯文本行，保留指标名称、年份、单位和数值。
+                                                5. 不要总结、改写或补充内容，只做 OCR 识别和格式清洗。
+                                                """),
+                                        Map.of(
+                                                "image", imageDataUrl,
+                                                "min_pixels", 3072,
+                                                "max_pixels", 8388608,
+                                                "enable_rotate", false
+                                        )
+                                )
                         ))
                 ),
                 "parameters", Map.of(

@@ -41,7 +41,8 @@ public final class SemanticChunkUtils {
             int startParagraphId,
             int endParagraphId,
             int startPageNumber,
-            int endPageNumber
+            int endPageNumber,
+            String segmentType
     ) {
         public ReportChunkSlice(String chunkType,
                                 int parentIndex,
@@ -49,7 +50,7 @@ public final class SemanticChunkUtils {
                                 String sectionPath,
                                 String text,
                                 int tokenCount) {
-            this(chunkType, parentIndex, chunkIndexInParent, sectionPath, text, tokenCount, 0, 0, 0, 0);
+            this(chunkType, parentIndex, chunkIndexInParent, sectionPath, text, tokenCount, 0, 0, 0, 0, "OTHER");
         }
     }
 
@@ -93,7 +94,7 @@ public final class SemanticChunkUtils {
             ParentDraft parentDraft = parentDrafts.get(parentIndex);
             String parentText = formatChunkText(parentDraft.sectionPath(), parentDraft.text());
             parents.add(new ReportChunkSlice("PARENT", parentIndex, 0, parentDraft.sectionPath(), parentText, estimateTokens(parentText),
-                    parentDraft.startParagraphId(), parentDraft.endParagraphId(), parentDraft.startPageNumber(), parentDraft.endPageNumber()));
+                    parentDraft.startParagraphId(), parentDraft.endParagraphId(), parentDraft.startPageNumber(), parentDraft.endPageNumber(), parentDraft.segmentType()));
             children.addAll(buildChildSlices(parentDraft, parentIndex, options));
         }
 
@@ -137,7 +138,8 @@ public final class SemanticChunkUtils {
                         segment.startParagraphId(),
                         segment.endParagraphId(),
                         resolveSegmentStartPage(atoms, segment),
-                        resolveSegmentEndPage(atoms, segment)
+                        resolveSegmentEndPage(atoms, segment),
+                        normalizeSegmentType(segment.segmentType())
                 ));
             }
         }
@@ -148,7 +150,7 @@ public final class SemanticChunkUtils {
             ParentDraft parentDraft = parentDrafts.get(parentIndex);
             String parentText = formatChunkText(parentDraft.sectionPath(), parentDraft.text());
             parents.add(new ReportChunkSlice("PARENT", parentIndex, 0, parentDraft.sectionPath(), parentText, estimateTokens(parentText),
-                    parentDraft.startParagraphId(), parentDraft.endParagraphId(), parentDraft.startPageNumber(), parentDraft.endPageNumber()));
+                    parentDraft.startParagraphId(), parentDraft.endParagraphId(), parentDraft.startPageNumber(), parentDraft.endPageNumber(), parentDraft.segmentType()));
             children.addAll(buildChildSlices(parentDraft, parentIndex, options));
         }
         return new ReportSemanticChunks(parents, children);
@@ -268,7 +270,7 @@ public final class SemanticChunkUtils {
             boolean exceedsHardMax = currentTokens > 0 && currentTokens + paragraphTokens > options.parentMaxTokens();
             boolean reachedTargetAtSemanticBoundary = currentTokens >= options.parentTargetTokens() && startsNewAnalyticalUnit(paragraph.text());
             if ((exceedsHardMax || sectionChanged || reachedTargetAtSemanticBoundary) && !buffer.isEmpty()) {
-                parents.add(new ParentDraft(currentSection, List.copyOf(buffer), 0, 0, 0, 0));
+                parents.add(new ParentDraft(currentSection, List.copyOf(buffer), 0, 0, 0, 0, "OTHER"));
                 buffer.clear();
                 currentTokens = 0;
             }
@@ -278,7 +280,7 @@ public final class SemanticChunkUtils {
         }
 
         if (!buffer.isEmpty()) {
-            parents.add(new ParentDraft(currentSection, List.copyOf(buffer), 0, 0, 0, 0));
+            parents.add(new ParentDraft(currentSection, List.copyOf(buffer), 0, 0, 0, 0, "OTHER"));
         }
         return parents;
     }
@@ -323,7 +325,7 @@ public final class SemanticChunkUtils {
         String overlap = tailByTokens(previousText, options.overlapTokens());
         String chunkText = formatChunkText(parentDraft.sectionPath(), overlap.isBlank() ? text : overlap + "\n\n" + text);
         slices.add(new ReportChunkSlice("CHILD", parentIndex, slices.size(), parentDraft.sectionPath(), chunkText, estimateTokens(chunkText),
-                parentDraft.startParagraphId(), parentDraft.endParagraphId(), parentDraft.startPageNumber(), parentDraft.endPageNumber()));
+                parentDraft.startParagraphId(), parentDraft.endParagraphId(), parentDraft.startPageNumber(), parentDraft.endPageNumber(), parentDraft.segmentType()));
         return text;
     }
 
@@ -441,7 +443,8 @@ public final class SemanticChunkUtils {
                         slice.startParagraphId(),
                         slice.endParagraphId(),
                         slice.startPageNumber(),
-                        slice.endPageNumber()
+                        slice.endPageNumber(),
+                        slice.segmentType()
                 ));
                 continue;
             }
@@ -461,7 +464,8 @@ public final class SemanticChunkUtils {
                         slice.startParagraphId(),
                         slice.endParagraphId(),
                         slice.startPageNumber(),
-                        slice.endPageNumber()
+                        slice.endPageNumber(),
+                        slice.segmentType()
                 ));
             }
         }
@@ -536,6 +540,13 @@ public final class SemanticChunkUtils {
                 .orElse(0);
     }
 
+    private static String normalizeSegmentType(String segmentType) {
+        if (segmentType == null || segmentType.isBlank()) {
+            return "OTHER";
+        }
+        return segmentType.trim().toUpperCase();
+    }
+
     private record SectionParagraph(String sectionPath, String text, int pageNumber) {
     }
 
@@ -544,7 +555,8 @@ public final class SemanticChunkUtils {
                                int startParagraphId,
                                int endParagraphId,
                                int startPageNumber,
-                               int endPageNumber) {
+                               int endPageNumber,
+                               String segmentType) {
         String text() {
             return String.join("\n\n", paragraphs);
         }

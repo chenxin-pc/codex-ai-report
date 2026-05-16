@@ -33,7 +33,7 @@ class ReportOcrParseServiceTests {
 
         String text = service.parse(file);
 
-        Assertions.assertTrue(text.contains("[Page 1]"));
+        Assertions.assertFalse(text.contains("[Page 1]"));
         Assertions.assertTrue(text.contains("投资要点"));
         Assertions.assertTrue(text.contains("我们认为行业需求有望继续改善。"));
         Assertions.assertTrue(text.contains("风险提示"));
@@ -99,5 +99,42 @@ class ReportOcrParseServiceTests {
         Assertions.assertTrue(text.contains("我们认为行业景气度仍处于上行阶段。"));
         Assertions.assertTrue(text.contains("从供给端看"));
         Assertions.assertTrue(text.contains("从需求端看"));
+    }
+
+    @Test
+    void shouldCleanMarkdownLatexMarkupAndTableSeparators() {
+        OcrClient ocrClient = mock(OcrClient.class);
+        ReportOcrParseService service = new ReportOcrParseService(ocrClient);
+
+        ReportOcrParseService.NormalizeResult result = service.normalizeOcrTextWithDiagnostics("""
+                ```latex
+                \\begin{flushright}
+                \\section*{铜牛信息(300895)}
+                \\subsection*{投资要点}
+                \\end{flushright}
+                \\begin{itemize}
+                \\item \\textbf{投资建议}
+                维持“买入”评级。
+                \\end{itemize}
+                \\begin{tabular}{lcc}
+                \\hline
+                项目 & 2026E & 2027E \\\\
+                营业收入 & 338 & 447 \\\\
+                EPS & -0.06 & 0.04 \\\\
+                \\end{tabular}
+                ```
+                """);
+
+        Assertions.assertFalse(result.text().contains("```"));
+        Assertions.assertFalse(result.text().contains("\\begin"));
+        Assertions.assertFalse(result.text().contains("\\section"));
+        Assertions.assertFalse(result.text().contains("\\textbf"));
+        Assertions.assertTrue(result.text().contains("铜牛信息(300895)"));
+        Assertions.assertTrue(result.text().contains("投资要点"));
+        Assertions.assertTrue(result.text().contains("投资建议"));
+        Assertions.assertTrue(result.text().contains("项目 | 2026E | 2027E"));
+        Assertions.assertTrue(result.text().contains("营业收入 | 338 | 447"));
+        Assertions.assertTrue(result.diagnostics().contains("markupCleaned"));
+        Assertions.assertTrue(result.diagnostics().contains("latexSection"));
     }
 }

@@ -457,11 +457,12 @@ def mysql_command(config: dict[str, Any], sql: str) -> list[str]:
     db_name = database.get("database", "ai_report_rag")
     if mysql_container:
         return [
-            "docker", "exec", str(mysql_container), "mysql", f"-u{username}", f"-p{password}",
+            "docker", "exec", str(mysql_container), "mysql", "--default-character-set=utf8mb4", f"-u{username}", f"-p{password}",
             "--batch", "--raw", "--skip-column-names", db_name, "-e", sql,
         ]
     return [
         database.get("mysql_command", "mysql"),
+        "--default-character-set=utf8mb4",
         "-h", str(database.get("host", "localhost")),
         "-P", str(database.get("port", 3306)),
         f"-u{username}",
@@ -558,6 +559,24 @@ ORDER BY report_id, page_number;
 """.strip()
 
 
+def paragraph_atoms_sql(report_ids: list[int]) -> str:
+    return f"""
+SELECT JSON_OBJECT(
+    'reportId', report_id,
+    'paragraphId', paragraph_id,
+    'pageNumber', IFNULL(page_number, 0),
+    'sectionPath', IFNULL(section_path, ''),
+    'tokenCount', IFNULL(token_count, 0),
+    'diagnostics', IFNULL(diagnostics, ''),
+    'paragraphText', IFNULL(paragraph_text, ''),
+    'createdAt', DATE_FORMAT(created_at, '%Y-%m-%d %H:%i:%s')
+)
+FROM report_paragraph_atom
+WHERE report_id IN ({sql_in(report_ids)})
+ORDER BY report_id, paragraph_id;
+""".strip()
+
+
 def chunks_sql(report_ids: list[int]) -> str:
     return f"""
 SELECT JSON_OBJECT(
@@ -624,11 +643,12 @@ def normalize_rows(rows: list[dict[str, Any]], max_text_length: int) -> list[dic
 
 def query_quality_data(config: dict[str, Any], report_ids: list[int]) -> dict[str, list[dict[str, Any]]]:
     if not report_ids:
-        return {"reports": [], "ocr_pages": [], "chunks": [], "filtered_chunks": []}
+        return {"reports": [], "ocr_pages": [], "paragraph_atoms": [], "chunks": [], "filtered_chunks": []}
     max_text_length = int(config.get("output", {}).get("max_text_length", DEFAULT_MAX_TEXT_LENGTH))
     return {
         "reports": mysql_json_rows(config, reports_sql(report_ids)),
         "ocr_pages": normalize_rows(mysql_json_rows(config, ocr_pages_sql(report_ids)), max_text_length),
+        "paragraph_atoms": normalize_rows(mysql_json_rows(config, paragraph_atoms_sql(report_ids)), max_text_length),
         "chunks": normalize_rows(mysql_json_rows(config, chunks_sql(report_ids)), max_text_length),
         "filtered_chunks": normalize_rows(mysql_json_rows(config, filtered_chunks_sql(report_ids)), max_text_length),
     }
@@ -736,6 +756,7 @@ def build_quality_workbook(config: dict[str, Any], state: RunState, report_ids: 
         ["runId", state.run_id],
         ["reportCount", len(data["reports"])],
         ["ocrPageCount", len(data["ocr_pages"])],
+        ["paragraphAtomCount", len(data["paragraph_atoms"])],
         ["chunkCount", len(data["chunks"])],
         ["filteredChunkCount", len(data["filtered_chunks"])],
     ]
@@ -743,6 +764,7 @@ def build_quality_workbook(config: dict[str, Any], state: RunState, report_ids: 
     write_xlsx(output_path, [
         ("reports", rows_for_sheet(data["reports"], ["reportId", "title", "source", "institution", "publishDate", "createdAt"])),
         ("ocr_pages", rows_for_sheet(data["ocr_pages"], ["reportId", "pageNumber", "rawText", "cleanedText", "diagnostics", "createdAt"])),
+        ("paragraph_atoms", rows_for_sheet(data["paragraph_atoms"], ["reportId", "paragraphId", "pageNumber", "sectionPath", "tokenCount", "diagnostics", "paragraphText", "createdAt"])),
         ("chunks", rows_for_sheet(data["chunks"], ["reportId", "chunkUid", "parentChunkUid", "chunkType", "sectionPath", "tokenCount", "startPageNumber", "endPageNumber", "vectorStored", "chunkText"])),
         ("filtered_chunks", rows_for_sheet(data["filtered_chunks"], ["reportId", "chunkUid", "parentChunkUid", "chunkType", "sectionPath", "tokenCount", "filterReason", "diagnostics", "chunkText"])),
         ("summary", summary),

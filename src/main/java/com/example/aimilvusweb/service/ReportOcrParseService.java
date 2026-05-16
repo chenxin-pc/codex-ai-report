@@ -9,11 +9,22 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @Service
 public class ReportOcrParseService {
+    private static final Pattern MARKDOWN_FENCE = Pattern.compile("(?m)^\\s*```[A-Za-z0-9_-]*\\s*$");
+    private static final Pattern LATEX_SECTION = Pattern.compile("\\\\(?:sub)*section\\*?\\{([^{}]*)}");
+    private static final Pattern LATEX_TEXT_STYLE = Pattern.compile("\\\\(?:textbf|textit|emph|underline)\\{([^{}]*)}");
+    private static final Pattern LATEX_BEGIN_END = Pattern.compile("\\\\(?:begin|end)\\{[^{}]+}(?:\\{[^{}]*})?");
+    private static final Pattern LATEX_COMMAND_WITH_ARG = Pattern.compile("\\\\(?:vspace|hspace|multicolumn)\\*?(?:\\[[^\\]]*])?\\{[^{}]*}(?:\\{[^{}]*})?(?:\\{[^{}]*})?");
+    private static final Pattern LATEX_SIMPLE_COMMAND = Pattern.compile("\\\\(?:hline|hrule|noindent|centering|raggedleft|raggedright)\\b");
+    private static final Pattern LATEX_ITEM = Pattern.compile("\\\\item(?:\\s+)?");
+    private static final Pattern LATEX_ROW_SEPARATOR = Pattern.compile("\\\\\\\\");
 
     private final OcrClient ocrClient;
 
@@ -46,7 +57,7 @@ public class ReportOcrParseService {
                 NormalizeResult normalized = normalizeOcrTextWithDiagnostics(page.text());
                 rawPageTexts.add(page.text() == null ? "" : page.text());
                 if (!normalized.text().isBlank()) {
-                    cleanedPageTexts.add("[Page " + page.pageNumber() + "]\n\n" + normalized.text());
+                    cleanedPageTexts.add(normalized.text());
                 }
                 pages.add(new OcrPageResult(
                         page.pageNumber(),
@@ -72,6 +83,8 @@ public class ReportOcrParseService {
         if (normalized.isBlank()) {
             return new NormalizeResult("", JSON.toJSONString(Map.of("status", "blank")));
         }
+        MarkupCleanResult markupCleanResult = cleanMarkup(normalized);
+        normalized = markupCleanResult.text();
 
         List<String> paragraphs = new ArrayList<>();
         List<String> removedNoiseLines = new ArrayList<>();
@@ -99,11 +112,78 @@ public class ReportOcrParseService {
             }
         }
         flushParagraph(paragraphs, removedNoiseLines, paragraph);
-        String diagnostics = JSON.toJSONString(Map.of(
-                "removedNoiseLineCount", removedNoiseLines.size(),
-                "removedNoiseLines", removedNoiseLines
-        ));
+        Map<String, Object> diagnosticsMap = new LinkedHashMap<>();
+        diagnosticsMap.put("removedNoiseLineCount", removedNoiseLines.size());
+        diagnosticsMap.put("removedNoiseLines", removedNoiseLines);
+        diagnosticsMap.put("markupCleaned", markupCleanResult.cleaned());
+        diagnosticsMap.put("markupCleanCounts", markupCleanResult.counts());
+        String diagnostics = JSON.toJSONString(diagnosticsMap);
         return new NormalizeResult(String.join("\n\n", paragraphs), diagnostics);
+    }
+
+    private MarkupCleanResult cleanMarkup(String text) {
+        Map<String, Integer> counts = new LinkedHashMap<>();
+        String value = text;
+        value = replaceAndCount(value, MARKDOWN_FENCE, "", counts, "markdownFence");
+        value = unwrapAndCount(value, LATEX_SECTION, counts, "latexSection");
+        value = unwrapAndCount(value, LATEX_TEXT_STYLE, counts, "latexTextStyle");
+        value = replaceAndCount(value, LATEX_ITEM, "", counts, "latexItem");
+        value = replaceAndCount(value, LATEX_BEGIN_END, "\n", counts, "latexContainer");
+        value = replaceAndCount(value, LATEX_COMMAND_WITH_ARG, "", counts, "latexCommandWithArg");
+        value = replaceAndCount(value, LATEX_SIMPLE_COMMAND, "", counts, "latexSimpleCommand");
+        value = replaceAndCount(value, LATEX_ROW_SEPARATOR, "\n", counts, "latexRowSeparator");
+        value = value.replace("\\%", "%")
+                .replace("\\&", "&")
+                .replace("\\_", "_")
+                .replace("\\textbackslash", "\\");
+        if (value.contains("&")) {
+            counts.merge("tableCellSeparator", countOccurrences(value, "&"), Integer::sum);
+            value = value.replace("&", " | ");
+        }
+        value = value.replaceAll("[ \\t]+\\n", "\n")
+                .replaceAll("\\n[ \\t]+", "\n")
+                .replaceAll("\\n{3,}", "\n\n")
+                .trim();
+        return new MarkupCleanResult(value, counts.values().stream().mapToInt(Integer::intValue).sum() > 0, counts);
+    }
+
+    private String replaceAndCount(String text, Pattern pattern, String replacement, Map<String, Integer> counts, String key) {
+        Matcher matcher = pattern.matcher(text);
+        int count = 0;
+        while (matcher.find()) {
+            count++;
+        }
+        if (count == 0) {
+            return text;
+        }
+        counts.merge(key, count, Integer::sum);
+        return pattern.matcher(text).replaceAll(replacement);
+    }
+
+    private String unwrapAndCount(String text, Pattern pattern, Map<String, Integer> counts, String key) {
+        Matcher matcher = pattern.matcher(text);
+        StringBuilder builder = new StringBuilder();
+        int count = 0;
+        while (matcher.find()) {
+            count++;
+            matcher.appendReplacement(builder, Matcher.quoteReplacement(matcher.group(1)));
+        }
+        if (count == 0) {
+            return text;
+        }
+        matcher.appendTail(builder);
+        counts.merge(key, count, Integer::sum);
+        return builder.toString();
+    }
+
+    private int countOccurrences(String text, String value) {
+        int count = 0;
+        int index = 0;
+        while ((index = text.indexOf(value, index)) >= 0) {
+            count++;
+            index += value.length();
+        }
+        return count;
     }
 
     private void flushParagraph(List<String> paragraphs, List<String> removedNoiseLines, StringBuilder paragraph) {
@@ -226,6 +306,9 @@ public class ReportOcrParseService {
     }
 
     record NormalizeResult(String text, String diagnostics) {
+    }
+
+    record MarkupCleanResult(String text, boolean cleaned, Map<String, Integer> counts) {
     }
 
     public record OcrPageResult(

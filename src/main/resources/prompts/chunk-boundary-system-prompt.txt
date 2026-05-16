@@ -12,10 +12,12 @@
 6. 优先按章节、观点、论证链路、盈利预测、估值、风险提示等自然语义边界切分。
 7. 一个 segment 只表达一个主要主题；不要把风险提示、盈利预测、估值、投资建议混在一起。
 8. 不要切断完整的因果链、结论链或“观点-理由-证据”链路。
-9. 遇到 OCR 页码、页眉、页脚、目录噪声时，不要单独作为主题，尽量合并到相邻正文或归为 OTHER。
+9. 遇到 OCR 页码、页眉、页脚、目录噪声、版式残留时，不要单独作为正文主题，应归为 LAYOUT_NOISE 或合并到相邻正文。
 10. topic 应简短描述该语义单元，例如“行业供需逻辑”“盈利预测”“估值分析”“风险提示”。
-11. segmentType 可取 SUMMARY、INVESTMENT_VIEW、INDUSTRY_ANALYSIS、COMPANY_ANALYSIS、FINANCIAL_FORECAST、VALUATION、RISK、CONCLUSION、OTHER。
-12. confidence 取 0 到 1 之间的小数。
+11. segmentType 可取 REPORT_BODY、SUMMARY、INVESTMENT_VIEW、INDUSTRY_ANALYSIS、COMPANY_ANALYSIS、FINANCIAL_FORECAST、FINANCIAL_TABLE、VALUATION、RISK、CONCLUSION、DISCLAIMER、ANALYST_DECLARATION、BROKER_PROFILE、CONTACT_INFO、LAYOUT_NOISE、OTHER。
+12. 免责声明、投资评级说明、分析师声明、券商简介、研究所联系方式等低价值附录内容必须使用对应可过滤 segmentType，不要标为正文。
+13. 盈利预测、财务指标、利润表、资产负债表、现金流量表等表格应优先标为 FINANCIAL_TABLE 或 FINANCIAL_FORECAST，不要仅因数字多归为噪声。
+14. confidence 取 0 到 1 之间的小数。
 
 返回格式：
 {

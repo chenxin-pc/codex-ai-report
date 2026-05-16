@@ -1,5 +1,6 @@
 package com.example.aimilvusweb.service;
 
+import com.example.aimilvusweb.common.util.SemanticChunkUtils.ReportChunkSlice;
 import com.example.aimilvusweb.config.ReportQualityProperties;
 import com.example.aimilvusweb.repository.ReportChunkDiagnosticMapper;
 import com.example.aimilvusweb.repository.ReportChunkMapper;
@@ -11,6 +12,8 @@ import org.junit.jupiter.api.Test;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.mock.web.MockMultipartFile;
+
+import java.lang.reflect.Method;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -57,5 +60,72 @@ class ReportIngestServiceTests {
         verify(documentMapper, never()).insert(org.mockito.ArgumentMatchers.any());
         verify(chunkMapper, never()).insert(org.mockito.ArgumentMatchers.any());
         verify(vectorStore, never()).add(org.mockito.ArgumentMatchers.anyList());
+    }
+
+    @Test
+    void shouldFilterLowValueSegmentTypes() throws Exception {
+        ReportIngestService ingestService = newIngestService(new ReportQualityProperties());
+        ReportChunkSlice slice = new ReportChunkSlice(
+                "CHILD",
+                0,
+                0,
+                "分析师声明",
+                "Section: 分析师声明\n\n撰写此报告的分析师承诺无利害关系。",
+                80,
+                1,
+                2,
+                4,
+                4,
+                "ANALYST_DECLARATION"
+        );
+
+        String filterReason = resolveFilterReason(ingestService, slice);
+
+        Assertions.assertEquals("EXCLUDED_SEGMENT_TYPE:ANALYST_DECLARATION", filterReason);
+    }
+
+    @Test
+    void shouldKeepFinancialTableDespiteLowHanRatio() throws Exception {
+        ReportQualityProperties properties = new ReportQualityProperties();
+        properties.getChunk().setMinSliceTokenCount(10);
+        ReportIngestService ingestService = newIngestService(properties);
+        ReportChunkSlice slice = new ReportChunkSlice(
+                "CHILD",
+                0,
+                0,
+                "盈利预测和财务指标",
+                "Section: 盈利预测和财务指标\n\n营业收入 | 2026E 338 | 2027E 447 | 2028E 606\nEPS | -0.06 | 0.04 | 0.09\nP/E | -1180.18 | 2112.68 | 819.47",
+                45,
+                10,
+                12,
+                2,
+                2,
+                "FINANCIAL_TABLE"
+        );
+
+        String filterReason = resolveFilterReason(ingestService, slice);
+
+        Assertions.assertNull(filterReason);
+    }
+
+    private ReportIngestService newIngestService(ReportQualityProperties properties) {
+        return new ReportIngestService(
+                mock(ReportDocumentMapper.class),
+                mock(ReportChunkMapper.class),
+                mock(ReportOcrPageMapper.class),
+                mock(ReportParagraphAtomMapper.class),
+                mock(ReportChunkDiagnosticMapper.class),
+                mock(ObjectProvider.class),
+                mock(ReportOcrParseService.class),
+                mock(ReportSemanticChunkService.class),
+                mock(ReportIngestFailureService.class),
+                properties
+        );
+    }
+
+    private String resolveFilterReason(ReportIngestService ingestService, ReportChunkSlice slice) throws Exception {
+        Method method = ReportIngestService.class.getDeclaredMethod("resolveFilterReason", ReportChunkSlice.class);
+        method.setAccessible(true);
+        return (String) method.invoke(ingestService, slice);
     }
 }

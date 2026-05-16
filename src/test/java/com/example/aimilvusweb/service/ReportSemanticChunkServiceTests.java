@@ -49,6 +49,8 @@ class ReportSemanticChunkServiceTests {
         Assertions.assertEquals(2, chunks.parents().size());
         Assertions.assertTrue(chunks.parents().get(0).sectionPath().contains("行业供需逻辑"));
         Assertions.assertTrue(chunks.parents().get(1).sectionPath().contains("风险提示"));
+        Assertions.assertEquals("INDUSTRY_ANALYSIS", chunks.parents().get(0).segmentType());
+        Assertions.assertEquals("RISK", chunks.children().get(1).segmentType());
         Assertions.assertFalse(chunks.children().isEmpty());
     }
 
