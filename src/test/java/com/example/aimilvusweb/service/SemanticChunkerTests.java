@@ -2,7 +2,9 @@ package com.example.aimilvusweb.service;
 
 import com.example.aimilvusweb.common.util.SemanticChunkUtils;
 import com.example.aimilvusweb.common.util.SemanticChunkUtils.ChunkingOptions;
+import com.example.aimilvusweb.common.util.SemanticChunkUtils.ParagraphAtom;
 import com.example.aimilvusweb.common.util.SemanticChunkUtils.ReportSemanticChunks;
+import com.example.aimilvusweb.common.util.SemanticChunkUtils.SemanticSegment;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
@@ -62,5 +64,22 @@ class SemanticChunkerTests {
 
         Assertions.assertTrue(chunks.children().size() > 1);
         Assertions.assertTrue(chunks.children().stream().allMatch(chunk -> chunk.tokenCount() <= options.childMaxTokens()));
+    }
+
+    @Test
+    void shouldPropagateParagraphAndPageRangesFromSegments() {
+        List<ParagraphAtom> atoms = List.of(
+                new ParagraphAtom(1, 3, "投资要点", "需求改善。", 10, ""),
+                new ParagraphAtom(2, 4, "投资要点", "供给收缩。", 10, "")
+        );
+        List<SemanticSegment> segments = List.of(new SemanticSegment(1, 2, "投资要点", "INVESTMENT_VIEW", 0.9D));
+
+        ReportSemanticChunks chunks = SemanticChunkUtils.chunkReportBySegments(atoms, segments);
+
+        Assertions.assertEquals(1, chunks.parents().get(0).startParagraphId());
+        Assertions.assertEquals(2, chunks.parents().get(0).endParagraphId());
+        Assertions.assertEquals(3, chunks.parents().get(0).startPageNumber());
+        Assertions.assertEquals(4, chunks.parents().get(0).endPageNumber());
+        Assertions.assertEquals(3, chunks.children().get(0).startPageNumber());
     }
 }

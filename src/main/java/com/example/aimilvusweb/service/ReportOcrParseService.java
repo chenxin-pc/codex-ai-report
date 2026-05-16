@@ -1,12 +1,16 @@
 package com.example.aimilvusweb.service;
 
+import com.alibaba.fastjson2.JSON;
 import com.example.aimilvusweb.common.ocr.OcrClient;
 import com.example.aimilvusweb.common.ocr.OcrRecognizedDocument;
+import com.example.aimilvusweb.common.util.SemanticChunkUtils;
+import com.example.aimilvusweb.common.util.SemanticChunkUtils.ParagraphAtom;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 @Service
 public class ReportOcrParseService {
@@ -18,48 +22,68 @@ public class ReportOcrParseService {
     }
 
     public String parse(MultipartFile file) {
+        return parseDetailed(file).cleanedText();
+    }
+
+    public ReportOcrParseResult parseDetailed(MultipartFile file) {
         if (!ocrClient.isConfigured()) {
             throw new IllegalStateException("OCR is required for report text extraction. Configure OCR_ENDPOINT or app.ocr.endpoint.");
         }
-        String rawText = extractByOcr(file);
-        String normalized = normalizeOcrText(rawText);
-        if (normalized.isBlank()) {
+        OcrRecognizedDocument document = ocrClient.recognize(file);
+        ReportOcrParseResult result = normalizeDocument(document);
+        if (result.cleanedText().isBlank()) {
             throw new IllegalArgumentException("OCR recognized no usable report text");
         }
-        return normalized;
+        return result;
     }
 
-    private String extractByOcr(MultipartFile file) {
-        OcrRecognizedDocument document = ocrClient.recognize(file);
+    private ReportOcrParseResult normalizeDocument(OcrRecognizedDocument document) {
         if (!document.pages().isEmpty()) {
-            List<String> pageTexts = new ArrayList<>();
+            List<OcrPageResult> pages = new ArrayList<>();
+            List<String> rawPageTexts = new ArrayList<>();
+            List<String> cleanedPageTexts = new ArrayList<>();
             for (OcrRecognizedDocument.OcrPage page : document.pages()) {
-                String pageText = normalizeOcrText(page.text());
-                if (!pageText.isBlank()) {
-                    pageTexts.add("[Page " + page.pageNumber() + "]\n\n" + pageText);
+                NormalizeResult normalized = normalizeOcrTextWithDiagnostics(page.text());
+                rawPageTexts.add(page.text() == null ? "" : page.text());
+                if (!normalized.text().isBlank()) {
+                    cleanedPageTexts.add("[Page " + page.pageNumber() + "]\n\n" + normalized.text());
                 }
+                pages.add(new OcrPageResult(
+                        page.pageNumber(),
+                        page.text() == null ? "" : page.text(),
+                        normalized.text(),
+                        mergeDiagnostics(page.diagnostics(), normalized.diagnostics())
+                ));
             }
-            return String.join("\n\n", pageTexts);
+            String cleanedText = String.join("\n\n", cleanedPageTexts);
+            return new ReportOcrParseResult(String.join("\n\n", rawPageTexts), cleanedText, pages, atomizePages(pages));
         }
-        return document.fullText() == null ? "" : document.fullText();
+        NormalizeResult normalized = normalizeOcrTextWithDiagnostics(document.fullText());
+        OcrPageResult page = new OcrPageResult(0, document.fullText() == null ? "" : document.fullText(), normalized.text(), normalized.diagnostics());
+        return new ReportOcrParseResult(document.fullText() == null ? "" : document.fullText(), normalized.text(), List.of(page), atomizePages(List.of(page)));
     }
 
     String normalizeOcrText(String rawText) {
+        return normalizeOcrTextWithDiagnostics(rawText).text();
+    }
+
+    NormalizeResult normalizeOcrTextWithDiagnostics(String rawText) {
         String normalized = rawText == null ? "" : rawText.replace("\r\n", "\n").replace("\r", "\n").trim();
         if (normalized.isBlank()) {
-            return "";
+            return new NormalizeResult("", JSON.toJSONString(Map.of("status", "blank")));
         }
 
         List<String> paragraphs = new ArrayList<>();
+        List<String> removedNoiseLines = new ArrayList<>();
         StringBuilder paragraph = new StringBuilder();
         for (String line : normalized.split("\n")) {
             String value = line.trim().replaceAll("[ \\t]+", " ");
             if (value.isBlank()) {
-                flushParagraph(paragraphs, paragraph);
+                flushParagraph(paragraphs, removedNoiseLines, paragraph);
                 continue;
             }
             if (isPageMarker(value) || isLikelyHeading(value)) {
-                flushParagraph(paragraphs, paragraph);
+                flushParagraph(paragraphs, removedNoiseLines, paragraph);
                 paragraphs.add(value);
                 continue;
             }
@@ -68,25 +92,72 @@ public class ReportOcrParseService {
                 continue;
             }
             if (endsSentence(paragraph) || startsNewSemanticLine(value)) {
-                flushParagraph(paragraphs, paragraph);
+                flushParagraph(paragraphs, removedNoiseLines, paragraph);
                 paragraph.append(value);
             } else {
                 appendWrappedLine(paragraph, value);
             }
         }
-        flushParagraph(paragraphs, paragraph);
-        return String.join("\n\n", paragraphs);
+        flushParagraph(paragraphs, removedNoiseLines, paragraph);
+        String diagnostics = JSON.toJSONString(Map.of(
+                "removedNoiseLineCount", removedNoiseLines.size(),
+                "removedNoiseLines", removedNoiseLines
+        ));
+        return new NormalizeResult(String.join("\n\n", paragraphs), diagnostics);
     }
 
-    private void flushParagraph(List<String> paragraphs, StringBuilder paragraph) {
+    private void flushParagraph(List<String> paragraphs, List<String> removedNoiseLines, StringBuilder paragraph) {
         if (paragraph.isEmpty()) {
             return;
         }
         String value = paragraph.toString().trim();
-        if (!value.isBlank() && !isLikelyNoiseLine(value)) {
+        if (!value.isBlank() && isLikelyNoiseLine(value)) {
+            removedNoiseLines.add(value);
+        } else if (!value.isBlank()) {
             paragraphs.add(value);
         }
         paragraph.setLength(0);
+    }
+
+    private List<ParagraphAtom> atomizePages(List<OcrPageResult> pages) {
+        List<ParagraphAtom> atoms = new ArrayList<>();
+        String sectionPath = "正文";
+        int paragraphId = 1;
+        for (OcrPageResult page : pages) {
+            for (String part : page.cleanedText().split("\\n\\s*\\n")) {
+                String paragraph = part.trim();
+                if (paragraph.isBlank() || isPageMarker(paragraph)) {
+                    continue;
+                }
+                if (isLikelyHeading(paragraph)) {
+                    sectionPath = paragraph;
+                    continue;
+                }
+                atoms.add(new ParagraphAtom(
+                        paragraphId,
+                        page.pageNumber(),
+                        sectionPath,
+                        paragraph,
+                        SemanticChunkUtils.estimateTokens(paragraph),
+                        page.diagnostics()
+                ));
+                paragraphId++;
+            }
+        }
+        return List.copyOf(atoms);
+    }
+
+    private String mergeDiagnostics(String externalDiagnostics, String normalizeDiagnostics) {
+        if (externalDiagnostics == null || externalDiagnostics.isBlank()) {
+            return normalizeDiagnostics;
+        }
+        if (normalizeDiagnostics == null || normalizeDiagnostics.isBlank()) {
+            return externalDiagnostics;
+        }
+        return JSON.toJSONString(Map.of(
+                "ocr", externalDiagnostics,
+                "normalization", normalizeDiagnostics
+        ));
     }
 
     private boolean isPageMarker(String line) {
@@ -152,5 +223,28 @@ public class ReportOcrParseService {
         }
         double noiseRatio = (digits + symbols) / (double) value.length();
         return noiseRatio > 0.75D;
+    }
+
+    record NormalizeResult(String text, String diagnostics) {
+    }
+
+    public record OcrPageResult(
+            int pageNumber,
+            String rawText,
+            String cleanedText,
+            String diagnostics
+    ) {
+    }
+
+    public record ReportOcrParseResult(
+            String rawText,
+            String cleanedText,
+            List<OcrPageResult> pages,
+            List<ParagraphAtom> atoms
+    ) {
+        public ReportOcrParseResult {
+            pages = pages == null ? List.of() : List.copyOf(pages);
+            atoms = atoms == null ? List.of() : List.copyOf(atoms);
+        }
     }
 }

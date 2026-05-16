@@ -1,17 +1,12 @@
 package com.example.aimilvusweb.service;
 
+import com.alibaba.fastjson2.JSON;
 import com.example.aimilvusweb.common.llm.QwenClient;
 import com.example.aimilvusweb.common.prompt.PromptTemplateService;
-import com.example.aimilvusweb.common.util.SemanticChunkUtils;
 import com.example.aimilvusweb.dto.LlmRecommendRespDTO;
 import com.example.aimilvusweb.dto.RecommendRespDTO;
 import com.example.aimilvusweb.dto.TopResultRespDTO;
-import com.example.aimilvusweb.entity.ReportChunk;
-import com.example.aimilvusweb.repository.ReportChunkMapper;
-import com.alibaba.fastjson2.JSON;
 import org.springframework.ai.document.Document;
-import org.springframework.ai.vectorstore.SearchRequest;
-import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
@@ -26,22 +21,19 @@ public class ReportRecommendService {
 
     private static final Duration CACHE_TTL = Duration.ofMinutes(30);
 
-    private final ObjectProvider<VectorStore> vectorStoreProvider;
     private final ObjectProvider<StringRedisTemplate> redisTemplateProvider;
     private final QwenClient qwenClient;
     private final PromptTemplateService promptTemplateService;
-    private final ReportChunkMapper reportChunkMapper;
+    private final ReportRetrievalService reportRetrievalService;
 
-    public ReportRecommendService(ObjectProvider<VectorStore> vectorStoreProvider,
-                                  ObjectProvider<StringRedisTemplate> redisTemplateProvider,
+    public ReportRecommendService(ObjectProvider<StringRedisTemplate> redisTemplateProvider,
                                   QwenClient qwenClient,
                                   PromptTemplateService promptTemplateService,
-                                  ReportChunkMapper reportChunkMapper) {
-        this.vectorStoreProvider = vectorStoreProvider;
+                                  ReportRetrievalService reportRetrievalService) {
         this.redisTemplateProvider = redisTemplateProvider;
         this.qwenClient = qwenClient;
         this.promptTemplateService = promptTemplateService;
-        this.reportChunkMapper = reportChunkMapper;
+        this.reportRetrievalService = reportRetrievalService;
     }
 
     public RecommendRespDTO recommend(String query) {
@@ -50,36 +42,27 @@ public class ReportRecommendService {
             return cached;
         }
 
-        // Top5 retrieval is purely vector ANN search in Milvus (Qwen embedding model configured in Spring AI).
-        VectorStore vectorStore = requireVectorStore();
-
-        List<Document> docs = vectorStore.similaritySearch(SearchRequest.builder().query(query).topK(5).build());
-        if (docs == null) {
-            docs = List.of();
-        }
-
-        List<TopResultRespDTO> top5 = new ArrayList<>();
+        List<ReportRetrievalService.RetrievedChunk> retrievedChunks = reportRetrievalService.retrieve(query);
+        List<TopResultRespDTO> topResults = new ArrayList<>();
         StringBuilder evidenceBuilder = new StringBuilder();
 
-        for (int i = 0; i < docs.size(); i++) {
-            Document doc = docs.get(i);
+        for (int i = 0; i < retrievedChunks.size(); i++) {
+            ReportRetrievalService.RetrievedChunk retrievedChunk = retrievedChunks.get(i);
+            Document doc = retrievedChunk.document();
             String title = String.valueOf(doc.getMetadata().getOrDefault("title", "unknown"));
             String source = String.valueOf(doc.getMetadata().getOrDefault("source", "unknown"));
-            String chunkText = doc.getText();
-            Double score = resolveScore(doc);
-
-            top5.add(new TopResultRespDTO(score, title, chunkText, source));
+            topResults.add(new TopResultRespDTO(retrievedChunk.score(), title, retrievedChunk.chunkText(), source));
             evidenceBuilder.append("[Chunk ").append(i + 1).append("] ")
                     .append("title=").append(title)
                     .append(", source=").append(source)
                     .append(", section=").append(doc.getMetadata().getOrDefault("sectionPath", ""))
                     .append("\n")
-                    .append(expandContext(doc, chunkText))
+                    .append(retrievedChunk.evidenceText())
                     .append("\n\n");
         }
 
         LlmRecommendRespDTO llm = generateLlmRecommendation(query, evidenceBuilder.toString());
-        RecommendRespDTO response = new RecommendRespDTO(query, top5, llm.analysis(), llm.recommendation(), llm.risks(), llm.citations());
+        RecommendRespDTO response = new RecommendRespDTO(query, topResults, llm.analysis(), llm.recommendation(), llm.risks(), llm.citations());
         cache(query, response);
         return response;
     }
@@ -98,59 +81,6 @@ public class ReportRecommendService {
             );
         }
         return respDTO;
-    }
-
-    private Double resolveScore(Document doc) {
-        Object score = doc.getMetadata().get("score");
-        if (score instanceof Number number) {
-            return number.doubleValue();
-        }
-        Object distance = doc.getMetadata().get("distance");
-        if (distance instanceof Number number) {
-            return number.doubleValue();
-        }
-        return null;
-    }
-
-    private String expandContext(Document doc, String fallbackText) {
-        String parentChunkUid = String.valueOf(doc.getMetadata().getOrDefault("parentChunkUid", ""));
-        if (parentChunkUid.isBlank()) {
-            return fallbackText;
-        }
-        ReportChunk parentChunk = reportChunkMapper.selectByChunkUid(parentChunkUid);
-        if (parentChunk == null || parentChunk.getChunkText() == null || parentChunk.getChunkText().isBlank()) {
-            return fallbackText;
-        }
-        return limitTokens(parentChunk.getChunkText(), 4500);
-    }
-
-    private String limitTokens(String text, int maxTokens) {
-        if (SemanticChunkUtils.estimateTokens(text) <= maxTokens) {
-            return text;
-        }
-        String[] paragraphs = text.split("\\n\\s*\\n");
-        StringBuilder limited = new StringBuilder();
-        int tokens = 0;
-        for (String paragraph : paragraphs) {
-            int paragraphTokens = SemanticChunkUtils.estimateTokens(paragraph);
-            if (tokens > 0 && tokens + paragraphTokens > maxTokens) {
-                break;
-            }
-            if (!limited.isEmpty()) {
-                limited.append("\n\n");
-            }
-            limited.append(paragraph.trim());
-            tokens += paragraphTokens;
-        }
-        return limited.toString();
-    }
-
-    private VectorStore requireVectorStore() {
-        VectorStore vectorStore = vectorStoreProvider.getIfAvailable();
-        if (vectorStore == null) {
-            throw new IllegalStateException("VectorStore is not configured. Set spring.ai.vectorstore.type=milvus and Milvus properties.");
-        }
-        return vectorStore;
     }
 
     private RecommendRespDTO getCached(String query) {
@@ -177,7 +107,7 @@ public class ReportRecommendService {
         try {
             redis.opsForValue().set(cacheKey(query), JSON.toJSONString(response), CACHE_TTL);
         } catch (Exception ignored) {
-            // no-op
+            // Redis cache failures must not block recommendations.
         }
     }
 

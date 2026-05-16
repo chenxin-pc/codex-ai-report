@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.aimilvusweb.repository.ReportIngestFailureMapper">
+
+    <resultMap id="ReportIngestFailureResultMap" type="com.example.aimilvusweb.entity.ReportIngestFailure">
+        <id property="id" column="id"/>
+        <result property="filename" column="filename"/>
+        <result property="title" column="title"/>
+        <result property="source" column="source"/>
+        <result property="institution" column="institution"/>
+        <result property="stage" column="stage"/>
+        <result property="errorMessage" column="error_message"/>
+        <result property="createdAt" column="created_at"/>
+    </resultMap>
+
+    <insert id="insert" parameterType="com.example.aimilvusweb.entity.ReportIngestFailure" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO report_ingest_failure(
+            filename,
+            title,
+            source,
+            institution,
+            stage,
+            error_message,
+            created_at
+        )
+        VALUES(
+            #{filename},
+            #{title},
+            #{source},
+            #{institution},
+            #{stage},
+            #{errorMessage},
+            #{createdAt}
+        )
+    </insert>
+
+    <select id="selectRecent" parameterType="int" resultMap="ReportIngestFailureResultMap">
+        SELECT id,
+               filename,
+               title,
+               source,
+               institution,
+               stage,
+               error_message,
+               created_at
+        FROM report_ingest_failure
+        ORDER BY created_at DESC
+        LIMIT #{limit}
+    </select>
+</mapper>

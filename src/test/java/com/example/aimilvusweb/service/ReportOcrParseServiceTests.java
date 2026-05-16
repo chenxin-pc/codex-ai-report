@@ -40,6 +40,34 @@ class ReportOcrParseServiceTests {
     }
 
     @Test
+    void shouldExposePageDiagnosticsAndParagraphAtoms() {
+        OcrClient ocrClient = mock(OcrClient.class);
+        ReportOcrParseService service = new ReportOcrParseService(ocrClient);
+        MockMultipartFile file = new MockMultipartFile("file", "report.pdf", "application/pdf", "demo".getBytes());
+
+        when(ocrClient.isConfigured()).thenReturn(true);
+        when(ocrClient.recognize(file)).thenReturn(new OcrRecognizedDocument(
+                "",
+                List.of(new OcrRecognizedDocument.OcrPage(2, """
+                        投资要点
+
+                        我们认为需求改善。
+
+                        1234567890%%%%%%%%
+                        """, "rotationChecked"))
+        ));
+
+        ReportOcrParseService.ReportOcrParseResult result = service.parseDetailed(file);
+
+        Assertions.assertEquals(1, result.pages().size());
+        Assertions.assertEquals(2, result.pages().get(0).pageNumber());
+        Assertions.assertTrue(result.pages().get(0).diagnostics().contains("removedNoiseLineCount"));
+        Assertions.assertEquals(1, result.atoms().size());
+        Assertions.assertEquals(2, result.atoms().get(0).pageNumber());
+        Assertions.assertEquals("投资要点", result.atoms().get(0).sectionPath());
+    }
+
+    @Test
     void shouldFailWhenOcrIsNotConfigured() {
         OcrClient ocrClient = mock(OcrClient.class);
         ReportOcrParseService service = new ReportOcrParseService(ocrClient);

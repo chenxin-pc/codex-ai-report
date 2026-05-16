@@ -69,3 +69,17 @@ app:
     model: ${OCR_MODEL:qwen-vl-ocr-latest}
     task: ${OCR_TASK:document_parsing}
     render-dpi: ${OCR_RENDER_DPI:160}
+  report-quality:
+    chunk:
+      child-target-tokens: ${REPORT_CHUNK_CHILD_TARGET_TOKENS:700}
+      child-max-tokens: ${REPORT_CHUNK_CHILD_MAX_TOKENS:1100}
+      parent-target-tokens: ${REPORT_CHUNK_PARENT_TARGET_TOKENS:3000}
+      parent-max-tokens: ${REPORT_CHUNK_PARENT_MAX_TOKENS:5200}
+      overlap-tokens: ${REPORT_CHUNK_OVERLAP_TOKENS:120}
+      min-slice-token-count: ${REPORT_CHUNK_MIN_SLICE_TOKEN_COUNT:30}
+    retrieval:
+      initial-top-k: ${REPORT_RETRIEVAL_INITIAL_TOP_K:20}
+      final-top-k: ${REPORT_RETRIEVAL_FINAL_TOP_K:5}
+      min-similarity-score: ${REPORT_RETRIEVAL_MIN_SIMILARITY_SCORE:0.0}
+      rerank-enabled: ${REPORT_RETRIEVAL_RERANK_ENABLED:false}
+      max-parent-context-tokens: ${REPORT_RETRIEVAL_MAX_PARENT_CONTEXT_TOKENS:4500}

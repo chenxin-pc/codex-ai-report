@@ -13,7 +13,11 @@ public record OcrRecognizedDocument(
 
     public record OcrPage(
             int pageNumber,
-            String text
+            String text,
+            String diagnostics
     ) {
+        public OcrPage(int pageNumber, String text) {
+            this(pageNumber, text, "");
+        }
     }
 }

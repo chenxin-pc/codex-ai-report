@@ -2,11 +2,21 @@ package com.example.aimilvusweb.service;
 
 import com.example.aimilvusweb.common.util.SemanticChunkUtils.ReportChunkSlice;
 import com.example.aimilvusweb.common.util.SemanticChunkUtils.ReportSemanticChunks;
+import com.example.aimilvusweb.common.util.SemanticChunkUtils.ParagraphAtom;
+import com.example.aimilvusweb.config.ReportQualityProperties;
 import com.example.aimilvusweb.dto.ReportUploadRespDTO;
 import com.example.aimilvusweb.entity.ReportChunk;
+import com.example.aimilvusweb.entity.ReportChunkDiagnostic;
 import com.example.aimilvusweb.entity.ReportDocument;
+import com.example.aimilvusweb.entity.ReportOcrPage;
+import com.example.aimilvusweb.entity.ReportParagraphAtom;
+import com.example.aimilvusweb.repository.ReportChunkDiagnosticMapper;
 import com.example.aimilvusweb.repository.ReportChunkMapper;
 import com.example.aimilvusweb.repository.ReportDocumentMapper;
+import com.example.aimilvusweb.repository.ReportOcrPageMapper;
+import com.example.aimilvusweb.repository.ReportParagraphAtomMapper;
+import com.example.aimilvusweb.service.ReportOcrParseService.ReportOcrParseResult;
+import com.example.aimilvusweb.service.ReportOcrParseService.OcrPageResult;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.beans.factory.ObjectProvider;
@@ -27,38 +37,62 @@ import java.util.stream.Collectors;
 @Service
 public class ReportIngestService {
     private static final int EMBEDDING_BATCH_SIZE = 10;
-    private static final int MIN_SLICE_TOKEN_COUNT = 40;
     private static final Set<String> EXCLUDED_SECTION_KEYWORDS = Set.of(
             "免责声明", "免责条款", "法律声明", "分析师承诺", "评级说明", "投资评级说明", "风险披露"
     );
 
     private final ReportDocumentMapper reportDocumentMapper;
     private final ReportChunkMapper reportChunkMapper;
+    private final ReportOcrPageMapper reportOcrPageMapper;
+    private final ReportParagraphAtomMapper reportParagraphAtomMapper;
+    private final ReportChunkDiagnosticMapper reportChunkDiagnosticMapper;
     private final ObjectProvider<VectorStore> vectorStoreProvider;
     private final ReportOcrParseService reportOcrParseService;
     private final ReportSemanticChunkService reportSemanticChunkService;
+    private final ReportIngestFailureService reportIngestFailureService;
+    private final ReportQualityProperties reportQualityProperties;
 
     public ReportIngestService(ReportDocumentMapper reportDocumentMapper,
                                ReportChunkMapper reportChunkMapper,
+                               ReportOcrPageMapper reportOcrPageMapper,
+                               ReportParagraphAtomMapper reportParagraphAtomMapper,
+                               ReportChunkDiagnosticMapper reportChunkDiagnosticMapper,
                                ObjectProvider<VectorStore> vectorStoreProvider,
                                ReportOcrParseService reportOcrParseService,
-                               ReportSemanticChunkService reportSemanticChunkService) {
+                               ReportSemanticChunkService reportSemanticChunkService,
+                               ReportIngestFailureService reportIngestFailureService,
+                               ReportQualityProperties reportQualityProperties) {
         this.reportDocumentMapper = reportDocumentMapper;
         this.reportChunkMapper = reportChunkMapper;
+        this.reportOcrPageMapper = reportOcrPageMapper;
+        this.reportParagraphAtomMapper = reportParagraphAtomMapper;
+        this.reportChunkDiagnosticMapper = reportChunkDiagnosticMapper;
         this.vectorStoreProvider = vectorStoreProvider;
         this.reportOcrParseService = reportOcrParseService;
         this.reportSemanticChunkService = reportSemanticChunkService;
+        this.reportIngestFailureService = reportIngestFailureService;
+        this.reportQualityProperties = reportQualityProperties;
     }
 
     @Transactional
     public ReportUploadRespDTO ingest(MultipartFile file, String title, String source, String institution, LocalDate publishDate) {
-        VectorStore vectorStore = requireVectorStore();
-        validateFile(file);
-        ReportSemanticChunks chunks = parseAndChunk(file);
-        ReportDocument report = persistReportDocument(file, title, source, institution, publishDate);
-        List<ReportChunk> persistedChildChunks = persistChunks(report, chunks);
-        addVectorDocumentsInBatches(vectorStore, buildVectorDocuments(report, persistedChildChunks));
-        return buildUploadResp(report, persistedChildChunks.size());
+        String stage = "VALIDATION";
+        try {
+            VectorStore vectorStore = requireVectorStore();
+            validateFile(file);
+            stage = "OCR_AND_CHUNK";
+            IngestPreparation preparation = parseAndChunk(file);
+            stage = "MYSQL";
+            ReportDocument report = persistReportDocument(file, title, source, institution, publishDate);
+            persistOcrQualityData(report, preparation.ocrResult());
+            List<ReportChunk> persistedChildChunks = persistChunks(report, preparation.chunks());
+            stage = "MILVUS";
+            addVectorDocumentsInBatches(vectorStore, buildVectorDocuments(report, persistedChildChunks));
+            return buildUploadResp(report, persistedChildChunks.size());
+        } catch (RuntimeException e) {
+            reportIngestFailureService.recordFailure(file, title, source, institution, stage, e);
+            throw e;
+        }
     }
 
     private VectorStore requireVectorStore() {
@@ -75,13 +109,13 @@ public class ReportIngestService {
         }
     }
 
-    private ReportSemanticChunks parseAndChunk(MultipartFile file) {
-        String ocrText = reportOcrParseService.parse(file);
-        ReportSemanticChunks chunks = reportSemanticChunkService.chunk(ocrText);
+    private IngestPreparation parseAndChunk(MultipartFile file) {
+        ReportOcrParseResult ocrResult = reportOcrParseService.parseDetailed(file);
+        ReportSemanticChunks chunks = reportSemanticChunkService.chunk(ocrResult.atoms());
         if (chunks.isEmpty()) {
             throw new IllegalArgumentException("No valid chunks generated from OCR text");
         }
-        return chunks;
+        return new IngestPreparation(ocrResult, chunks);
     }
 
     private ReportDocument persistReportDocument(MultipartFile file, String title, String source, String institution, LocalDate publishDate) {
@@ -95,6 +129,31 @@ public class ReportIngestService {
         return report;
     }
 
+    private void persistOcrQualityData(ReportDocument report, ReportOcrParseResult ocrResult) {
+        for (OcrPageResult page : ocrResult.pages()) {
+            ReportOcrPage ocrPage = new ReportOcrPage();
+            ocrPage.setReportId(report.getId());
+            ocrPage.setPageNumber(page.pageNumber());
+            ocrPage.setRawText(page.rawText());
+            ocrPage.setCleanedText(page.cleanedText());
+            ocrPage.setDiagnostics(page.diagnostics());
+            ocrPage.setCreatedAt(Instant.now());
+            reportOcrPageMapper.insert(ocrPage);
+        }
+        for (ParagraphAtom atom : ocrResult.atoms()) {
+            ReportParagraphAtom paragraphAtom = new ReportParagraphAtom();
+            paragraphAtom.setReportId(report.getId());
+            paragraphAtom.setParagraphId(atom.paragraphId());
+            paragraphAtom.setPageNumber(atom.pageNumber());
+            paragraphAtom.setSectionPath(atom.sectionPath());
+            paragraphAtom.setParagraphText(atom.text());
+            paragraphAtom.setTokenCount(atom.tokenCount());
+            paragraphAtom.setDiagnostics(atom.diagnostics());
+            paragraphAtom.setCreatedAt(Instant.now());
+            reportParagraphAtomMapper.insert(paragraphAtom);
+        }
+    }
+
     private List<ReportChunk> persistChunks(ReportDocument report, ReportSemanticChunks chunks) {
         List<ReportChunkSlice> filteredParents = chunks.parents().stream()
                 .filter(this::shouldKeepSlice)
@@ -102,9 +161,16 @@ public class ReportIngestService {
         Map<Integer, String> parentUidByIndex = filteredParents.stream()
                 .collect(Collectors.toMap(ReportChunkSlice::parentIndex, ignored -> newChunkUid()));
 
-        for (ReportChunkSlice parentSlice : filteredParents) {
-            ReportChunk parentChunk = buildReportChunk(report, parentSlice, parentUidByIndex.get(parentSlice.parentIndex()), null);
-            reportChunkMapper.insert(parentChunk);
+        for (ReportChunkSlice parentSlice : chunks.parents()) {
+            String filterReason = resolveFilterReason(parentSlice);
+            String parentChunkUid = parentUidByIndex.get(parentSlice.parentIndex());
+            if (filterReason == null) {
+                ReportChunk parentChunk = buildReportChunk(report, parentSlice, parentChunkUid, null, false, null);
+                reportChunkMapper.insert(parentChunk);
+                persistChunkDiagnostic(report, parentSlice, parentChunkUid, null, true, null);
+            } else {
+                persistChunkDiagnostic(report, parentSlice, null, null, false, filterReason);
+            }
         }
 
         List<ReportChunk> persistedChildChunks = new ArrayList<>();
@@ -115,15 +181,28 @@ public class ReportIngestService {
         for (int i = 0; i < filteredChildren.size(); i++) {
             ReportChunkSlice childSlice = filteredChildren.get(i);
             String parentChunkUid = parentUidByIndex.get(childSlice.parentIndex());
-            ReportChunk childChunk = buildReportChunk(report, childSlice, newChunkUid(), parentChunkUid);
+            ReportChunk childChunk = buildReportChunk(report, childSlice, newChunkUid(), parentChunkUid, true, null);
             childChunk.setChunkIndex(i);
             reportChunkMapper.insert(childChunk);
+            persistChunkDiagnostic(report, childSlice, childChunk.getChunkUid(), parentChunkUid, true, null);
             persistedChildChunks.add(childChunk);
+        }
+        for (ReportChunkSlice childSlice : chunks.children()) {
+            String filterReason = resolveFilterReason(childSlice);
+            if (filterReason != null || !parentUidByIndex.containsKey(childSlice.parentIndex())) {
+                String reason = filterReason == null ? "PARENT_FILTERED" : filterReason;
+                persistChunkDiagnostic(report, childSlice, null, parentUidByIndex.get(childSlice.parentIndex()), false, reason);
+            }
         }
         return persistedChildChunks;
     }
 
-    private ReportChunk buildReportChunk(ReportDocument report, ReportChunkSlice slice, String chunkUid, String parentChunkUid) {
+    private ReportChunk buildReportChunk(ReportDocument report,
+                                         ReportChunkSlice slice,
+                                         String chunkUid,
+                                         String parentChunkUid,
+                                         boolean vectorStored,
+                                         String filterReason) {
         ReportChunk chunk = new ReportChunk();
         chunk.setReportId(report.getId());
         chunk.setChunkIndex(slice.chunkType().equals("PARENT") ? slice.parentIndex() : slice.chunkIndexInParent());
@@ -133,9 +212,43 @@ public class ReportIngestService {
         chunk.setSectionPath(slice.sectionPath());
         chunk.setChunkText(slice.text());
         chunk.setTokenCount(slice.tokenCount());
-        chunk.setPageNumber(0);
+        chunk.setPageNumber(slice.startPageNumber());
+        chunk.setStartParagraphId(slice.startParagraphId());
+        chunk.setEndParagraphId(slice.endParagraphId());
+        chunk.setStartPageNumber(slice.startPageNumber());
+        chunk.setEndPageNumber(slice.endPageNumber());
+        chunk.setFilterReason(filterReason);
+        chunk.setDiagnostics(buildChunkDiagnostics(slice, filterReason));
+        chunk.setVectorStored(vectorStored);
         chunk.setCreatedAt(Instant.now());
         return chunk;
+    }
+
+    private void persistChunkDiagnostic(ReportDocument report,
+                                        ReportChunkSlice slice,
+                                        String chunkUid,
+                                        String parentChunkUid,
+                                        boolean kept,
+                                        String filterReason) {
+        ReportChunkDiagnostic diagnostic = new ReportChunkDiagnostic();
+        diagnostic.setReportId(report.getId());
+        diagnostic.setChunkUid(chunkUid);
+        diagnostic.setParentChunkUid(parentChunkUid);
+        diagnostic.setParentIndex(slice.parentIndex());
+        diagnostic.setChunkIndexInParent(slice.chunkIndexInParent());
+        diagnostic.setChunkType(slice.chunkType());
+        diagnostic.setSectionPath(slice.sectionPath());
+        diagnostic.setTokenCount(slice.tokenCount());
+        diagnostic.setStartParagraphId(slice.startParagraphId());
+        diagnostic.setEndParagraphId(slice.endParagraphId());
+        diagnostic.setStartPageNumber(slice.startPageNumber());
+        diagnostic.setEndPageNumber(slice.endPageNumber());
+        diagnostic.setKept(kept);
+        diagnostic.setFilterReason(filterReason);
+        diagnostic.setDiagnostics(buildChunkDiagnostics(slice, filterReason));
+        diagnostic.setChunkText(slice.text());
+        diagnostic.setCreatedAt(Instant.now());
+        reportChunkDiagnosticMapper.insert(diagnostic);
     }
 
     private String newChunkUid() {
@@ -154,6 +267,10 @@ public class ReportIngestService {
             metadata.put("chunkIndex", chunk.getChunkIndex());
             metadata.put("sectionPath", chunk.getSectionPath() == null ? "" : chunk.getSectionPath());
             metadata.put("tokenCount", chunk.getTokenCount() == null ? 0 : chunk.getTokenCount());
+            metadata.put("startParagraphId", chunk.getStartParagraphId() == null ? 0 : chunk.getStartParagraphId());
+            metadata.put("endParagraphId", chunk.getEndParagraphId() == null ? 0 : chunk.getEndParagraphId());
+            metadata.put("startPageNumber", chunk.getStartPageNumber() == null ? 0 : chunk.getStartPageNumber());
+            metadata.put("endPageNumber", chunk.getEndPageNumber() == null ? 0 : chunk.getEndPageNumber());
             metadata.put("title", report.getTitle());
             metadata.put("source", report.getSource());
             metadata.put("institution", report.getInstitution() == null ? "" : report.getInstitution());
@@ -171,25 +288,29 @@ public class ReportIngestService {
     }
 
     private boolean shouldKeepSlice(ReportChunkSlice slice) {
+        return resolveFilterReason(slice) == null;
+    }
+
+    private String resolveFilterReason(ReportChunkSlice slice) {
         String sectionPath = slice.sectionPath() == null ? "" : slice.sectionPath().trim();
         if (!sectionPath.isBlank()) {
             for (String keyword : EXCLUDED_SECTION_KEYWORDS) {
                 if (sectionPath.contains(keyword)) {
-                    return false;
+                    return "EXCLUDED_SECTION:" + keyword;
                 }
             }
         }
-        return !isLikelyLowSemanticSlice(slice);
+        return resolveLowSemanticReason(slice);
     }
 
-    private boolean isLikelyLowSemanticSlice(ReportChunkSlice slice) {
-        if (slice.tokenCount() < MIN_SLICE_TOKEN_COUNT) {
-            return true;
+    private String resolveLowSemanticReason(ReportChunkSlice slice) {
+        if (slice.tokenCount() < reportQualityProperties.getChunk().getMinSliceTokenCount()) {
+            return "LOW_TOKEN_COUNT:" + slice.tokenCount();
         }
         String text = slice.text() == null ? "" : slice.text();
         String normalized = text.replaceAll("\\s+", "");
         if (normalized.length() < 60) {
-            return true;
+            return "SHORT_TEXT:" + normalized.length();
         }
         int han = 0;
         int digits = 0;
@@ -206,10 +327,29 @@ public class ReportIngestService {
         }
         double hanRatio = han / (double) normalized.length();
         double noiseRatio = (digits + symbols) / (double) normalized.length();
-        return hanRatio < 0.20D || noiseRatio > 0.65D;
+        if (hanRatio < 0.20D) {
+            return "LOW_HAN_RATIO:" + hanRatio;
+        }
+        if (noiseRatio > 0.65D) {
+            return "HIGH_NOISE_RATIO:" + noiseRatio;
+        }
+        return null;
+    }
+
+    private String buildChunkDiagnostics(ReportChunkSlice slice, String filterReason) {
+        return "{"
+                + "\"startParagraphId\":" + slice.startParagraphId()
+                + ",\"endParagraphId\":" + slice.endParagraphId()
+                + ",\"startPageNumber\":" + slice.startPageNumber()
+                + ",\"endPageNumber\":" + slice.endPageNumber()
+                + ",\"filterReason\":\"" + (filterReason == null ? "" : filterReason) + "\""
+                + "}";
     }
 
     private ReportUploadRespDTO buildUploadResp(ReportDocument report, int chunkCount) {
         return new ReportUploadRespDTO(report.getId(), report.getTitle(), chunkCount, "Upload and ingest completed");
+    }
+
+    private record IngestPreparation(ReportOcrParseResult ocrResult, ReportSemanticChunks chunks) {
     }
 }

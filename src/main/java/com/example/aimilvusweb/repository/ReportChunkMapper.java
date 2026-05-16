@@ -12,5 +12,7 @@ public interface ReportChunkMapper {
 
     ReportChunk selectByChunkUid(String chunkUid);
 
+    List<ReportChunk> selectByReportId(Long reportId);
+
     List<ReportChunk> selectChildrenByParentChunkUid(String parentChunkUid);
 }

@@ -4,11 +4,14 @@ import com.alibaba.fastjson2.JSON;
 import com.example.aimilvusweb.common.llm.QwenClient;
 import com.example.aimilvusweb.common.prompt.PromptTemplateService;
 import com.example.aimilvusweb.common.util.SemanticChunkUtils;
+import com.example.aimilvusweb.common.util.SemanticChunkUtils.ChunkingOptions;
 import com.example.aimilvusweb.common.util.SemanticChunkUtils.ParagraphAtom;
 import com.example.aimilvusweb.common.util.SemanticChunkUtils.ReportSemanticChunks;
 import com.example.aimilvusweb.common.util.SemanticChunkUtils.SemanticSegment;
+import com.example.aimilvusweb.config.ReportQualityProperties;
 import com.example.aimilvusweb.dto.LlmChunkPlanRespDTO;
 import com.example.aimilvusweb.dto.LlmChunkSegmentRespDTO;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -29,14 +32,27 @@ public class ReportSemanticChunkService {
 
     private final QwenClient qwenClient;
     private final PromptTemplateService promptTemplateService;
+    private final ReportQualityProperties reportQualityProperties;
 
-    public ReportSemanticChunkService(QwenClient qwenClient, PromptTemplateService promptTemplateService) {
+    @Autowired
+    public ReportSemanticChunkService(QwenClient qwenClient,
+                                      PromptTemplateService promptTemplateService,
+                                      ReportQualityProperties reportQualityProperties) {
         this.qwenClient = qwenClient;
         this.promptTemplateService = promptTemplateService;
+        this.reportQualityProperties = reportQualityProperties;
+    }
+
+    ReportSemanticChunkService(QwenClient qwenClient, PromptTemplateService promptTemplateService) {
+        this(qwenClient, promptTemplateService, new ReportQualityProperties());
     }
 
     public ReportSemanticChunks chunk(String parsedText) {
         List<ParagraphAtom> atoms = SemanticChunkUtils.atomizeReportParagraphs(parsedText);
+        return chunk(atoms);
+    }
+
+    public ReportSemanticChunks chunk(List<ParagraphAtom> atoms) {
         if (atoms.isEmpty()) {
             return new ReportSemanticChunks(List.of(), List.of());
         }
@@ -47,11 +63,22 @@ public class ReportSemanticChunkService {
             throw new LlmSemanticChunkException("LLM semantic chunk failed: no valid segments after boundary validation");
         }
 
-        ReportSemanticChunks chunks = SemanticChunkUtils.chunkReportBySegments(atoms, repairedSegments);
+        ReportSemanticChunks chunks = SemanticChunkUtils.chunkReportBySegments(atoms, repairedSegments, chunkingOptions());
         if (chunks.isEmpty()) {
             throw new LlmSemanticChunkException("LLM semantic chunk failed: no chunks generated from validated segments");
         }
         return chunks;
+    }
+
+    private ChunkingOptions chunkingOptions() {
+        ReportQualityProperties.Chunk chunk = reportQualityProperties.getChunk();
+        return new ChunkingOptions(
+                chunk.getChildTargetTokens(),
+                chunk.getChildMaxTokens(),
+                chunk.getParentTargetTokens(),
+                chunk.getParentMaxTokens(),
+                chunk.getOverlapTokens()
+        );
     }
 
     private List<SemanticSegment> planSemanticSegments(List<ParagraphAtom> atoms) {
@@ -101,6 +128,7 @@ public class ReportSemanticChunkService {
         for (ParagraphAtom atom : atoms) {
             Map<String, Object> row = new HashMap<>();
             row.put("paragraphId", atom.paragraphId());
+            row.put("pageNumber", atom.pageNumber());
             row.put("sectionPath", atom.sectionPath());
             row.put("tokenCount", atom.tokenCount());
             row.put("text", atom.text());

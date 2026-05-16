@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.aimilvusweb.repository.ReportOcrPageMapper">
+
+    <resultMap id="ReportOcrPageResultMap" type="com.example.aimilvusweb.entity.ReportOcrPage">
+        <id property="id" column="id"/>
+        <result property="reportId" column="report_id"/>
+        <result property="pageNumber" column="page_number"/>
+        <result property="rawText" column="raw_text"/>
+        <result property="cleanedText" column="cleaned_text"/>
+        <result property="diagnostics" column="diagnostics"/>
+        <result property="createdAt" column="created_at"/>
+    </resultMap>
+
+    <insert id="insert" parameterType="com.example.aimilvusweb.entity.ReportOcrPage" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO report_ocr_page(
+            report_id,
+            page_number,
+            raw_text,
+            cleaned_text,
+            diagnostics,
+            created_at
+        )
+        VALUES(
+            #{reportId},
+            #{pageNumber},
+            #{rawText},
+            #{cleanedText},
+            #{diagnostics},
+            #{createdAt}
+        )
+    </insert>
+
+    <select id="selectByReportId" parameterType="long" resultMap="ReportOcrPageResultMap">
+        SELECT id,
+               report_id,
+               page_number,
+               raw_text,
+               cleaned_text,
+               diagnostics,
+               created_at
+        FROM report_ocr_page
+        WHERE report_id = #{reportId}
+        ORDER BY page_number ASC
+    </select>
+</mapper>

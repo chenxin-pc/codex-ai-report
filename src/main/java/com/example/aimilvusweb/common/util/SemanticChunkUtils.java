@@ -37,16 +37,33 @@ public final class SemanticChunkUtils {
             int chunkIndexInParent,
             String sectionPath,
             String text,
-            int tokenCount
+            int tokenCount,
+            int startParagraphId,
+            int endParagraphId,
+            int startPageNumber,
+            int endPageNumber
     ) {
+        public ReportChunkSlice(String chunkType,
+                                int parentIndex,
+                                int chunkIndexInParent,
+                                String sectionPath,
+                                String text,
+                                int tokenCount) {
+            this(chunkType, parentIndex, chunkIndexInParent, sectionPath, text, tokenCount, 0, 0, 0, 0);
+        }
     }
 
     public record ParagraphAtom(
             int paragraphId,
+            int pageNumber,
             String sectionPath,
             String text,
-            int tokenCount
+            int tokenCount,
+            String diagnostics
     ) {
+        public ParagraphAtom(int paragraphId, String sectionPath, String text, int tokenCount) {
+            this(paragraphId, 0, sectionPath, text, tokenCount, "");
+        }
     }
 
     public record SemanticSegment(
@@ -75,7 +92,8 @@ public final class SemanticChunkUtils {
         for (int parentIndex = 0; parentIndex < parentDrafts.size(); parentIndex++) {
             ParentDraft parentDraft = parentDrafts.get(parentIndex);
             String parentText = formatChunkText(parentDraft.sectionPath(), parentDraft.text());
-            parents.add(new ReportChunkSlice("PARENT", parentIndex, 0, parentDraft.sectionPath(), parentText, estimateTokens(parentText)));
+            parents.add(new ReportChunkSlice("PARENT", parentIndex, 0, parentDraft.sectionPath(), parentText, estimateTokens(parentText),
+                    parentDraft.startParagraphId(), parentDraft.endParagraphId(), parentDraft.startPageNumber(), parentDraft.endPageNumber()));
             children.addAll(buildChildSlices(parentDraft, parentIndex, options));
         }
 
@@ -87,7 +105,7 @@ public final class SemanticChunkUtils {
         List<ParagraphAtom> atoms = new ArrayList<>();
         for (int i = 0; i < paragraphs.size(); i++) {
             SectionParagraph paragraph = paragraphs.get(i);
-            atoms.add(new ParagraphAtom(i + 1, paragraph.sectionPath(), paragraph.text(), estimateTokens(paragraph.text())));
+            atoms.add(new ParagraphAtom(i + 1, paragraph.pageNumber(), paragraph.sectionPath(), paragraph.text(), estimateTokens(paragraph.text()), ""));
         }
         return atoms;
     }
@@ -113,7 +131,14 @@ public final class SemanticChunkUtils {
                 }
             }
             if (!paragraphs.isEmpty()) {
-                parentDrafts.add(new ParentDraft(sectionPath, List.copyOf(paragraphs)));
+                parentDrafts.add(new ParentDraft(
+                        sectionPath,
+                        List.copyOf(paragraphs),
+                        segment.startParagraphId(),
+                        segment.endParagraphId(),
+                        resolveSegmentStartPage(atoms, segment),
+                        resolveSegmentEndPage(atoms, segment)
+                ));
             }
         }
 
@@ -122,7 +147,8 @@ public final class SemanticChunkUtils {
         for (int parentIndex = 0; parentIndex < parentDrafts.size(); parentIndex++) {
             ParentDraft parentDraft = parentDrafts.get(parentIndex);
             String parentText = formatChunkText(parentDraft.sectionPath(), parentDraft.text());
-            parents.add(new ReportChunkSlice("PARENT", parentIndex, 0, parentDraft.sectionPath(), parentText, estimateTokens(parentText)));
+            parents.add(new ReportChunkSlice("PARENT", parentIndex, 0, parentDraft.sectionPath(), parentText, estimateTokens(parentText),
+                    parentDraft.startParagraphId(), parentDraft.endParagraphId(), parentDraft.startPageNumber(), parentDraft.endPageNumber()));
             children.addAll(buildChildSlices(parentDraft, parentIndex, options));
         }
         return new ReportSemanticChunks(parents, children);
@@ -185,19 +211,37 @@ public final class SemanticChunkUtils {
         String[] parts = normalized.split("\\n\\s*\\n");
         List<SectionParagraph> paragraphs = new ArrayList<>();
         String sectionPath = "正文";
+        int pageNumber = 0;
 
         for (String part : parts) {
             String paragraph = part.trim().replaceAll("[ \\t]+", " ").replaceAll("\\n{2,}", "\n");
             if (paragraph.isBlank()) {
                 continue;
             }
+            int markerPageNumber = resolvePageMarker(paragraph);
+            if (markerPageNumber > 0) {
+                pageNumber = markerPageNumber;
+                continue;
+            }
             if (isHeading(paragraph)) {
                 sectionPath = cleanHeading(paragraph);
                 continue;
             }
-            paragraphs.add(new SectionParagraph(sectionPath, paragraph));
+            paragraphs.add(new SectionParagraph(sectionPath, paragraph, pageNumber));
         }
         return paragraphs;
+    }
+
+    private static int resolvePageMarker(String paragraph) {
+        String value = paragraph.trim();
+        if (!value.matches("^\\[Page\\s+\\d+\\]$")) {
+            return 0;
+        }
+        String digits = value.replaceAll("\\D+", "");
+        if (digits.isBlank()) {
+            return 0;
+        }
+        return Integer.parseInt(digits);
     }
 
     private static boolean isHeading(String paragraph) {
@@ -224,7 +268,7 @@ public final class SemanticChunkUtils {
             boolean exceedsHardMax = currentTokens > 0 && currentTokens + paragraphTokens > options.parentMaxTokens();
             boolean reachedTargetAtSemanticBoundary = currentTokens >= options.parentTargetTokens() && startsNewAnalyticalUnit(paragraph.text());
             if ((exceedsHardMax || sectionChanged || reachedTargetAtSemanticBoundary) && !buffer.isEmpty()) {
-                parents.add(new ParentDraft(currentSection, List.copyOf(buffer)));
+                parents.add(new ParentDraft(currentSection, List.copyOf(buffer), 0, 0, 0, 0));
                 buffer.clear();
                 currentTokens = 0;
             }
@@ -234,7 +278,7 @@ public final class SemanticChunkUtils {
         }
 
         if (!buffer.isEmpty()) {
-            parents.add(new ParentDraft(currentSection, List.copyOf(buffer)));
+            parents.add(new ParentDraft(currentSection, List.copyOf(buffer), 0, 0, 0, 0));
         }
         return parents;
     }
@@ -254,7 +298,7 @@ public final class SemanticChunkUtils {
                 boolean exceedsHardMax = currentTokens > 0 && currentTokens + paragraphTokens > options.childMaxTokens();
                 boolean reachedTargetAtSemanticBoundary = currentTokens >= options.childTargetTokens() && startsNewAnalyticalUnit(normalizedParagraph);
                 if ((exceedsHardMax || reachedTargetAtSemanticBoundary) && !buffer.isEmpty()) {
-                    previousText = addChildSlice(slices, parentDraft.sectionPath(), buffer, previousText, parentIndex, options);
+                    previousText = addChildSlice(slices, parentDraft, buffer, previousText, parentIndex, options);
                     buffer.clear();
                     currentTokens = 0;
                 }
@@ -264,21 +308,22 @@ public final class SemanticChunkUtils {
         }
 
         if (!buffer.isEmpty()) {
-            addChildSlice(slices, parentDraft.sectionPath(), buffer, previousText, parentIndex, options);
+            addChildSlice(slices, parentDraft, buffer, previousText, parentIndex, options);
         }
         return normalizeChildSliceSize(slices, options);
     }
 
     private static String addChildSlice(List<ReportChunkSlice> slices,
-                                        String sectionPath,
+                                        ParentDraft parentDraft,
                                         List<String> paragraphs,
                                         String previousText,
                                         int parentIndex,
                                         ChunkingOptions options) {
         String text = String.join("\n\n", paragraphs);
         String overlap = tailByTokens(previousText, options.overlapTokens());
-        String chunkText = formatChunkText(sectionPath, overlap.isBlank() ? text : overlap + "\n\n" + text);
-        slices.add(new ReportChunkSlice("CHILD", parentIndex, slices.size(), sectionPath, chunkText, estimateTokens(chunkText)));
+        String chunkText = formatChunkText(parentDraft.sectionPath(), overlap.isBlank() ? text : overlap + "\n\n" + text);
+        slices.add(new ReportChunkSlice("CHILD", parentIndex, slices.size(), parentDraft.sectionPath(), chunkText, estimateTokens(chunkText),
+                parentDraft.startParagraphId(), parentDraft.endParagraphId(), parentDraft.startPageNumber(), parentDraft.endPageNumber()));
         return text;
     }
 
@@ -392,7 +437,11 @@ public final class SemanticChunkUtils {
                         normalized.size(),
                         slice.sectionPath(),
                         slice.text(),
-                        slice.tokenCount()
+                        slice.tokenCount(),
+                        slice.startParagraphId(),
+                        slice.endParagraphId(),
+                        slice.startPageNumber(),
+                        slice.endPageNumber()
                 ));
                 continue;
             }
@@ -408,7 +457,11 @@ public final class SemanticChunkUtils {
                         normalized.size(),
                         slice.sectionPath(),
                         text,
-                        estimateTokens(text)
+                        estimateTokens(text),
+                        slice.startParagraphId(),
+                        slice.endParagraphId(),
+                        slice.startPageNumber(),
+                        slice.endPageNumber()
                 ));
             }
         }
@@ -465,10 +518,33 @@ public final class SemanticChunkUtils {
                 .orElse("正文");
     }
 
-    private record SectionParagraph(String sectionPath, String text) {
+    private static int resolveSegmentStartPage(List<ParagraphAtom> atoms, SemanticSegment segment) {
+        return atoms.stream()
+                .filter(atom -> atom.paragraphId() >= segment.startParagraphId() && atom.paragraphId() <= segment.endParagraphId())
+                .mapToInt(ParagraphAtom::pageNumber)
+                .filter(pageNumber -> pageNumber > 0)
+                .min()
+                .orElse(0);
     }
 
-    private record ParentDraft(String sectionPath, List<String> paragraphs) {
+    private static int resolveSegmentEndPage(List<ParagraphAtom> atoms, SemanticSegment segment) {
+        return atoms.stream()
+                .filter(atom -> atom.paragraphId() >= segment.startParagraphId() && atom.paragraphId() <= segment.endParagraphId())
+                .mapToInt(ParagraphAtom::pageNumber)
+                .filter(pageNumber -> pageNumber > 0)
+                .max()
+                .orElse(0);
+    }
+
+    private record SectionParagraph(String sectionPath, String text, int pageNumber) {
+    }
+
+    private record ParentDraft(String sectionPath,
+                               List<String> paragraphs,
+                               int startParagraphId,
+                               int endParagraphId,
+                               int startPageNumber,
+                               int endPageNumber) {
         String text() {
             return String.join("\n\n", paragraphs);
         }

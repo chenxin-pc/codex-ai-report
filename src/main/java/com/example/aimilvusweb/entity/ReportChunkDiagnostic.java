@@ -2,25 +2,25 @@ package com.example.aimilvusweb.entity;
 
 import java.time.Instant;
 
-public class ReportChunk {
+public class ReportChunkDiagnostic {
 
     private Long id;
     private Long reportId;
-    private Integer chunkIndex;
     private String chunkUid;
     private String parentChunkUid;
+    private Integer parentIndex;
+    private Integer chunkIndexInParent;
     private String chunkType;
     private String sectionPath;
-    private String chunkText;
     private Integer tokenCount;
-    private Integer pageNumber;
     private Integer startParagraphId;
     private Integer endParagraphId;
     private Integer startPageNumber;
     private Integer endPageNumber;
+    private Boolean kept;
     private String filterReason;
     private String diagnostics;
-    private Boolean vectorStored;
+    private String chunkText;
     private Instant createdAt;
 
     public Long getId() {
@@ -39,14 +39,6 @@ public class ReportChunk {
         this.reportId = reportId;
     }
 
-    public Integer getChunkIndex() {
-        return chunkIndex;
-    }
-
-    public void setChunkIndex(Integer chunkIndex) {
-        this.chunkIndex = chunkIndex;
-    }
-
     public String getChunkUid() {
         return chunkUid;
     }
@@ -61,6 +53,22 @@ public class ReportChunk {
 
     public void setParentChunkUid(String parentChunkUid) {
         this.parentChunkUid = parentChunkUid;
+    }
+
+    public Integer getParentIndex() {
+        return parentIndex;
+    }
+
+    public void setParentIndex(Integer parentIndex) {
+        this.parentIndex = parentIndex;
+    }
+
+    public Integer getChunkIndexInParent() {
+        return chunkIndexInParent;
+    }
+
+    public void setChunkIndexInParent(Integer chunkIndexInParent) {
+        this.chunkIndexInParent = chunkIndexInParent;
     }
 
     public String getChunkType() {
@@ -79,28 +87,12 @@ public class ReportChunk {
         this.sectionPath = sectionPath;
     }
 
-    public String getChunkText() {
-        return chunkText;
-    }
-
-    public void setChunkText(String chunkText) {
-        this.chunkText = chunkText;
-    }
-
     public Integer getTokenCount() {
         return tokenCount;
     }
 
     public void setTokenCount(Integer tokenCount) {
         this.tokenCount = tokenCount;
-    }
-
-    public Integer getPageNumber() {
-        return pageNumber;
-    }
-
-    public void setPageNumber(Integer pageNumber) {
-        this.pageNumber = pageNumber;
     }
 
     public Integer getStartParagraphId() {
@@ -135,6 +127,14 @@ public class ReportChunk {
         this.endPageNumber = endPageNumber;
     }
 
+    public Boolean getKept() {
+        return kept;
+    }
+
+    public void setKept(Boolean kept) {
+        this.kept = kept;
+    }
+
     public String getFilterReason() {
         return filterReason;
     }
@@ -151,12 +151,12 @@ public class ReportChunk {
         this.diagnostics = diagnostics;
     }
 
-    public Boolean getVectorStored() {
-        return vectorStored;
+    public String getChunkText() {
+        return chunkText;
     }
 
-    public void setVectorStored(Boolean vectorStored) {
-        this.vectorStored = vectorStored;
+    public void setChunkText(String chunkText) {
+        this.chunkText = chunkText;
     }
 
     public Instant getCreatedAt() {
