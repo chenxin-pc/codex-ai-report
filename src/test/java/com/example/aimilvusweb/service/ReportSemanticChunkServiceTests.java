@@ -51,4 +51,57 @@ class ReportSemanticChunkServiceTests {
         Assertions.assertTrue(chunks.parents().get(1).sectionPath().contains("风险提示"));
         Assertions.assertFalse(chunks.children().isEmpty());
     }
+
+    @Test
+    void shouldFailWhenLlmReturnsNullPlan() {
+        QwenClient qwenClient = mock(QwenClient.class);
+        PromptTemplateService promptTemplateService = mock(PromptTemplateService.class);
+        ReportSemanticChunkService service = new ReportSemanticChunkService(qwenClient, promptTemplateService);
+
+        when(promptTemplateService.loadTemplate("prompts/chunk-boundary-system-prompt.txt")).thenReturn("system");
+        when(promptTemplateService.render(eq("prompts/chunk-boundary-user-prompt.txt"), any(Map.class))).thenReturn("user");
+        when(qwenClient.chatForEntity("system", "user", LlmChunkPlanRespDTO.class)).thenReturn(null);
+
+        LlmSemanticChunkException exception = Assertions.assertThrows(
+                LlmSemanticChunkException.class,
+                () -> service.chunk(sampleReportText())
+        );
+
+        Assertions.assertTrue(exception.getMessage().contains("model returned null plan"));
+    }
+
+    @Test
+    void shouldFailWhenLlmReturnsOnlyInvalidSegments() {
+        QwenClient qwenClient = mock(QwenClient.class);
+        PromptTemplateService promptTemplateService = mock(PromptTemplateService.class);
+        ReportSemanticChunkService service = new ReportSemanticChunkService(qwenClient, promptTemplateService);
+
+        when(promptTemplateService.loadTemplate("prompts/chunk-boundary-system-prompt.txt")).thenReturn("system");
+        when(promptTemplateService.render(eq("prompts/chunk-boundary-user-prompt.txt"), any(Map.class))).thenReturn("user");
+        when(qwenClient.chatForEntity("system", "user", LlmChunkPlanRespDTO.class))
+                .thenReturn(new LlmChunkPlanRespDTO(List.of(
+                        new LlmChunkSegmentRespDTO(99, 100, "无效边界", "OTHER", 0.9)
+                )));
+
+        LlmSemanticChunkException exception = Assertions.assertThrows(
+                LlmSemanticChunkException.class,
+                () -> service.chunk(sampleReportText())
+        );
+
+        Assertions.assertTrue(exception.getMessage().contains("no valid segments"));
+    }
+
+    private String sampleReportText() {
+        return """
+                投资要点
+
+                我们认为行业景气度仍处于上行阶段。
+
+                从供给端看，新增产能投放节奏低于预期。
+
+                风险提示
+
+                原材料价格波动。
+                """;
+    }
 }

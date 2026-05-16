@@ -66,3 +66,6 @@ app:
     endpoint: ${OCR_ENDPOINT:}
     api-key: ${OCR_API_KEY:}
     file-field: ${OCR_FILE_FIELD:file}
+    model: ${OCR_MODEL:qwen-vl-ocr-latest}
+    task: ${OCR_TASK:document_parsing}
+    render-dpi: ${OCR_RENDER_DPI:160}

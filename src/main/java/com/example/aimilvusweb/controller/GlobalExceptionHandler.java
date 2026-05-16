@@ -1,5 +1,6 @@
 package com.example.aimilvusweb.controller;
 
+import com.example.aimilvusweb.service.LlmSemanticChunkException;
 import jakarta.validation.ConstraintViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -29,6 +30,11 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(ConstraintViolationException.class)
     public ResponseEntity<Map<String, Object>> handleConstraint(ConstraintViolationException e) {
         return build(HttpStatus.BAD_REQUEST, e.getMessage());
+    }
+
+    @ExceptionHandler(LlmSemanticChunkException.class)
+    public ResponseEntity<Map<String, Object>> handleLlmSemanticChunk(LlmSemanticChunkException e) {
+        return build(HttpStatus.BAD_GATEWAY, e.getMessage());
     }
 
     @ExceptionHandler(Exception.class)

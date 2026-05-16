@@ -2,7 +2,6 @@ package com.example.aimilvusweb.service;
 
 import com.example.aimilvusweb.common.ocr.OcrClient;
 import com.example.aimilvusweb.common.ocr.OcrRecognizedDocument;
-import com.example.aimilvusweb.common.util.PdfUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -19,9 +18,10 @@ public class ReportOcrParseService {
     }
 
     public String parse(MultipartFile file) {
-        String rawText = ocrClient.isConfigured()
-                ? extractByOcr(file)
-                : PdfUtils.extractText(file);
+        if (!ocrClient.isConfigured()) {
+            throw new IllegalStateException("OCR is required for report text extraction. Configure OCR_ENDPOINT or app.ocr.endpoint.");
+        }
+        String rawText = extractByOcr(file);
         String normalized = normalizeOcrText(rawText);
         if (normalized.isBlank()) {
             throw new IllegalArgumentException("OCR recognized no usable report text");

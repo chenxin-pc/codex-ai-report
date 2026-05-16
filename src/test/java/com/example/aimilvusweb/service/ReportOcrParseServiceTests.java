@@ -40,6 +40,22 @@ class ReportOcrParseServiceTests {
     }
 
     @Test
+    void shouldFailWhenOcrIsNotConfigured() {
+        OcrClient ocrClient = mock(OcrClient.class);
+        ReportOcrParseService service = new ReportOcrParseService(ocrClient);
+        MockMultipartFile file = new MockMultipartFile("file", "report.pdf", "application/pdf", "demo".getBytes());
+
+        when(ocrClient.isConfigured()).thenReturn(false);
+
+        IllegalStateException exception = Assertions.assertThrows(
+                IllegalStateException.class,
+                () -> service.parse(file)
+        );
+
+        Assertions.assertTrue(exception.getMessage().contains("OCR is required"));
+    }
+
+    @Test
     void shouldNormalizeOcrWrappedLinesAndSemanticBoundaries() {
         OcrClient ocrClient = mock(OcrClient.class);
         ReportOcrParseService service = new ReportOcrParseService(ocrClient);

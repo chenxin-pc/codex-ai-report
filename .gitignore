@@ -6,7 +6,10 @@ volumes/
 *.iml
 *.log
 .DS_Store
+__pycache__/
 
 .vscode/
 
 .vscode/
+
+.env

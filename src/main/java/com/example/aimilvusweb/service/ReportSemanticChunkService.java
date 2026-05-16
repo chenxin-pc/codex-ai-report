@@ -44,12 +44,12 @@ public class ReportSemanticChunkService {
         List<SemanticSegment> plannedSegments = planSemanticSegments(atoms);
         List<SemanticSegment> repairedSegments = validateAndRepairSegments(atoms, plannedSegments);
         if (repairedSegments.isEmpty()) {
-            throw new IllegalStateException("LLM semantic chunk plan produced no valid segments");
+            throw new LlmSemanticChunkException("LLM semantic chunk failed: no valid segments after boundary validation");
         }
 
         ReportSemanticChunks chunks = SemanticChunkUtils.chunkReportBySegments(atoms, repairedSegments);
         if (chunks.isEmpty()) {
-            throw new IllegalStateException("No chunks generated from LLM semantic segments");
+            throw new LlmSemanticChunkException("LLM semantic chunk failed: no chunks generated from validated segments");
         }
         return chunks;
     }
@@ -60,8 +60,11 @@ public class ReportSemanticChunkService {
             int end = Math.min(atoms.size(), start + LLM_BATCH_PARAGRAPHS);
             List<ParagraphAtom> batch = atoms.subList(start, end);
             LlmChunkPlanRespDTO plan = requestChunkPlan(batch);
-            if (plan == null || plan.segments() == null || plan.segments().isEmpty()) {
-                throw new IllegalStateException("LLM semantic chunk plan is empty for paragraph batch " + (start + 1) + "-" + end);
+            if (plan == null) {
+                throw new LlmSemanticChunkException("LLM semantic chunk failed: model returned null plan for paragraph batch " + (start + 1) + "-" + end);
+            }
+            if (plan.segments() == null || plan.segments().isEmpty()) {
+                throw new LlmSemanticChunkException("LLM semantic chunk failed: model returned empty segments for paragraph batch " + (start + 1) + "-" + end);
             }
             for (LlmChunkSegmentRespDTO segment : plan.segments()) {
                 if (segment.startParagraphId() != null && segment.endParagraphId() != null) {
@@ -86,7 +89,10 @@ public class ReportSemanticChunkService {
             return qwenClient.chatForEntity(systemPrompt, userPrompt, LlmChunkPlanRespDTO.class);
         } catch (Exception e) {
             log.warn("LLM semantic chunk plan request failed", e);
-            throw new IllegalStateException("LLM semantic chunk plan request failed: " + e.getMessage(), e);
+            if (e instanceof LlmSemanticChunkException chunkException) {
+                throw chunkException;
+            }
+            throw new LlmSemanticChunkException("LLM semantic chunk failed: model request error - " + e.getMessage(), e);
         }
     }
 
@@ -116,6 +122,9 @@ public class ReportSemanticChunkService {
                 .filter(segment -> segment.startParagraphId() >= minId && segment.endParagraphId() <= maxId)
                 .sorted(Comparator.comparingInt(SemanticSegment::startParagraphId))
                 .toList();
+        if (sortedSegments.isEmpty()) {
+            return List.of();
+        }
 
         List<SemanticSegment> repaired = new ArrayList<>();
         int cursor = minId;
