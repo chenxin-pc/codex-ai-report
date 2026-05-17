@@ -448,6 +448,12 @@ textarea:focus {
   line-height: 1.75;
 }
 
+.stream-text {
+  min-height: 260px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 .tag-group {
   display: flex;
   flex-wrap: wrap;

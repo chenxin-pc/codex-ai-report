@@ -6,6 +6,7 @@
 
 | 目录 | 用途 | 入口说明 |
 | --- | --- | --- |
+| `dev-services/` | 本地中间件一键启动与就绪检查 | `dev-services/README.md` |
 | `report-ingest-analysis/` | 研报导入、质量导出和搜索评估流水线 | `report-ingest-analysis/README.md` |
 
 ## 约定

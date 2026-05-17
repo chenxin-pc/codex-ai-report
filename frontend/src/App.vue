@@ -81,7 +81,7 @@
           <span>02</span>
           <div>
             <h2>投研问题</h2>
-            <p>问题会先走 Milvus ANN 召回，再由 Qwen 基于证据输出结构化推荐。</p>
+            <p>问题会先走 Milvus ANN 召回，再由 Qwen 基于证据流式输出分析。</p>
           </div>
         </div>
 
@@ -92,7 +92,7 @@
               <button class="primary-btn" :disabled="loading" @click="runRecommend">
                 {{ loading ? '分析中...' : '开始分析' }}
               </button>
-              <button class="ghost-btn" :disabled="loading" @click="clearResult">清空</button>
+              <button class="ghost-btn" @click="clearResult">清空</button>
             </div>
           </div>
 
@@ -123,18 +123,8 @@
         <div v-else class="result-layout">
           <article class="analysis-panel">
             <div class="panel-block">
-              <span>Analysis</span>
-              <p>{{ result.analysis || '暂无分析' }}</p>
-            </div>
-            <div class="panel-block">
-              <span>Recommendation</span>
-              <p>{{ result.recommendation || '暂无推荐' }}</p>
-            </div>
-            <div class="tag-group">
-              <span v-for="risk in result.risks || []" :key="risk">{{ risk }}</span>
-            </div>
-            <div class="citation-line">
-              {{ citationText }}
+              <span>{{ result.streamStatus || 'Streaming Analysis' }}</span>
+              <p class="stream-text">{{ result.analysis || '等待模型输出...' }}</p>
             </div>
           </article>
 
@@ -168,6 +158,8 @@ const loading = ref(false)
 const errMsg = ref('')
 const result = ref(null)
 const backendState = ref('idle')
+const streamController = ref(null)
+let streamRequestId = 0
 
 const queryTemplates = [
   '哪些研报看好储能板块，核心逻辑和风险是什么？',
@@ -185,13 +177,9 @@ const statusText = computed(() => {
 })
 
 const runtimeText = computed(() => {
+  if (loading.value && result.value?.streamStatus) return result.value.streamStatus
   if (selectedFile.value) return selectedFile.value.name
   return '前端代理 /api -> 8080'
-})
-
-const citationText = computed(() => {
-  const citations = result.value?.citations || []
-  return citations.length ? `引用：${citations.join('，')}` : '暂无引用'
 })
 
 const onFileChange = (event) => {
@@ -229,35 +217,147 @@ const uploadPdf = async () => {
 }
 
 const runRecommend = async () => {
-  if (!query.value.trim()) {
+  const currentQuery = query.value.trim()
+  if (!currentQuery) {
     errMsg.value = '请输入投研问题'
     return
   }
 
+  abortRecommendStream()
+  const requestId = ++streamRequestId
+  const controller = new AbortController()
+  streamController.value = controller
   loading.value = true
   backendState.value = 'idle'
   errMsg.value = ''
-  result.value = null
+  result.value = {
+    query: currentQuery,
+    top5: [],
+    analysis: '',
+    streamStatus: '准备分析'
+  }
 
   try {
-    result.value = await requestJson('/api/reports/recommend', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query: query.value })
-    })
-    backendState.value = 'ok'
+    await requestRecommendStream(currentQuery, controller.signal, requestId)
+    if (requestId === streamRequestId) {
+      backendState.value = 'ok'
+    }
   } catch (error) {
-    backendState.value = 'error'
-    errMsg.value = `分析失败：${error.message}`
+    if (error.name !== 'AbortError' && requestId === streamRequestId) {
+      backendState.value = 'error'
+      errMsg.value = `分析失败：${error.message}`
+    }
   } finally {
-    loading.value = false
+    if (requestId === streamRequestId) {
+      loading.value = false
+      streamController.value = null
+    }
   }
 }
 
 const clearResult = () => {
+  abortRecommendStream()
   query.value = ''
   errMsg.value = ''
   result.value = null
+  loading.value = false
+}
+
+const abortRecommendStream = () => {
+  streamRequestId += 1
+  if (streamController.value) {
+    streamController.value.abort()
+    streamController.value = null
+  }
+}
+
+const requestRecommendStream = async (queryText, signal, requestId) => {
+  const response = await fetch('/api/reports/recommend/stream', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ query: queryText }),
+    signal
+  })
+  if (!response.ok) {
+    const contentType = response.headers.get('content-type') || ''
+    const data = contentType.includes('application/json') ? await response.json() : { message: await response.text() }
+    throw new Error(data.message || `HTTP ${response.status}`)
+  }
+  if (!response.body) {
+    throw new Error('浏览器不支持流式响应')
+  }
+
+  const reader = response.body.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ''
+  let done = false
+  while (!done) {
+    const readResult = await reader.read()
+    done = readResult.done
+    buffer += decoder.decode(readResult.value || new Uint8Array(), { stream: !done })
+    buffer = consumeSseBuffer(buffer, requestId)
+  }
+  if (buffer.trim()) {
+    consumeSseFrame(buffer, requestId)
+  }
+}
+
+const consumeSseBuffer = (buffer, requestId) => {
+  let normalized = buffer.replace(/\r\n/g, '\n')
+  let separator = normalized.indexOf('\n\n')
+  while (separator >= 0) {
+    const frame = normalized.slice(0, separator)
+    consumeSseFrame(frame, requestId)
+    normalized = normalized.slice(separator + 2)
+    separator = normalized.indexOf('\n\n')
+  }
+  return normalized
+}
+
+const consumeSseFrame = (frame, requestId) => {
+  if (requestId !== streamRequestId) return
+  const lines = frame.split('\n')
+  let eventName = 'message'
+  const dataLines = []
+  for (const line of lines) {
+    if (line.startsWith('event:')) {
+      eventName = line.slice(6).trim()
+    } else if (line.startsWith('data:')) {
+      dataLines.push(line.slice(5).trimStart())
+    }
+  }
+  if (!dataLines.length) return
+  const data = JSON.parse(dataLines.join('\n'))
+  applyStreamEvent(eventName, data, requestId)
+}
+
+const applyStreamEvent = (eventName, data, requestId) => {
+  if (requestId !== streamRequestId || !result.value) return
+  if (eventName === 'status') {
+    result.value.streamStatus = data.message || data.stage || '分析中'
+    return
+  }
+  if (eventName === 'evidence') {
+    result.value.top5 = data.top5 || []
+    result.value.streamStatus = data.message || '检索完成'
+    return
+  }
+  if (eventName === 'delta') {
+    result.value.analysis += data.text || ''
+    result.value.streamStatus = '正在生成分析'
+    return
+  }
+  if (eventName === 'error') {
+    backendState.value = 'error'
+    errMsg.value = data.message || '分析失败'
+    result.value.streamStatus = '分析失败'
+    loading.value = false
+    return
+  }
+  if (eventName === 'done') {
+    result.value.streamStatus = '分析完成'
+    loading.value = false
+  }
 }
 
 const requestJson = async (url, options) => {
