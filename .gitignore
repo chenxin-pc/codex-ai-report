@@ -13,3 +13,4 @@ __pycache__/
 .vscode/
 
 .env
+scripts/**/config.local.json

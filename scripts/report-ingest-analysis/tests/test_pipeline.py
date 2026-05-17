@@ -1,5 +1,6 @@
 import json
 import io
+import sys
 import tempfile
 import unittest
 import zipfile
@@ -7,7 +8,9 @@ from pathlib import Path
 from unittest import mock
 from contextlib import redirect_stdout
 
-import report_ingest_analysis_pipeline as pipeline
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "commands"))
+
+import pipeline
 
 
 class ReportIngestAnalysisPipelineTests(unittest.TestCase):
@@ -69,7 +72,7 @@ class ReportIngestAnalysisPipelineTests(unittest.TestCase):
             }
             state = pipeline.RunState(run_id="run", created_at=pipeline.utc_now(), config_path="config.json")
 
-            with mock.patch("report_ingest_analysis_pipeline.download_pdf", side_effect=RuntimeError("boom")):
+            with mock.patch("pipeline.download_pdf", side_effect=RuntimeError("boom")):
                 reports = pipeline.collect_url_reports(config, state)
 
             self.assertEqual("failed", reports[0].collect_status)
@@ -111,7 +114,7 @@ class ReportIngestAnalysisPipelineTests(unittest.TestCase):
             self.assertEqual(7, skipped[0].report_id)
 
             forced_state = pipeline.RunState(run_id="forced-run", created_at=pipeline.utc_now(), config_path="config.json")
-            with mock.patch("report_ingest_analysis_pipeline.upload_report", return_value={"reportId": 8, "chunkCount": 2}):
+            with mock.patch("pipeline.upload_report", return_value={"reportId": 8, "chunkCount": 2}):
                 with redirect_stdout(io.StringIO()):
                     forced = pipeline.ingest_reports(config, forced_state, [report], force=True)
             self.assertEqual("success", forced[0].status)
@@ -129,7 +132,7 @@ class ReportIngestAnalysisPipelineTests(unittest.TestCase):
 
             continue_config = {"output": {"dir": temp_dir}, "runtime": {"continue_on_error": True}}
             continue_state = pipeline.RunState(run_id="continue-run", created_at=pipeline.utc_now(), config_path="config.json")
-            with mock.patch("report_ingest_analysis_pipeline.upload_report", return_value={"reportId": 3, "chunkCount": 1}):
+            with mock.patch("pipeline.upload_report", return_value={"reportId": 3, "chunkCount": 1}):
                 with redirect_stdout(io.StringIO()):
                     continued = pipeline.ingest_reports(continue_config, continue_state, [failed, next_report], force=False)
             self.assertEqual(["failed", "success"], [item.status for item in continued])
@@ -171,17 +174,19 @@ class ReportIngestAnalysisPipelineTests(unittest.TestCase):
             quality_data = {
                 "reports": [{"reportId": 1, "title": "T", "source": "S", "institution": "I", "publishDate": "2026-05-01", "createdAt": "2026-05-01 00:00:00"}],
                 "ocr_pages": [{"reportId": 1, "pageNumber": 1, "rawText": "raw", "cleanedText": "clean", "diagnostics": "", "createdAt": ""}],
+                "paragraph_atoms": [{"reportId": 1, "paragraphId": "p1", "pageNumber": 1, "sectionPath": "", "tokenCount": 1, "diagnostics": "", "paragraphText": "paragraph", "createdAt": ""}],
                 "chunks": [{"reportId": 1, "chunkUid": "c", "parentChunkUid": "", "chunkType": "CHILD", "sectionPath": "", "tokenCount": 1, "startPageNumber": 1, "endPageNumber": 1, "vectorStored": True, "chunkText": "text"}],
                 "filtered_chunks": [{"reportId": 1, "chunkUid": "f", "parentChunkUid": "", "chunkType": "CHILD", "sectionPath": "", "tokenCount": 1, "filterReason": "short", "diagnostics": "", "chunkText": "text"}],
             }
 
-            with mock.patch("report_ingest_analysis_pipeline.query_quality_data", return_value=quality_data):
+            with mock.patch("pipeline.query_quality_data", return_value=quality_data):
                 output = pipeline.build_quality_workbook(config, state, [1])
 
             with zipfile.ZipFile(output) as workbook:
                 xml = workbook.read("xl/workbook.xml").decode("utf-8")
             self.assertIn('name="reports"', xml)
             self.assertIn('name="ocr_pages"', xml)
+            self.assertIn('name="paragraph_atoms"', xml)
             self.assertIn('name="chunks"', xml)
             self.assertIn('name="filtered_chunks"', xml)
             self.assertIn('name="summary"', xml)

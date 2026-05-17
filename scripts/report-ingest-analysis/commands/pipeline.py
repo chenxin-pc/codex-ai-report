@@ -2,8 +2,9 @@
 """
 Scripted report ingest, quality export, and search evaluation pipeline.
 
-The script is intentionally dependency-light and lives under scripts/ so it can
-run in local and test environments without changing the online Spring service.
+The script is intentionally dependency-light and lives under
+scripts/report-ingest-analysis/commands/ so it can run in local and test
+environments without changing the online Spring service.
 """
 
 from __future__ import annotations
@@ -30,7 +31,7 @@ from typing import Any, Iterable
 from xml.sax.saxutils import escape
 
 
-DEFAULT_CONFIG = Path("scripts/report_ingest_analysis_config.example.json")
+DEFAULT_CONFIG = Path(__file__).resolve().parents[1] / "config" / "config.example.json"
 DEFAULT_LIMIT = 10
 DEFAULT_MAX_TEXT_LENGTH = 2000
 SENSITIVE_KEYS = ("api_key", "apikey", "authorization", "token", "password", "secret")

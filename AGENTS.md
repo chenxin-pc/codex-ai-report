@@ -15,6 +15,7 @@
 - `.codex/rules/comment-and-lombok/rule.md`
 - `.codex/rules/persistence-mybatis/rule.md`
 - `.codex/rules/ai-ocr-vector/rule.md`
+- `.codex/rules/script-organization/rule.md`
 - `.codex/rules/openspec-workflow/rule.md`
 
 ## 按需触发路由
@@ -28,7 +29,9 @@
    额外加载 `persistence-mybatis/rule.md`。
 5. 涉及 OCR、Prompt、切片、Milvus、Embedding、外部 AI 调用：
    额外加载 `ai-ocr-vector/rule.md`。
-6. 涉及 OpenSpec 提案/设计/任务/归档：
+6. 涉及 `scripts/` 下脚本、配置、脚本测试或脚本文档：
+   额外加载 `script-organization/rule.md`。
+7. 涉及 OpenSpec 提案/设计/任务/归档：
    额外加载 `openspec-workflow/rule.md`。
 
 ## 使用约束
