@@ -23,6 +23,11 @@ import java.util.List;
 import java.util.Map;
 
 @Service
+/**
+ * @Description: ReportSemanticChunkService类，负责相关业务能力的组织与实现。
+ * @author: cx
+ * @Date: 2026-05-17 10:24:01
+ */
 public class ReportSemanticChunkService {
 
     private static final Logger log = LoggerFactory.getLogger(ReportSemanticChunkService.class);
@@ -34,6 +39,11 @@ public class ReportSemanticChunkService {
     private final PromptTemplateService promptTemplateService;
     private final ReportQualityProperties reportQualityProperties;
 
+    /**
+     * @Description: 初始化ReportSemanticChunkService依赖与运行所需组件。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     @Autowired
     public ReportSemanticChunkService(QwenClient qwenClient,
                                       PromptTemplateService promptTemplateService,
@@ -47,11 +57,21 @@ public class ReportSemanticChunkService {
         this(qwenClient, promptTemplateService, new ReportQualityProperties());
     }
 
+    /**
+     * @Description: 执行文本切片并返回切片结果。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     public ReportSemanticChunks chunk(String parsedText) {
         List<ParagraphAtom> atoms = SemanticChunkUtils.atomizeReportParagraphs(parsedText);
         return chunk(atoms);
     }
 
+    /**
+     * @Description: 执行文本切片并返回切片结果。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     public ReportSemanticChunks chunk(List<ParagraphAtom> atoms) {
         if (atoms.isEmpty()) {
             return new ReportSemanticChunks(List.of(), List.of());
@@ -70,6 +90,11 @@ public class ReportSemanticChunkService {
         return chunks;
     }
 
+    /**
+     * @Description: 执行文本切片并返回切片结果。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     private ChunkingOptions chunkingOptions() {
         ReportQualityProperties.Chunk chunk = reportQualityProperties.getChunk();
         return new ChunkingOptions(
@@ -81,6 +106,11 @@ public class ReportSemanticChunkService {
         );
     }
 
+    /**
+     * @Description: 执行planSemanticSegments相关业务处理。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     private List<SemanticSegment> planSemanticSegments(List<ParagraphAtom> atoms) {
         List<SemanticSegment> segments = new ArrayList<>();
         for (int start = 0; start < atoms.size(); start += LLM_BATCH_PARAGRAPHS) {
@@ -108,6 +138,11 @@ public class ReportSemanticChunkService {
         return segments;
     }
 
+    /**
+     * @Description: 向外部服务发送请求并处理响应。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     private LlmChunkPlanRespDTO requestChunkPlan(List<ParagraphAtom> atoms) {
         try {
             String systemPrompt = promptTemplateService.loadTemplate("prompts/chunk-boundary-system-prompt.txt");
@@ -123,6 +158,11 @@ public class ReportSemanticChunkService {
         }
     }
 
+    /**
+     * @Description: 执行对象到目标格式的转换。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     private String toParagraphJson(List<ParagraphAtom> atoms) {
         List<Map<String, Object>> rows = new ArrayList<>();
         for (ParagraphAtom atom : atoms) {
@@ -137,6 +177,11 @@ public class ReportSemanticChunkService {
         return JSON.toJSONString(rows);
     }
 
+    /**
+     * @Description: 校验输入参数与业务约束。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     private List<SemanticSegment> validateAndRepairSegments(List<ParagraphAtom> atoms, List<SemanticSegment> segments) {
         if (segments == null || segments.isEmpty()) {
             return List.of();
@@ -180,6 +225,11 @@ public class ReportSemanticChunkService {
         return repaired;
     }
 
+    /**
+     * @Description: 按规则拆分输入内容。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     private List<SemanticSegment> splitOversizedSegment(List<ParagraphAtom> atoms, SemanticSegment segment) {
         List<SemanticSegment> splitSegments = new ArrayList<>();
         int start = segment.startParagraphId();
@@ -199,6 +249,11 @@ public class ReportSemanticChunkService {
         return splitSegments;
     }
 
+    /**
+     * @Description: 在主流程失败时提供兜底结果。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     private SemanticSegment fallbackSegment(List<ParagraphAtom> atoms, int startParagraphId, int endParagraphId) {
         String topic = atoms.stream()
                 .filter(atom -> atom.paragraphId() >= startParagraphId && atom.paragraphId() <= endParagraphId)

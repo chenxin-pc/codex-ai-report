@@ -13,6 +13,11 @@ import org.springframework.stereotype.Service;
 import java.util.List;
 
 @Service
+/**
+ * @Description: ReportQualityQueryService类，负责相关业务能力的组织与实现。
+ * @author: cx
+ * @Date: 2026-05-17 10:24:01
+ */
 public class ReportQualityQueryService {
 
     private final ReportOcrPageMapper reportOcrPageMapper;
@@ -20,6 +25,11 @@ public class ReportQualityQueryService {
     private final ReportChunkMapper reportChunkMapper;
     private final ReportChunkDiagnosticMapper reportChunkDiagnosticMapper;
 
+    /**
+     * @Description: 初始化ReportQualityQueryService依赖与运行所需组件。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     public ReportQualityQueryService(ReportOcrPageMapper reportOcrPageMapper,
                                      ReportParagraphAtomMapper reportParagraphAtomMapper,
                                      ReportChunkMapper reportChunkMapper,
@@ -30,6 +40,11 @@ public class ReportQualityQueryService {
         this.reportChunkDiagnosticMapper = reportChunkDiagnosticMapper;
     }
 
+    /**
+     * @Description: 返回ByReportId字段当前值。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     public ReportQualityData getByReportId(Long reportId) {
         if (reportId == null) {
             throw new IllegalArgumentException("reportId is required");

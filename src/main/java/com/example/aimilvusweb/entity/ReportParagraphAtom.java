@@ -1,7 +1,17 @@
 package com.example.aimilvusweb.entity;
 
+import lombok.Getter;
+import lombok.Setter;
+
 import java.time.Instant;
 
+/**
+ * @Description: 段落原子实体，保存段落编号、所属页码、文本内容与质量诊断信息。
+ * @author: cx
+ * @Date: 2026-05-17 10:53:07
+ */
+@Getter
+@Setter
 public class ReportParagraphAtom {
 
     private Long id;
@@ -13,76 +23,4 @@ public class ReportParagraphAtom {
     private Integer tokenCount;
     private String diagnostics;
     private Instant createdAt;
-
-    public Long getId() {
-        return id;
-    }
-
-    public void setId(Long id) {
-        this.id = id;
-    }
-
-    public Long getReportId() {
-        return reportId;
-    }
-
-    public void setReportId(Long reportId) {
-        this.reportId = reportId;
-    }
-
-    public Integer getParagraphId() {
-        return paragraphId;
-    }
-
-    public void setParagraphId(Integer paragraphId) {
-        this.paragraphId = paragraphId;
-    }
-
-    public Integer getPageNumber() {
-        return pageNumber;
-    }
-
-    public void setPageNumber(Integer pageNumber) {
-        this.pageNumber = pageNumber;
-    }
-
-    public String getSectionPath() {
-        return sectionPath;
-    }
-
-    public void setSectionPath(String sectionPath) {
-        this.sectionPath = sectionPath;
-    }
-
-    public String getParagraphText() {
-        return paragraphText;
-    }
-
-    public void setParagraphText(String paragraphText) {
-        this.paragraphText = paragraphText;
-    }
-
-    public Integer getTokenCount() {
-        return tokenCount;
-    }
-
-    public void setTokenCount(Integer tokenCount) {
-        this.tokenCount = tokenCount;
-    }
-
-    public String getDiagnostics() {
-        return diagnostics;
-    }
-
-    public void setDiagnostics(String diagnostics) {
-        this.diagnostics = diagnostics;
-    }
-
-    public Instant getCreatedAt() {
-        return createdAt;
-    }
-
-    public void setCreatedAt(Instant createdAt) {
-        this.createdAt = createdAt;
-    }
 }

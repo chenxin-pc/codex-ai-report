@@ -17,6 +17,11 @@ import java.util.List;
 import java.util.Map;
 
 @Service
+/**
+ * @Description: ReportRecommendService类，负责相关业务能力的组织与实现。
+ * @author: cx
+ * @Date: 2026-05-17 10:24:01
+ */
 public class ReportRecommendService {
 
     private static final Duration CACHE_TTL = Duration.ofMinutes(30);
@@ -26,6 +31,11 @@ public class ReportRecommendService {
     private final PromptTemplateService promptTemplateService;
     private final ReportRetrievalService reportRetrievalService;
 
+    /**
+     * @Description: 初始化ReportRecommendService依赖与运行所需组件。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     public ReportRecommendService(ObjectProvider<StringRedisTemplate> redisTemplateProvider,
                                   QwenClient qwenClient,
                                   PromptTemplateService promptTemplateService,
@@ -36,6 +46,11 @@ public class ReportRecommendService {
         this.reportRetrievalService = reportRetrievalService;
     }
 
+    /**
+     * @Description: 生成推荐结果并返回推荐响应。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     public RecommendRespDTO recommend(String query) {
         RecommendRespDTO cached = getCached(query);
         if (cached != null) {
@@ -67,6 +82,11 @@ public class ReportRecommendService {
         return response;
     }
 
+    /**
+     * @Description: 执行generateLlmRecommendation相关业务处理。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     private LlmRecommendRespDTO generateLlmRecommendation(String query, String evidence) {
         String systemPrompt = promptTemplateService.loadTemplate("prompts/recommend-system-prompt.txt");
         String userPrompt = promptTemplateService.render("prompts/recommend-user-prompt.txt",
@@ -83,6 +103,11 @@ public class ReportRecommendService {
         return respDTO;
     }
 
+    /**
+     * @Description: 返回Cached字段当前值。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     private RecommendRespDTO getCached(String query) {
         StringRedisTemplate redis = redisTemplateProvider.getIfAvailable();
         if (redis == null) {
@@ -99,6 +124,11 @@ public class ReportRecommendService {
         }
     }
 
+    /**
+     * @Description: 写入缓存或构建缓存键。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     private void cache(String query, RecommendRespDTO response) {
         StringRedisTemplate redis = redisTemplateProvider.getIfAvailable();
         if (redis == null) {
@@ -111,6 +141,11 @@ public class ReportRecommendService {
         }
     }
 
+    /**
+     * @Description: 写入缓存或构建缓存键。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     private String cacheKey(String query) {
         return "ai-report:recommend:" + query.trim();
     }

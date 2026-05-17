@@ -12,6 +12,11 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
+/**
+ * @Description: PdfUtils类，负责相关业务能力的组织与实现。
+ * @author: cx
+ * @Date: 2026-05-17 10:24:01
+ */
 public final class PdfUtils {
 
     private static final float HEADER_RATIO = 0.08F;
@@ -22,9 +27,19 @@ public final class PdfUtils {
     private static final int SHORT_LINE_MAX_CHARS = 14;
     private static final int MIN_BLOCK_CHARS = 30;
 
+    /**
+     * @Description: 初始化PdfUtils依赖与运行所需组件。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     private PdfUtils() {
     }
 
+    /**
+     * @Description: 执行extractText相关业务处理。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     public static String extractText(MultipartFile file) {
         try (PDDocument document = PDDocument.load(file.getInputStream())) {
             String text = extractTextByLayout(document);
@@ -37,6 +52,11 @@ public final class PdfUtils {
         }
     }
 
+    /**
+     * @Description: 执行extractTextByLayout相关业务处理。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     private static String extractTextByLayout(PDDocument document) throws IOException {
         List<String> pages = new ArrayList<>();
         for (PDPage page : document.getPages()) {
@@ -48,6 +68,11 @@ public final class PdfUtils {
         return String.join("\n\n", pages);
     }
 
+    /**
+     * @Description: 执行extractPageText相关业务处理。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     private static String extractPageText(PDPage page) throws IOException {
         PageRegions regions = buildPageRegions(page);
         RegionText regionText = extractRegionText(page, regions);
@@ -56,6 +81,11 @@ public final class PdfUtils {
         return cleanPageText(orderedBlocks);
     }
 
+    /**
+     * @Description: 构建目标对象或请求数据。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     private static PageRegions buildPageRegions(PDPage page) {
         PDRectangle mediaBox = page.getMediaBox();
         float width = mediaBox.getWidth();
@@ -75,6 +105,11 @@ public final class PdfUtils {
         return new PageRegions(full, left, right);
     }
 
+    /**
+     * @Description: 执行extractRegionText相关业务处理。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     private static RegionText extractRegionText(PDPage page, PageRegions regions) throws IOException {
         PDFTextStripperByArea stripperByArea = new PDFTextStripperByArea();
         stripperByArea.setSortByPosition(true);
@@ -89,6 +124,11 @@ public final class PdfUtils {
         return new RegionText(fullText, leftText, rightText);
     }
 
+    /**
+     * @Description: 执行detectLayout相关业务处理。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     private static PageLayout detectLayout(RegionText text) {
         if (isLikelyTwoColumn(text.full(), text.left(), text.right())) {
             return PageLayout.TWO_COLUMN;
@@ -96,6 +136,11 @@ public final class PdfUtils {
         return PageLayout.SINGLE_COLUMN;
     }
 
+    /**
+     * @Description: 根据上下文解析并确定最终值。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     private static List<String> resolveReadingOrder(PageLayout layout, RegionText text) {
         List<String> ordered = new ArrayList<>();
         if (layout == PageLayout.TWO_COLUMN) {
@@ -113,6 +158,11 @@ public final class PdfUtils {
         return ordered;
     }
 
+    /**
+     * @Description: 执行cleanPageText相关业务处理。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     private static String cleanPageText(List<String> blocks) {
         if (blocks == null || blocks.isEmpty()) {
             return "";
@@ -137,6 +187,11 @@ public final class PdfUtils {
         return normalizeRaw(String.join("\n\n", cleanedBlocks));
     }
 
+    /**
+     * @Description: 对输入数据进行规范化处理。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     private static List<String> normalizeLines(List<String> lines) {
         List<String> filtered = new ArrayList<>();
         StringBuilder shortLineBuffer = new StringBuilder();
@@ -158,6 +213,11 @@ public final class PdfUtils {
         return filtered;
     }
 
+    /**
+     * @Description: 刷新缓冲内容并落入结果集合。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     private static void flushShortLineBuffer(List<String> lines, StringBuilder shortLineBuffer) {
         if (shortLineBuffer.isEmpty()) {
             return;
@@ -166,11 +226,21 @@ public final class PdfUtils {
         shortLineBuffer.setLength(0);
     }
 
+    /**
+     * @Description: 判断是否满足PageMarkLine条件。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     private static boolean isPageMarkLine(String line) {
         String lowered = line.toLowerCase(Locale.ROOT);
         return lowered.matches("^page\\s*\\d+$") || lowered.matches("^\\d+\\s*/\\s*\\d+$");
     }
 
+    /**
+     * @Description: 判断是否满足LikelyTableNoiseLine条件。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     private static boolean isLikelyTableNoiseLine(String line) {
         String normalized = line.replaceAll("\\s+", "");
         if (normalized.isBlank()) {
@@ -197,6 +267,11 @@ public final class PdfUtils {
                 || (symbolRatio > 0.35D && letters < 3);
     }
 
+    /**
+     * @Description: 判断是否满足LikelyLowSemanticBlock条件。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     private static boolean isLikelyLowSemanticBlock(String block) {
         String normalized = block == null ? "" : block.replaceAll("\\s+", "");
         if (normalized.length() < MIN_BLOCK_CHARS) {
@@ -220,6 +295,11 @@ public final class PdfUtils {
         return hanRatio < 0.20D || noiseRatio > 0.65D;
     }
 
+    /**
+     * @Description: 判断是否满足LikelyTwoColumn条件。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     private static boolean isLikelyTwoColumn(String fullText, String leftText, String rightText) {
         if (leftText.length() < MIN_COLUMN_TEXT_LENGTH || rightText.length() < MIN_COLUMN_TEXT_LENGTH) {
             return false;
@@ -233,6 +313,11 @@ public final class PdfUtils {
         return ratio > 1.2D;
     }
 
+    /**
+     * @Description: 对输入数据进行规范化处理。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     private static String normalizeRaw(String text) {
         if (text == null) {
             return "";

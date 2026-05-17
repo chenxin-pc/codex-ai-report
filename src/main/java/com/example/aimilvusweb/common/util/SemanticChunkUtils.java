@@ -4,12 +4,22 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Pattern;
 
+/**
+ * @Description: SemanticChunkUtils类，负责相关业务能力的组织与实现。
+ * @author: cx
+ * @Date: 2026-05-17 10:24:01
+ */
 public final class SemanticChunkUtils {
 
     private static final Pattern NUMBERED_HEADING = Pattern.compile("^([一二三四五六七八九十]+[、.]|\\d+(\\.\\d+)*[、.)]?)\\s*\\S+");
     private static final Pattern REPORT_HEADING_KEYWORD = Pattern.compile(".*(摘要|要点|观点|评级|行业|公司|财务|盈利|估值|风险|提示|结论|投资|供给|需求|库存|价格|成本|政策).*");
     private static final ChunkingOptions DEFAULT_REPORT_OPTIONS = new ChunkingOptions(1200, 1800, 3500, 6000, 200);
 
+    /**
+     * @Description: 初始化SemanticChunkUtils依赖与运行所需组件。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     private SemanticChunkUtils() {
     }
 
@@ -26,6 +36,11 @@ public final class SemanticChunkUtils {
             List<ReportChunkSlice> parents,
             List<ReportChunkSlice> children
     ) {
+        /**
+         * @Description: 判断是否满足Empty条件。
+         * @author: cx
+         * @Date: 2026-05-17 10:24:01
+         */
         public boolean isEmpty() {
             return parents.isEmpty() || children.isEmpty();
         }
@@ -44,6 +59,11 @@ public final class SemanticChunkUtils {
             int endPageNumber,
             String segmentType
     ) {
+        /**
+         * @Description: 初始化ReportChunkSlice依赖与运行所需组件。
+         * @author: cx
+         * @Date: 2026-05-17 10:24:01
+         */
         public ReportChunkSlice(String chunkType,
                                 int parentIndex,
                                 int chunkIndexInParent,
@@ -62,6 +82,11 @@ public final class SemanticChunkUtils {
             int tokenCount,
             String diagnostics
     ) {
+        /**
+         * @Description: 初始化ParagraphAtom依赖与运行所需组件。
+         * @author: cx
+         * @Date: 2026-05-17 10:24:01
+         */
         public ParagraphAtom(int paragraphId, String sectionPath, String text, int tokenCount) {
             this(paragraphId, 0, sectionPath, text, tokenCount, "");
         }
@@ -76,10 +101,20 @@ public final class SemanticChunkUtils {
     ) {
     }
 
+    /**
+     * @Description: 执行文本切片并返回切片结果。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     public static ReportSemanticChunks chunkReport(String text) {
         return chunkReport(text, DEFAULT_REPORT_OPTIONS);
     }
 
+    /**
+     * @Description: 执行文本切片并返回切片结果。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     public static ReportSemanticChunks chunkReport(String text, ChunkingOptions options) {
         List<SectionParagraph> paragraphs = parseSectionParagraphs(text);
         if (paragraphs.isEmpty()) {
@@ -101,6 +136,11 @@ public final class SemanticChunkUtils {
         return new ReportSemanticChunks(parents, children);
     }
 
+    /**
+     * @Description: 将文本拆分为最小语义单元。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     public static List<ParagraphAtom> atomizeReportParagraphs(String text) {
         List<SectionParagraph> paragraphs = parseSectionParagraphs(text);
         List<ParagraphAtom> atoms = new ArrayList<>();
@@ -111,10 +151,20 @@ public final class SemanticChunkUtils {
         return atoms;
     }
 
+    /**
+     * @Description: 执行文本切片并返回切片结果。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     public static ReportSemanticChunks chunkReportBySegments(List<ParagraphAtom> atoms, List<SemanticSegment> segments) {
         return chunkReportBySegments(atoms, segments, DEFAULT_REPORT_OPTIONS);
     }
 
+    /**
+     * @Description: 执行文本切片并返回切片结果。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     public static ReportSemanticChunks chunkReportBySegments(List<ParagraphAtom> atoms,
                                                              List<SemanticSegment> segments,
                                                              ChunkingOptions options) {
@@ -156,6 +206,11 @@ public final class SemanticChunkUtils {
         return new ReportSemanticChunks(parents, children);
     }
 
+    /**
+     * @Description: 执行文本切片并返回切片结果。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     public static List<String> chunkByParagraphWindow(String text, int paragraphWindow, int overlapParagraphs) {
         String normalized = text.replace("\r\n", "\n").replace("\r", "\n").trim();
         String[] parts = normalized.split("\\n\\s*\\n");
@@ -191,6 +246,11 @@ public final class SemanticChunkUtils {
         return chunks;
     }
 
+    /**
+     * @Description: 执行estimateTokens相关业务处理。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     public static int estimateTokens(String text) {
         if (text == null || text.isBlank()) {
             return 0;
@@ -208,6 +268,11 @@ public final class SemanticChunkUtils {
         return Math.max(1, (int) Math.ceil(cjkChars / 1.5D + asciiChars / 4.0D));
     }
 
+    /**
+     * @Description: 解析输入内容并输出结构化结果。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     private static List<SectionParagraph> parseSectionParagraphs(String text) {
         String normalized = text == null ? "" : text.replace("\r\n", "\n").replace("\r", "\n").trim();
         String[] parts = normalized.split("\\n\\s*\\n");
@@ -234,6 +299,11 @@ public final class SemanticChunkUtils {
         return paragraphs;
     }
 
+    /**
+     * @Description: 根据上下文解析并确定最终值。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     private static int resolvePageMarker(String paragraph) {
         String value = paragraph.trim();
         if (!value.matches("^\\[Page\\s+\\d+\\]$")) {
@@ -246,6 +316,11 @@ public final class SemanticChunkUtils {
         return Integer.parseInt(digits);
     }
 
+    /**
+     * @Description: 判断是否满足Heading条件。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     private static boolean isHeading(String paragraph) {
         String value = paragraph.trim();
         if (value.length() > 60 || value.contains("。") || value.contains("；")) {
@@ -254,10 +329,20 @@ public final class SemanticChunkUtils {
         return NUMBERED_HEADING.matcher(value).matches() || REPORT_HEADING_KEYWORD.matcher(value).matches();
     }
 
+    /**
+     * @Description: 执行cleanHeading相关业务处理。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     private static String cleanHeading(String heading) {
         return heading.replaceAll("\\s+", " ").trim();
     }
 
+    /**
+     * @Description: 构建目标对象或请求数据。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     private static List<ParentDraft> buildParentDrafts(List<SectionParagraph> paragraphs, ChunkingOptions options) {
         List<ParentDraft> parents = new ArrayList<>();
         List<String> buffer = new ArrayList<>();
@@ -285,6 +370,11 @@ public final class SemanticChunkUtils {
         return parents;
     }
 
+    /**
+     * @Description: 构建目标对象或请求数据。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     private static List<ReportChunkSlice> buildChildSlices(ParentDraft parentDraft, int parentIndex, ChunkingOptions options) {
         List<ReportChunkSlice> slices = new ArrayList<>();
         List<String> buffer = new ArrayList<>();
@@ -315,6 +405,11 @@ public final class SemanticChunkUtils {
         return normalizeChildSliceSize(slices, options);
     }
 
+    /**
+     * @Description: 向目标集合追加处理结果。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     private static String addChildSlice(List<ReportChunkSlice> slices,
                                         ParentDraft parentDraft,
                                         List<String> paragraphs,
@@ -329,6 +424,11 @@ public final class SemanticChunkUtils {
         return text;
     }
 
+    /**
+     * @Description: 执行startsNewAnalyticalUnit相关业务处理。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     private static boolean startsNewAnalyticalUnit(String paragraph) {
         String value = paragraph.trim();
         return value.startsWith("从供给")
@@ -341,6 +441,11 @@ public final class SemanticChunkUtils {
                 || value.matches("^(首先|其次|再次|最后|一方面|另一方面)[，,].*");
     }
 
+    /**
+     * @Description: 执行tailByTokens相关业务处理。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     private static String tailByTokens(String text, int maxTokens) {
         if (text == null || text.isBlank() || maxTokens <= 0) {
             return "";
@@ -363,10 +468,20 @@ public final class SemanticChunkUtils {
         return String.join("\n\n", selected);
     }
 
+    /**
+     * @Description: 执行formatChunkText相关业务处理。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     private static String formatChunkText(String sectionPath, String text) {
         return "Section: " + sectionPath + "\n\n" + text.trim();
     }
 
+    /**
+     * @Description: 按规则拆分输入内容。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     private static List<String> splitOversizedParagraph(String paragraph, int childMaxTokens) {
         if (estimateTokens(paragraph) <= childMaxTokens) {
             return List.of(paragraph);
@@ -408,6 +523,11 @@ public final class SemanticChunkUtils {
         return normalized;
     }
 
+    /**
+     * @Description: 按规则拆分输入内容。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     private static List<String> splitToSentenceLikeUnits(String text) {
         String[] coarse = text.split("(?<=[。！？；.!?;])\\s+|\\n+");
         List<String> units = new ArrayList<>();
@@ -429,6 +549,11 @@ public final class SemanticChunkUtils {
         return fallback;
     }
 
+    /**
+     * @Description: 对输入数据进行规范化处理。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     private static List<ReportChunkSlice> normalizeChildSliceSize(List<ReportChunkSlice> slices, ChunkingOptions options) {
         List<ReportChunkSlice> normalized = new ArrayList<>();
         for (ReportChunkSlice slice : slices) {
@@ -472,6 +597,11 @@ public final class SemanticChunkUtils {
         return normalized;
     }
 
+    /**
+     * @Description: 执行hardSplitByTokenBudget相关业务处理。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     private static List<String> hardSplitByTokenBudget(String text, int tokenBudget) {
         List<String> parts = new ArrayList<>();
         if (text == null || text.isBlank()) {
@@ -498,6 +628,11 @@ public final class SemanticChunkUtils {
         return parts;
     }
 
+    /**
+     * @Description: 执行stripSectionPrefix相关业务处理。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     private static String stripSectionPrefix(String text) {
         int separatorIndex = text.indexOf("\n\n");
         if (separatorIndex < 0) {
@@ -510,6 +645,11 @@ public final class SemanticChunkUtils {
         return text;
     }
 
+    /**
+     * @Description: 根据上下文解析并确定最终值。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     private static String resolveSegmentSectionPath(List<ParagraphAtom> atoms, SemanticSegment segment) {
         String topic = segment.topic() == null ? "" : segment.topic().trim();
         if (!topic.isBlank()) {
@@ -522,6 +662,11 @@ public final class SemanticChunkUtils {
                 .orElse("正文");
     }
 
+    /**
+     * @Description: 根据上下文解析并确定最终值。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     private static int resolveSegmentStartPage(List<ParagraphAtom> atoms, SemanticSegment segment) {
         return atoms.stream()
                 .filter(atom -> atom.paragraphId() >= segment.startParagraphId() && atom.paragraphId() <= segment.endParagraphId())
@@ -531,6 +676,11 @@ public final class SemanticChunkUtils {
                 .orElse(0);
     }
 
+    /**
+     * @Description: 根据上下文解析并确定最终值。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     private static int resolveSegmentEndPage(List<ParagraphAtom> atoms, SemanticSegment segment) {
         return atoms.stream()
                 .filter(atom -> atom.paragraphId() >= segment.startParagraphId() && atom.paragraphId() <= segment.endParagraphId())
@@ -540,6 +690,11 @@ public final class SemanticChunkUtils {
                 .orElse(0);
     }
 
+    /**
+     * @Description: 对输入数据进行规范化处理。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     private static String normalizeSegmentType(String segmentType) {
         if (segmentType == null || segmentType.isBlank()) {
             return "OTHER";

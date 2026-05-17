@@ -16,6 +16,11 @@ import java.util.List;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+/**
+ * @Description: ReportQualityQueryServiceTests类，负责相关业务能力的组织与实现。
+ * @author: cx
+ * @Date: 2026-05-17 10:24:01
+ */
 class ReportQualityQueryServiceTests {
 
     @Test

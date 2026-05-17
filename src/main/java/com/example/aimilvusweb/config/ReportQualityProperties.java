@@ -1,23 +1,30 @@
 package com.example.aimilvusweb.config;
 
+import lombok.Getter;
+import lombok.Setter;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 
+/**
+ * @Description: 研报质量参数配置，聚合切片策略与检索策略相关阈值。
+ * @author: cx
+ * @Date: 2026-05-17 10:53:07
+ */
 @Component
+@Getter
 @ConfigurationProperties(prefix = "app.report-quality")
 public class ReportQualityProperties {
 
     private final Chunk chunk = new Chunk();
     private final Retrieval retrieval = new Retrieval();
 
-    public Chunk getChunk() {
-        return chunk;
-    }
-
-    public Retrieval getRetrieval() {
-        return retrieval;
-    }
-
+    /**
+     * @Description: 切片参数配置，控制父子块大小、重叠范围与最小切片阈值。
+     * @author: cx
+     * @Date: 2026-05-17 10:53:07
+     */
+    @Getter
+    @Setter
     public static class Chunk {
         private int childTargetTokens = 700;
         private int childMaxTokens = 1100;
@@ -25,101 +32,20 @@ public class ReportQualityProperties {
         private int parentMaxTokens = 5200;
         private int overlapTokens = 120;
         private int minSliceTokenCount = 30;
-
-        public int getChildTargetTokens() {
-            return childTargetTokens;
-        }
-
-        public void setChildTargetTokens(int childTargetTokens) {
-            this.childTargetTokens = childTargetTokens;
-        }
-
-        public int getChildMaxTokens() {
-            return childMaxTokens;
-        }
-
-        public void setChildMaxTokens(int childMaxTokens) {
-            this.childMaxTokens = childMaxTokens;
-        }
-
-        public int getParentTargetTokens() {
-            return parentTargetTokens;
-        }
-
-        public void setParentTargetTokens(int parentTargetTokens) {
-            this.parentTargetTokens = parentTargetTokens;
-        }
-
-        public int getParentMaxTokens() {
-            return parentMaxTokens;
-        }
-
-        public void setParentMaxTokens(int parentMaxTokens) {
-            this.parentMaxTokens = parentMaxTokens;
-        }
-
-        public int getOverlapTokens() {
-            return overlapTokens;
-        }
-
-        public void setOverlapTokens(int overlapTokens) {
-            this.overlapTokens = overlapTokens;
-        }
-
-        public int getMinSliceTokenCount() {
-            return minSliceTokenCount;
-        }
-
-        public void setMinSliceTokenCount(int minSliceTokenCount) {
-            this.minSliceTokenCount = minSliceTokenCount;
-        }
     }
 
+    /**
+     * @Description: 检索参数配置，控制召回数量、过滤阈值与上下文长度限制。
+     * @author: cx
+     * @Date: 2026-05-17 10:53:07
+     */
+    @Getter
+    @Setter
     public static class Retrieval {
         private int initialTopK = 20;
         private int finalTopK = 5;
         private double minSimilarityScore = 0.0D;
         private boolean rerankEnabled = false;
         private int maxParentContextTokens = 4500;
-
-        public int getInitialTopK() {
-            return initialTopK;
-        }
-
-        public void setInitialTopK(int initialTopK) {
-            this.initialTopK = initialTopK;
-        }
-
-        public int getFinalTopK() {
-            return finalTopK;
-        }
-
-        public void setFinalTopK(int finalTopK) {
-            this.finalTopK = finalTopK;
-        }
-
-        public double getMinSimilarityScore() {
-            return minSimilarityScore;
-        }
-
-        public void setMinSimilarityScore(double minSimilarityScore) {
-            this.minSimilarityScore = minSimilarityScore;
-        }
-
-        public boolean isRerankEnabled() {
-            return rerankEnabled;
-        }
-
-        public void setRerankEnabled(boolean rerankEnabled) {
-            this.rerankEnabled = rerankEnabled;
-        }
-
-        public int getMaxParentContextTokens() {
-            return maxParentContextTokens;
-        }
-
-        public void setMaxParentContextTokens(int maxParentContextTokens) {
-            this.maxParentContextTokens = maxParentContextTokens;
-        }
     }
 }

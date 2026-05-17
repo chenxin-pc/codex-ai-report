@@ -16,6 +16,11 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 @Service
+/**
+ * @Description: ReportOcrParseService类，负责相关业务能力的组织与实现。
+ * @author: cx
+ * @Date: 2026-05-17 10:24:01
+ */
 public class ReportOcrParseService {
     private static final Pattern MARKDOWN_FENCE = Pattern.compile("(?m)^\\s*```[A-Za-z0-9_-]*\\s*$");
     private static final Pattern LATEX_SECTION = Pattern.compile("\\\\(?:sub)*section\\*?\\{([^{}]*)}");
@@ -28,14 +33,29 @@ public class ReportOcrParseService {
 
     private final OcrClient ocrClient;
 
+    /**
+     * @Description: 初始化ReportOcrParseService依赖与运行所需组件。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     public ReportOcrParseService(OcrClient ocrClient) {
         this.ocrClient = ocrClient;
     }
 
+    /**
+     * @Description: 解析输入内容并输出结构化结果。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     public String parse(MultipartFile file) {
         return parseDetailed(file).cleanedText();
     }
 
+    /**
+     * @Description: 解析输入内容并输出结构化结果。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     public ReportOcrParseResult parseDetailed(MultipartFile file) {
         if (!ocrClient.isConfigured()) {
             throw new IllegalStateException("OCR is required for report text extraction. Configure OCR_ENDPOINT or app.ocr.endpoint.");
@@ -48,6 +68,11 @@ public class ReportOcrParseService {
         return result;
     }
 
+    /**
+     * @Description: 对输入数据进行规范化处理。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     private ReportOcrParseResult normalizeDocument(OcrRecognizedDocument document) {
         if (!document.pages().isEmpty()) {
             List<OcrPageResult> pages = new ArrayList<>();
@@ -121,6 +146,11 @@ public class ReportOcrParseService {
         return new NormalizeResult(String.join("\n\n", paragraphs), diagnostics);
     }
 
+    /**
+     * @Description: 执行cleanMarkup相关业务处理。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     private MarkupCleanResult cleanMarkup(String text) {
         Map<String, Integer> counts = new LinkedHashMap<>();
         String value = text;
@@ -147,6 +177,11 @@ public class ReportOcrParseService {
         return new MarkupCleanResult(value, counts.values().stream().mapToInt(Integer::intValue).sum() > 0, counts);
     }
 
+    /**
+     * @Description: 执行replaceAndCount相关业务处理。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     private String replaceAndCount(String text, Pattern pattern, String replacement, Map<String, Integer> counts, String key) {
         Matcher matcher = pattern.matcher(text);
         int count = 0;
@@ -160,6 +195,11 @@ public class ReportOcrParseService {
         return pattern.matcher(text).replaceAll(replacement);
     }
 
+    /**
+     * @Description: 执行unwrapAndCount相关业务处理。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     private String unwrapAndCount(String text, Pattern pattern, Map<String, Integer> counts, String key) {
         Matcher matcher = pattern.matcher(text);
         StringBuilder builder = new StringBuilder();
@@ -176,6 +216,11 @@ public class ReportOcrParseService {
         return builder.toString();
     }
 
+    /**
+     * @Description: 执行countOccurrences相关业务处理。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     private int countOccurrences(String text, String value) {
         int count = 0;
         int index = 0;
@@ -186,6 +231,11 @@ public class ReportOcrParseService {
         return count;
     }
 
+    /**
+     * @Description: 刷新缓冲内容并落入结果集合。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     private void flushParagraph(List<String> paragraphs, List<String> removedNoiseLines, StringBuilder paragraph) {
         if (paragraph.isEmpty()) {
             return;
@@ -199,6 +249,11 @@ public class ReportOcrParseService {
         paragraph.setLength(0);
     }
 
+    /**
+     * @Description: 将文本拆分为最小语义单元。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     private List<ParagraphAtom> atomizePages(List<OcrPageResult> pages) {
         List<ParagraphAtom> atoms = new ArrayList<>();
         String sectionPath = "正文";
@@ -227,6 +282,11 @@ public class ReportOcrParseService {
         return List.copyOf(atoms);
     }
 
+    /**
+     * @Description: 合并多源数据并返回结果。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     private String mergeDiagnostics(String externalDiagnostics, String normalizeDiagnostics) {
         if (externalDiagnostics == null || externalDiagnostics.isBlank()) {
             return normalizeDiagnostics;
@@ -240,10 +300,20 @@ public class ReportOcrParseService {
         ));
     }
 
+    /**
+     * @Description: 判断是否满足PageMarker条件。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     private boolean isPageMarker(String line) {
         return line.matches("^\\[Page\\s+\\d+\\]$") || line.matches("^第\\s*\\d+\\s*页$");
     }
 
+    /**
+     * @Description: 判断是否满足LikelyHeading条件。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     private boolean isLikelyHeading(String line) {
         String value = line.trim();
         if (value.length() > 48 || value.matches(".*[。；，,.!?].*") || startsNewSemanticLine(value)) {
@@ -253,6 +323,11 @@ public class ReportOcrParseService {
                 || value.matches(".*(摘要|要点|观点|评级|行业|公司|财务|盈利|估值|风险|提示|结论|投资|供给|需求|库存|价格|成本|政策).*");
     }
 
+    /**
+     * @Description: 执行endsSentence相关业务处理。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     private boolean endsSentence(StringBuilder paragraph) {
         if (paragraph.isEmpty()) {
             return false;
@@ -262,10 +337,20 @@ public class ReportOcrParseService {
                 || last == '.' || last == '!' || last == '?' || last == ';';
     }
 
+    /**
+     * @Description: 执行startsNewSemanticLine相关业务处理。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     private boolean startsNewSemanticLine(String line) {
         return line.matches("^(首先|其次|再次|最后|一方面|另一方面|从供给|从需求|盈利预测|估值|风险|投资建议|我们认为).*");
     }
 
+    /**
+     * @Description: 追加文本片段并维护上下文。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     private void appendWrappedLine(StringBuilder paragraph, String line) {
         if (paragraph.toString().endsWith("-")) {
             paragraph.deleteCharAt(paragraph.length() - 1);
@@ -278,14 +363,29 @@ public class ReportOcrParseService {
         paragraph.append(line);
     }
 
+    /**
+     * @Description: 执行needsSpace相关业务处理。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     private boolean needsSpace(char left, char right) {
         return isAsciiLetterOrDigit(left) && isAsciiLetterOrDigit(right);
     }
 
+    /**
+     * @Description: 判断是否满足AsciiLetterOrDigit条件。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     private boolean isAsciiLetterOrDigit(char ch) {
         return (ch >= '0' && ch <= '9') || (ch >= 'A' && ch <= 'Z') || (ch >= 'a' && ch <= 'z');
     }
 
+    /**
+     * @Description: 判断是否满足LikelyNoiseLine条件。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     private boolean isLikelyNoiseLine(String line) {
         String value = line.replaceAll("\\s+", "");
         if (value.length() < 8) {

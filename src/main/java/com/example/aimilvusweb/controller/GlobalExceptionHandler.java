@@ -12,13 +12,28 @@ import java.util.HashMap;
 import java.util.Map;
 
 @RestControllerAdvice
+/**
+ * @Description: GlobalExceptionHandler类，负责相关业务能力的组织与实现。
+ * @author: cx
+ * @Date: 2026-05-17 10:24:01
+ */
 public class GlobalExceptionHandler {
 
+    /**
+     * @Description: 执行handleIllegalArg相关业务处理。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<Map<String, Object>> handleIllegalArg(IllegalArgumentException e) {
         return build(HttpStatus.BAD_REQUEST, e.getMessage());
     }
 
+    /**
+     * @Description: 执行handleValidation相关业务处理。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<Map<String, Object>> handleValidation(MethodArgumentNotValidException e) {
         String message = e.getBindingResult().getFieldErrors().isEmpty()
@@ -27,21 +42,41 @@ public class GlobalExceptionHandler {
         return build(HttpStatus.BAD_REQUEST, message);
     }
 
+    /**
+     * @Description: 执行handleConstraint相关业务处理。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     @ExceptionHandler(ConstraintViolationException.class)
     public ResponseEntity<Map<String, Object>> handleConstraint(ConstraintViolationException e) {
         return build(HttpStatus.BAD_REQUEST, e.getMessage());
     }
 
+    /**
+     * @Description: 执行handleLlmSemanticChunk相关业务处理。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     @ExceptionHandler(LlmSemanticChunkException.class)
     public ResponseEntity<Map<String, Object>> handleLlmSemanticChunk(LlmSemanticChunkException e) {
         return build(HttpStatus.BAD_GATEWAY, e.getMessage());
     }
 
+    /**
+     * @Description: 执行handleGeneral相关业务处理。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Map<String, Object>> handleGeneral(Exception e) {
         return build(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage());
     }
 
+    /**
+     * @Description: 构建目标对象或请求数据。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     private ResponseEntity<Map<String, Object>> build(HttpStatus status, String message) {
         Map<String, Object> body = new HashMap<>();
         body.put("code", status.value());

@@ -69,6 +69,51 @@
 - 条件分支应优先表达正常路径，避免过深嵌套；必要时使用提前返回。
 - 注释只解释业务意图、边界条件或非显然逻辑，不写“赋值给变量”这类重复代码含义的注释。
 
+### 类与方法注释模板（强制）
+- 后续新增或修改的类注释必须使用以下模板：
+```java
+/**
+ * @Description:
+ * @author: cx
+ * @Date: yyyy-MM-dd HH:mm:ss（必须填写实际时间）
+ */
+```
+- 后续新增或修改的方法注释也必须使用以下模板：
+```java
+/**
+ * @Description:
+ * @author: cx
+ * @Date: yyyy-MM-dd HH:mm:ss（必须填写实际时间）
+ */
+```
+- 方法注释中的 `@Description` 必须明确描述该方法的核心功能，不得只写“处理逻辑”“业务方法”等模糊表述。
+- 方法注释中的 `@Description` 是对方法“实际含义与行为结果”的总结，必须结合方法真实职责编写，不能仅写“核心功能：执行XXX方法的核心功能”这类模板化句子。
+- `@Description` 应覆盖该方法做了什么、主要处理对象或输入、产出或副作用（如持久化、调用外部服务、组装返回值）中的关键信息。
+- 方法和类注释中的 `@Date` 必须填写真实创建或修改时间，不允许留空或使用占位文本。
+- 上述注释模板属于强制执行规则，不得替换为其他注释格式。
+
+### 字段注释规则（强制）
+- 类中的字段注释必须说明字段的实际业务含义与用途，禁止只写“模型”“参数”“状态”等过于简略的词。
+- 字段注释应尽量体现该字段在系统中的作用边界，必要时补充默认值语义或来源（如配置项、外部服务约定）。
+- 示例：`private String model = "qwen-vl-ocr-latest";` 的注释应描述为“OCR 调用使用的模型标识，默认值为 qwen-vl-ocr-latest”。 
+
+### Lombok 规则（强制）
+- 项目已引入 Lombok；后续类字段默认使用 Lombok 生成 getter/setter，不再手写重复的 `getXxx` / `setXxx` 方法。
+- 优先使用 `@Getter`、`@Setter` 进行最小范围生成；仅在确有特殊逻辑（如参数校验、延迟计算、兼容历史序列化行为）时才允许手写 getter/setter。
+- 若存在“字段注释规则”要求，字段业务含义注释仍必须保留，不能因使用 Lombok 而省略。
+- 常用 Lombok 注解及推荐场景：
+  - `@Getter` / `@Setter`：用于常规属性访问器生成。
+  - `@ToString`：用于调试打印对象关键信息；敏感字段需用 `exclude` 排除。
+  - `@EqualsAndHashCode`：用于值对象相等性定义；涉及继承时显式配置 `callSuper`。
+  - `@NoArgsConstructor` / `@AllArgsConstructor` / `@RequiredArgsConstructor`：用于构造器生成；Spring Bean 场景优先 `@RequiredArgsConstructor` 配合 `final` 字段。
+  - `@Builder`：用于参数较多对象的构建，提升可读性；DTO/测试构造场景优先。
+  - `@Slf4j`：用于统一日志对象生成，替代手写 `LoggerFactory`。
+  - `@Data`：仅用于简单数据载体；在实体或复杂业务对象上慎用，避免无意生成不合适的 `equals/hashCode/toString`。
+- 使用限制：
+  - 禁止为了省代码而覆盖业务语义：有业务校验、脱敏、派生逻辑的方法必须手写实现。
+  - 涉及密码、密钥、Token、证件号等敏感字段时，`@ToString` 必须显式排除相关字段。
+  - 新增 Lombok 注解后需确保 `mvn -q test` 通过。
+
 ### 面向对象与空值处理
 - Service、Component、Mapper 等 Spring Bean 使用构造器注入，不使用字段注入。
 - 工具类必须 `final` 且构造器私有；只有无状态且不需要 DI 的逻辑才能放入 `common.util`。

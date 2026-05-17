@@ -29,20 +29,40 @@ import java.util.List;
 import java.util.Map;
 
 @Component
+/**
+ * @Description: OcrClient类，负责相关业务能力的组织与实现。
+ * @author: cx
+ * @Date: 2026-05-17 10:24:01
+ */
 public class OcrClient {
 
     private final OcrProperties properties;
     private final RestClient restClient;
 
+    /**
+     * @Description: 初始化OcrClient依赖与运行所需组件。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     public OcrClient(OcrProperties properties) {
         this.properties = properties;
         this.restClient = RestClient.create();
     }
 
+    /**
+     * @Description: 判断是否满足Configured条件。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     public boolean isConfigured() {
         return properties.getEndpoint() != null && !properties.getEndpoint().isBlank();
     }
 
+    /**
+     * @Description: 执行recognize相关业务处理。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     public OcrRecognizedDocument recognize(MultipartFile file) {
         if (!isConfigured()) {
             throw new IllegalStateException("OCR endpoint is not configured. Set app.ocr.endpoint or OCR_ENDPOINT.");
@@ -54,11 +74,21 @@ public class OcrClient {
         return parseResponse(responseBody);
     }
 
+    /**
+     * @Description: 判断是否满足DashScopeEndpoint条件。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     private boolean isDashScopeEndpoint() {
         String endpoint = properties.getEndpoint() == null ? "" : properties.getEndpoint();
         return endpoint.contains("dashscope.aliyuncs.com");
     }
 
+    /**
+     * @Description: 执行recognizeByDashScope相关业务处理。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     private OcrRecognizedDocument recognizeByDashScope(MultipartFile file) {
         List<OcrRecognizedDocument.OcrPage> pages = renderPdfPages(file).stream()
                 .map(pageImage -> new OcrRecognizedDocument.OcrPage(
@@ -73,6 +103,11 @@ public class OcrClient {
         return new OcrRecognizedDocument(fullText, pages);
     }
 
+    /**
+     * @Description: 渲染输出文本或页面内容。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     private List<PageImage> renderPdfPages(MultipartFile file) {
         try (PDDocument document = PDDocument.load(file.getInputStream())) {
             PDFRenderer renderer = new PDFRenderer(document);
@@ -88,6 +123,11 @@ public class OcrClient {
         }
     }
 
+    /**
+     * @Description: 执行对象到目标格式的转换。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     private String toJpegDataUrl(BufferedImage image) throws IOException {
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
         ImageWriter writer = ImageIO.getImageWritersByFormatName("jpg").next();
@@ -105,6 +145,11 @@ public class OcrClient {
         return "data:image/jpeg;base64," + Base64.getEncoder().encodeToString(outputStream.toByteArray());
     }
 
+    /**
+     * @Description: 向外部服务发送请求并处理响应。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     private String requestDashScopePageText(String imageDataUrl, int pageNumber) {
         try {
             String responseBody = restClient.post()
@@ -124,6 +169,11 @@ public class OcrClient {
         }
     }
 
+    /**
+     * @Description: 根据上下文解析并确定最终值。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     private String resolveDashScopeGenerationEndpoint() {
         String endpoint = properties.getEndpoint().trim();
         if (endpoint.endsWith("/services/aigc/multimodal-generation/generation")) {
@@ -132,6 +182,11 @@ public class OcrClient {
         return endpoint.replaceAll("/+$", "") + "/services/aigc/multimodal-generation/generation";
     }
 
+    /**
+     * @Description: 构建目标对象或请求数据。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     private Map<String, Object> buildDashScopeRequest(String imageDataUrl) {
         return Map.of(
                 "model", properties.getModel(),
@@ -163,6 +218,11 @@ public class OcrClient {
         );
     }
 
+    /**
+     * @Description: 解析输入内容并输出结构化结果。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     private String parseDashScopeText(String responseBody) {
         if (responseBody == null || responseBody.isBlank()) {
             return "";
@@ -187,10 +247,20 @@ public class OcrClient {
         return content.getJSONObject(0).getString("text");
     }
 
+    /**
+     * @Description: 向外部服务发送请求并处理响应。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     private String requestOcr(MultipartFile file) {
         try {
             String filename = file.getOriginalFilename() == null ? "report.pdf" : file.getOriginalFilename();
             ByteArrayResource fileResource = new ByteArrayResource(file.getBytes()) {
+                /**
+                 * @Description: 返回Filename字段当前值。
+                 * @author: cx
+                 * @Date: 2026-05-17 10:24:01
+                 */
                 @Override
                 public String getFilename() {
                     return filename;
@@ -217,6 +287,11 @@ public class OcrClient {
         }
     }
 
+    /**
+     * @Description: 解析输入内容并输出结构化结果。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     private OcrRecognizedDocument parseResponse(String responseBody) {
         if (responseBody == null || responseBody.isBlank()) {
             throw new IllegalArgumentException("OCR response is empty");
@@ -234,6 +309,11 @@ public class OcrClient {
         return document;
     }
 
+    /**
+     * @Description: 解析输入内容并输出结构化结果。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     private OcrRecognizedDocument parseObject(JSONObject object) {
         List<OcrRecognizedDocument.OcrPage> pages = parsePages(object.getJSONArray("pages"));
         String fullText = firstText(object, "fullText", "text", "content", "markdown");
@@ -253,6 +333,11 @@ public class OcrClient {
         return new OcrRecognizedDocument(fullText, pages);
     }
 
+    /**
+     * @Description: 解析输入内容并输出结构化结果。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     private List<OcrRecognizedDocument.OcrPage> parsePages(JSONArray pagesJson) {
         if (pagesJson == null || pagesJson.isEmpty()) {
             return List.of();
@@ -277,6 +362,11 @@ public class OcrClient {
         return pages;
     }
 
+    /**
+     * @Description: 执行firstText相关业务处理。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     private String firstText(JSONObject object, String... keys) {
         for (String key : keys) {
             String value = object.getString(key);

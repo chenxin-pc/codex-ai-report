@@ -1,7 +1,17 @@
 package com.example.aimilvusweb.entity;
 
+import lombok.Getter;
+import lombok.Setter;
+
 import java.time.Instant;
 
+/**
+ * @Description: 研报切片实体，记录父子切片关系、文本内容、页码范围、过滤与向量化状态。
+ * @author: cx
+ * @Date: 2026-05-17 10:53:07
+ */
+@Getter
+@Setter
 public class ReportChunk {
 
     private Long id;
@@ -22,148 +32,4 @@ public class ReportChunk {
     private String diagnostics;
     private Boolean vectorStored;
     private Instant createdAt;
-
-    public Long getId() {
-        return id;
-    }
-
-    public void setId(Long id) {
-        this.id = id;
-    }
-
-    public Long getReportId() {
-        return reportId;
-    }
-
-    public void setReportId(Long reportId) {
-        this.reportId = reportId;
-    }
-
-    public Integer getChunkIndex() {
-        return chunkIndex;
-    }
-
-    public void setChunkIndex(Integer chunkIndex) {
-        this.chunkIndex = chunkIndex;
-    }
-
-    public String getChunkUid() {
-        return chunkUid;
-    }
-
-    public void setChunkUid(String chunkUid) {
-        this.chunkUid = chunkUid;
-    }
-
-    public String getParentChunkUid() {
-        return parentChunkUid;
-    }
-
-    public void setParentChunkUid(String parentChunkUid) {
-        this.parentChunkUid = parentChunkUid;
-    }
-
-    public String getChunkType() {
-        return chunkType;
-    }
-
-    public void setChunkType(String chunkType) {
-        this.chunkType = chunkType;
-    }
-
-    public String getSectionPath() {
-        return sectionPath;
-    }
-
-    public void setSectionPath(String sectionPath) {
-        this.sectionPath = sectionPath;
-    }
-
-    public String getChunkText() {
-        return chunkText;
-    }
-
-    public void setChunkText(String chunkText) {
-        this.chunkText = chunkText;
-    }
-
-    public Integer getTokenCount() {
-        return tokenCount;
-    }
-
-    public void setTokenCount(Integer tokenCount) {
-        this.tokenCount = tokenCount;
-    }
-
-    public Integer getPageNumber() {
-        return pageNumber;
-    }
-
-    public void setPageNumber(Integer pageNumber) {
-        this.pageNumber = pageNumber;
-    }
-
-    public Integer getStartParagraphId() {
-        return startParagraphId;
-    }
-
-    public void setStartParagraphId(Integer startParagraphId) {
-        this.startParagraphId = startParagraphId;
-    }
-
-    public Integer getEndParagraphId() {
-        return endParagraphId;
-    }
-
-    public void setEndParagraphId(Integer endParagraphId) {
-        this.endParagraphId = endParagraphId;
-    }
-
-    public Integer getStartPageNumber() {
-        return startPageNumber;
-    }
-
-    public void setStartPageNumber(Integer startPageNumber) {
-        this.startPageNumber = startPageNumber;
-    }
-
-    public Integer getEndPageNumber() {
-        return endPageNumber;
-    }
-
-    public void setEndPageNumber(Integer endPageNumber) {
-        this.endPageNumber = endPageNumber;
-    }
-
-    public String getFilterReason() {
-        return filterReason;
-    }
-
-    public void setFilterReason(String filterReason) {
-        this.filterReason = filterReason;
-    }
-
-    public String getDiagnostics() {
-        return diagnostics;
-    }
-
-    public void setDiagnostics(String diagnostics) {
-        this.diagnostics = diagnostics;
-    }
-
-    public Boolean getVectorStored() {
-        return vectorStored;
-    }
-
-    public void setVectorStored(Boolean vectorStored) {
-        this.vectorStored = vectorStored;
-    }
-
-    public Instant getCreatedAt() {
-        return createdAt;
-    }
-
-    public void setCreatedAt(Instant createdAt) {
-        this.createdAt = createdAt;
-    }
 }

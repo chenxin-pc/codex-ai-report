@@ -17,12 +17,22 @@ import java.util.List;
 import java.util.Map;
 
 @Service
+/**
+ * @Description: ReportRetrievalService类，负责相关业务能力的组织与实现。
+ * @author: cx
+ * @Date: 2026-05-17 10:24:01
+ */
 public class ReportRetrievalService {
 
     private final ObjectProvider<VectorStore> vectorStoreProvider;
     private final ReportChunkMapper reportChunkMapper;
     private final ReportQualityProperties reportQualityProperties;
 
+    /**
+     * @Description: 初始化ReportRetrievalService依赖与运行所需组件。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     public ReportRetrievalService(ObjectProvider<VectorStore> vectorStoreProvider,
                                   ReportChunkMapper reportChunkMapper,
                                   ReportQualityProperties reportQualityProperties) {
@@ -31,6 +41,11 @@ public class ReportRetrievalService {
         this.reportQualityProperties = reportQualityProperties;
     }
 
+    /**
+     * @Description: 检索候选数据并返回排序结果。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     public List<RetrievedChunk> retrieve(String query) {
         VectorStore vectorStore = requireVectorStore();
         int initialTopK = Math.max(reportQualityProperties.getRetrieval().getInitialTopK(), 1);
@@ -59,6 +74,11 @@ public class ReportRetrievalService {
                 .toList();
     }
 
+    /**
+     * @Description: 执行requireVectorStore相关业务处理。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     private VectorStore requireVectorStore() {
         VectorStore vectorStore = vectorStoreProvider.getIfAvailable();
         if (vectorStore == null) {
@@ -67,12 +87,22 @@ public class ReportRetrievalService {
         return vectorStore;
     }
 
+    /**
+     * @Description: 执行shouldFilterByScore相关业务处理。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     private boolean shouldFilterByScore(Double score) {
         return score != null
                 && reportQualityProperties.getRetrieval().getMinSimilarityScore() > 0D
                 && score < reportQualityProperties.getRetrieval().getMinSimilarityScore();
     }
 
+    /**
+     * @Description: 执行deduplicateByChunkUid相关业务处理。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     private List<RetrievedChunk> deduplicateByChunkUid(List<RetrievedChunk> candidates) {
         Map<String, RetrievedChunk> deduplicated = new LinkedHashMap<>();
         for (RetrievedChunk candidate : candidates) {
@@ -83,6 +113,11 @@ public class ReportRetrievalService {
         return new ArrayList<>(deduplicated.values());
     }
 
+    /**
+     * @Description: 执行rerankByQueryOverlap相关业务处理。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     private List<RetrievedChunk> rerankByQueryOverlap(String query, List<RetrievedChunk> candidates) {
         String normalizedQuery = normalizeForOverlap(query);
         return candidates.stream()
@@ -91,6 +126,11 @@ public class ReportRetrievalService {
                 .toList();
     }
 
+    /**
+     * @Description: 执行overlapScore相关业务处理。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     private int overlapScore(String query, String text) {
         if (query.isBlank() || text.isBlank()) {
             return 0;
@@ -104,10 +144,20 @@ public class ReportRetrievalService {
         return score;
     }
 
+    /**
+     * @Description: 对输入数据进行规范化处理。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     private String normalizeForOverlap(String text) {
         return text == null ? "" : text.replaceAll("\\s+", "").toLowerCase();
     }
 
+    /**
+     * @Description: 根据上下文解析并确定最终值。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     private Double resolveScore(Document doc) {
         Object score = doc.getMetadata().get("score");
         if (score instanceof Number number) {
@@ -120,6 +170,11 @@ public class ReportRetrievalService {
         return null;
     }
 
+    /**
+     * @Description: 执行expandContext相关业务处理。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     private String expandContext(Document doc, String fallbackText) {
         String parentChunkUid = String.valueOf(doc.getMetadata().getOrDefault("parentChunkUid", ""));
         if (parentChunkUid.isBlank()) {
@@ -132,6 +187,11 @@ public class ReportRetrievalService {
         return limitTokens(parentChunk.getChunkText(), reportQualityProperties.getRetrieval().getMaxParentContextTokens());
     }
 
+    /**
+     * @Description: 按阈值限制输出内容范围。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     private String limitTokens(String text, int maxTokens) {
         if (SemanticChunkUtils.estimateTokens(text) <= maxTokens) {
             return text;

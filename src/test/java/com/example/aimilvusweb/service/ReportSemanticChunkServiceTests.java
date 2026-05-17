@@ -16,6 +16,11 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+/**
+ * @Description: ReportSemanticChunkServiceTests类，负责相关业务能力的组织与实现。
+ * @author: cx
+ * @Date: 2026-05-17 10:24:01
+ */
 class ReportSemanticChunkServiceTests {
 
     @Test
@@ -93,6 +98,11 @@ class ReportSemanticChunkServiceTests {
         Assertions.assertTrue(exception.getMessage().contains("no valid segments"));
     }
 
+    /**
+     * @Description: 执行sampleReportText相关业务处理。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     private String sampleReportText() {
         return """
                 投资要点

@@ -1,8 +1,18 @@
 package com.example.aimilvusweb.entity;
 
+import lombok.Getter;
+import lombok.Setter;
+
 import java.time.Instant;
 import java.time.LocalDate;
 
+/**
+ * @Description: 研报主档实体，保存标题、来源机构、发布日期与创建时间等基础信息。
+ * @author: cx
+ * @Date: 2026-05-17 10:53:07
+ */
+@Getter
+@Setter
 public class ReportDocument {
 
     private Long id;
@@ -11,52 +21,4 @@ public class ReportDocument {
     private String institution;
     private LocalDate publishDate;
     private Instant createdAt;
-
-    public Long getId() {
-        return id;
-    }
-
-    public void setId(Long id) {
-        this.id = id;
-    }
-
-    public String getTitle() {
-        return title;
-    }
-
-    public void setTitle(String title) {
-        this.title = title;
-    }
-
-    public String getSource() {
-        return source;
-    }
-
-    public void setSource(String source) {
-        this.source = source;
-    }
-
-    public String getInstitution() {
-        return institution;
-    }
-
-    public void setInstitution(String institution) {
-        this.institution = institution;
-    }
-
-    public LocalDate getPublishDate() {
-        return publishDate;
-    }
-
-    public void setPublishDate(LocalDate publishDate) {
-        this.publishDate = publishDate;
-    }
-
-    public Instant getCreatedAt() {
-        return createdAt;
-    }
-
-    public void setCreatedAt(Instant createdAt) {
-        this.createdAt = createdAt;
-    }
 }

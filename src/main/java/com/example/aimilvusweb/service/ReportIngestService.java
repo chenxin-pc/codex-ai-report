@@ -36,15 +36,35 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Service
+/**
+ * @Description: ReportIngestService类，负责相关业务能力的组织与实现。
+ * @author: cx
+ * @Date: 2026-05-17 10:24:01
+ */
 public class ReportIngestService {
     private static final int EMBEDDING_BATCH_SIZE = 10;
+    /**
+     * @Description: 执行of相关业务处理。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     private static final Set<String> EXCLUDED_SECTION_KEYWORDS = Set.of(
             "免责声明", "免责条款", "法律声明", "分析师承诺", "评级说明", "投资评级说明", "风险披露",
             "分析师声明", "研究所联系方式", "联系方式", "券商简介", "机构介绍", "中邮证券研究所"
     );
+    /**
+     * @Description: 执行of相关业务处理。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     private static final Set<String> EXCLUDED_SEGMENT_TYPES = Set.of(
             "DISCLAIMER", "ANALYST_DECLARATION", "BROKER_PROFILE", "CONTACT_INFO", "LAYOUT_NOISE"
     );
+    /**
+     * @Description: 执行of相关业务处理。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     private static final Set<String> FINANCIAL_TABLE_KEYWORDS = Set.of(
             "盈利预测", "财务指标", "财务报表", "主要财务比率", "利润表", "资产负债表", "现金流量表",
             "营业收入", "归母净利润", "每股收益", "EPS", "P/E", "P/B", "市盈率", "市净率"
@@ -61,6 +81,11 @@ public class ReportIngestService {
     private final ReportIngestFailureService reportIngestFailureService;
     private final ReportQualityProperties reportQualityProperties;
 
+    /**
+     * @Description: 初始化ReportIngestService依赖与运行所需组件。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     public ReportIngestService(ReportDocumentMapper reportDocumentMapper,
                                ReportChunkMapper reportChunkMapper,
                                ReportOcrPageMapper reportOcrPageMapper,
@@ -83,6 +108,11 @@ public class ReportIngestService {
         this.reportQualityProperties = reportQualityProperties;
     }
 
+    /**
+     * @Description: 执行ingest相关业务处理。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     @Transactional
     public ReportUploadRespDTO ingest(MultipartFile file, String title, String source, String institution, LocalDate publishDate) {
         String stage = "VALIDATION";
@@ -104,6 +134,11 @@ public class ReportIngestService {
         }
     }
 
+    /**
+     * @Description: 执行requireVectorStore相关业务处理。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     private VectorStore requireVectorStore() {
         VectorStore vectorStore = vectorStoreProvider.getIfAvailable();
         if (vectorStore == null) {
@@ -112,12 +147,22 @@ public class ReportIngestService {
         return vectorStore;
     }
 
+    /**
+     * @Description: 校验输入参数与业务约束。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     private void validateFile(MultipartFile file) {
         if (file == null || file.isEmpty()) {
             throw new IllegalArgumentException("Report file is required");
         }
     }
 
+    /**
+     * @Description: 解析输入内容并输出结构化结果。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     private IngestPreparation parseAndChunk(MultipartFile file) {
         ReportOcrParseResult ocrResult = reportOcrParseService.parseDetailed(file);
         ReportSemanticChunks chunks = reportSemanticChunkService.chunk(ocrResult.atoms());
@@ -127,6 +172,11 @@ public class ReportIngestService {
         return new IngestPreparation(ocrResult, chunks);
     }
 
+    /**
+     * @Description: 执行persistReportDocument相关业务处理。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     private ReportDocument persistReportDocument(MultipartFile file, String title, String source, String institution, LocalDate publishDate) {
         ReportDocument report = new ReportDocument();
         report.setTitle((title == null || title.isBlank()) ? file.getOriginalFilename() : title.trim());
@@ -138,6 +188,11 @@ public class ReportIngestService {
         return report;
     }
 
+    /**
+     * @Description: 执行persistOcrQualityData相关业务处理。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     private void persistOcrQualityData(ReportDocument report, ReportOcrParseResult ocrResult) {
         for (OcrPageResult page : ocrResult.pages()) {
             ReportOcrPage ocrPage = new ReportOcrPage();
@@ -163,6 +218,11 @@ public class ReportIngestService {
         }
     }
 
+    /**
+     * @Description: 执行persistChunks相关业务处理。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     private List<ReportChunk> persistChunks(ReportDocument report, ReportSemanticChunks chunks) {
         List<ReportChunkSlice> filteredParents = chunks.parents().stream()
                 .filter(this::shouldKeepSlice)
@@ -206,6 +266,11 @@ public class ReportIngestService {
         return persistedChildChunks;
     }
 
+    /**
+     * @Description: 构建目标对象或请求数据。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     private ReportChunk buildReportChunk(ReportDocument report,
                                          ReportChunkSlice slice,
                                          String chunkUid,
@@ -233,6 +298,11 @@ public class ReportIngestService {
         return chunk;
     }
 
+    /**
+     * @Description: 执行persistChunkDiagnostic相关业务处理。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     private void persistChunkDiagnostic(ReportDocument report,
                                         ReportChunkSlice slice,
                                         String chunkUid,
@@ -260,10 +330,20 @@ public class ReportIngestService {
         reportChunkDiagnosticMapper.insert(diagnostic);
     }
 
+    /**
+     * @Description: 执行newChunkUid相关业务处理。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     private String newChunkUid() {
         return UUID.randomUUID().toString().replace("-", "");
     }
 
+    /**
+     * @Description: 构建目标对象或请求数据。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     private List<Document> buildVectorDocuments(ReportDocument report, List<ReportChunk> chunks) {
         List<Document> vectorDocuments = new ArrayList<>();
         for (ReportChunk chunk : chunks) {
@@ -289,6 +369,11 @@ public class ReportIngestService {
         return vectorDocuments;
     }
 
+    /**
+     * @Description: 向目标集合追加处理结果。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     private void addVectorDocumentsInBatches(VectorStore vectorStore, List<Document> documents) {
         for (int start = 0; start < documents.size(); start += EMBEDDING_BATCH_SIZE) {
             int end = Math.min(documents.size(), start + EMBEDDING_BATCH_SIZE);
@@ -296,10 +381,20 @@ public class ReportIngestService {
         }
     }
 
+    /**
+     * @Description: 执行shouldKeepSlice相关业务处理。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     private boolean shouldKeepSlice(ReportChunkSlice slice) {
         return resolveFilterReason(slice) == null;
     }
 
+    /**
+     * @Description: 根据上下文解析并确定最终值。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     private String resolveFilterReason(ReportChunkSlice slice) {
         String segmentType = normalizedSegmentType(slice);
         if (EXCLUDED_SEGMENT_TYPES.contains(segmentType)) {
@@ -316,6 +411,11 @@ public class ReportIngestService {
         return resolveLowSemanticReason(slice);
     }
 
+    /**
+     * @Description: 根据上下文解析并确定最终值。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     private String resolveLowSemanticReason(ReportChunkSlice slice) {
         if (slice.tokenCount() < reportQualityProperties.getChunk().getMinSliceTokenCount()) {
             return "LOW_TOKEN_COUNT:" + slice.tokenCount();
@@ -352,6 +452,11 @@ public class ReportIngestService {
         return null;
     }
 
+    /**
+     * @Description: 构建目标对象或请求数据。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     private String buildChunkDiagnostics(ReportChunkSlice slice, String filterReason) {
         Map<String, Object> diagnostics = new HashMap<>();
         diagnostics.put("startParagraphId", slice.startParagraphId());
@@ -364,6 +469,11 @@ public class ReportIngestService {
         return JSON.toJSONString(diagnostics);
     }
 
+    /**
+     * @Description: 对输入数据进行规范化处理。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     private String normalizedSegmentType(ReportChunkSlice slice) {
         String segmentType = slice.segmentType();
         if (segmentType == null || segmentType.isBlank()) {
@@ -372,6 +482,11 @@ public class ReportIngestService {
         return segmentType.trim().toUpperCase();
     }
 
+    /**
+     * @Description: 判断是否满足FinancialTableCandidate条件。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     private boolean isFinancialTableCandidate(ReportChunkSlice slice) {
         String segmentType = normalizedSegmentType(slice);
         if ("FINANCIAL_TABLE".equals(segmentType) || "FINANCIAL_FORECAST".equals(segmentType)) {
@@ -386,6 +501,11 @@ public class ReportIngestService {
         return false;
     }
 
+    /**
+     * @Description: 构建目标对象或请求数据。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     private ReportUploadRespDTO buildUploadResp(ReportDocument report, int chunkCount) {
         return new ReportUploadRespDTO(report.getId(), report.getTitle(), chunkCount, "Upload and ingest completed");
     }

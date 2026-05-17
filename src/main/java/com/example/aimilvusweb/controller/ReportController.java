@@ -18,16 +18,31 @@ import java.time.LocalDate;
 
 @RestController
 @RequestMapping("/api/reports")
+/**
+ * @Description: ReportController类，负责相关业务能力的组织与实现。
+ * @author: cx
+ * @Date: 2026-05-17 10:24:01
+ */
 public class ReportController {
 
     private final ReportIngestService reportIngestService;
     private final ReportRecommendService reportRecommendService;
 
+    /**
+     * @Description: 初始化ReportController依赖与运行所需组件。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     public ReportController(ReportIngestService reportIngestService, ReportRecommendService reportRecommendService) {
         this.reportIngestService = reportIngestService;
         this.reportRecommendService = reportRecommendService;
     }
 
+    /**
+     * @Description: 执行upload相关业务处理。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     @PostMapping("/upload")
     public ReportUploadRespDTO upload(
             @RequestParam("file") MultipartFile file,
@@ -39,6 +54,11 @@ public class ReportController {
         return reportIngestService.ingest(file, title, source, institution, publishDate);
     }
 
+    /**
+     * @Description: 生成推荐结果并返回推荐响应。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     @PostMapping("/recommend")
     public RecommendRespDTO recommend(@Valid @RequestBody RecommendReqDTO reqDTO) {
         return reportRecommendService.recommend(reqDTO.query());

@@ -20,6 +20,11 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+/**
+ * @Description: ReportIngestServiceTests类，负责相关业务能力的组织与实现。
+ * @author: cx
+ * @Date: 2026-05-17 10:24:01
+ */
 class ReportIngestServiceTests {
 
     @Test
@@ -108,6 +113,11 @@ class ReportIngestServiceTests {
         Assertions.assertNull(filterReason);
     }
 
+    /**
+     * @Description: 执行newIngestService相关业务处理。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     private ReportIngestService newIngestService(ReportQualityProperties properties) {
         return new ReportIngestService(
                 mock(ReportDocumentMapper.class),
@@ -123,6 +133,11 @@ class ReportIngestServiceTests {
         );
     }
 
+    /**
+     * @Description: 根据上下文解析并确定最终值。
+     * @author: cx
+     * @Date: 2026-05-17 10:24:01
+     */
     private String resolveFilterReason(ReportIngestService ingestService, ReportChunkSlice slice) throws Exception {
         Method method = ReportIngestService.class.getDeclaredMethod("resolveFilterReason", ReportChunkSlice.class);
         method.setAccessible(true);
