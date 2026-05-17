@@ -14,3 +14,5 @@ __pycache__/
 
 .env
 scripts/**/config.local.json
+outputs/
+reports/
