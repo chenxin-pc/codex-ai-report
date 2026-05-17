@@ -72,11 +72,41 @@ class ReportIngestAnalysisPipelineTests(unittest.TestCase):
             }
             state = pipeline.RunState(run_id="run", created_at=pipeline.utc_now(), config_path="config.json")
 
-            with mock.patch("pipeline.download_pdf", side_effect=RuntimeError("boom")):
+            with mock.patch("inputs.download_pdf", side_effect=RuntimeError("boom")):
                 reports = pipeline.collect_url_reports(config, state)
 
             self.assertEqual("failed", reports[0].collect_status)
             self.assertEqual("download failure", "download failure" if "boom" in reports[0].error_summary else "")
+
+    def test_collect_eastmoney_reports_from_manifest(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            manifest = root / "eastmoney.csv"
+            manifest.write_text(
+                "url,title,institution,publishDate\nhttps://example.test/em.pdf,EM Title,EM Inst,2026-05-01\n",
+                encoding="utf-8",
+            )
+            config = {
+                "input": {
+                    "mode": "eastmoney",
+                    "eastmoney_manifest": str(manifest),
+                    "download_dir": str(root / "downloads"),
+                    "limit": 10,
+                },
+                "output": {"dir": str(root / "outputs")},
+            }
+            state = pipeline.RunState(run_id="run", created_at=pipeline.utc_now(), config_path="config.json")
+
+            def fake_download(url, target, timeout=60):
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_bytes(b"%PDF-1.4")
+
+            with mock.patch("inputs.download_pdf", side_effect=fake_download):
+                reports = pipeline.collect_eastmoney_reports(config, state)
+
+            self.assertEqual(1, len(reports))
+            self.assertEqual("eastmoney", reports[0].source)
+            self.assertEqual("EM Title", reports[0].title)
 
     def test_successful_fingerprints_excludes_current_run_and_supports_skip(self):
         with tempfile.TemporaryDirectory() as temp_dir:

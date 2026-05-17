@@ -30,6 +30,19 @@ from pathlib import Path
 from typing import Any, Iterable
 from xml.sax.saxutils import escape
 
+# Keep imports local and dependency-light while allowing modularized helpers.
+LIB_DIR = Path(__file__).resolve().parents[1] / "lib"
+if str(LIB_DIR) not in sys.path:
+    sys.path.insert(0, str(LIB_DIR))
+
+import common as pipeline_common
+import inputs as pipeline_inputs
+import models as pipeline_models
+import mysql_client as pipeline_mysql
+import state as pipeline_state
+import uploader as pipeline_uploader
+import xlsx_writer as pipeline_xlsx
+
 
 DEFAULT_CONFIG = Path(__file__).resolve().parents[1] / "config" / "config.example.json"
 DEFAULT_LIMIT = 10
@@ -907,6 +920,55 @@ def parse_report_ids(value: str) -> list[int]:
     if not value:
         return []
     return [int(item.strip()) for item in value.split(",") if item.strip()]
+
+
+# Modularized implementations: keep pipeline.py focused on orchestration.
+ReportInput = pipeline_models.ReportInput
+ReportResult = pipeline_models.ReportResult
+QueryResult = pipeline_models.QueryResult
+RunState = pipeline_models.RunState
+
+utc_now = pipeline_common.utc_now
+load_config = pipeline_common.load_config
+resolve_env_placeholders = pipeline_common.resolve_env_placeholders
+output_dir = pipeline_common.output_dir
+run_dir = pipeline_common.run_dir
+state_path = pipeline_common.state_path
+redact = pipeline_common.redact
+short_error = pipeline_common.short_error
+sha256_file = pipeline_common.sha256_file
+limit_text = pipeline_common.limit_text
+normalize_rows = pipeline_common.normalize_rows
+
+save_state = pipeline_state.save_state
+load_state = pipeline_state.load_state
+new_run_state = pipeline_state.new_run_state
+successful_fingerprints = pipeline_state.successful_fingerprints
+
+metadata_from_row = pipeline_inputs.metadata_from_row
+load_optional_manifest = pipeline_inputs.load_optional_manifest
+collect_local_reports = pipeline_inputs.collect_local_reports
+read_url_manifest = pipeline_inputs.read_url_manifest
+safe_download_name = pipeline_inputs.safe_download_name
+download_pdf = pipeline_inputs.download_pdf
+collect_url_reports = pipeline_inputs.collect_url_reports
+collect_eastmoney_reports = pipeline_inputs.collect_eastmoney_reports
+collect_inputs = pipeline_inputs.collect_inputs
+
+multipart_form = pipeline_uploader.multipart_form
+post_json = pipeline_uploader.post_json
+upload_report = pipeline_uploader.upload_report
+
+mysql_command = pipeline_mysql.mysql_command
+run_command = pipeline_mysql.run_command
+mysql_json_rows = pipeline_mysql.mysql_json_rows
+sql_in = pipeline_mysql.sql_in
+validate_date_time = pipeline_mysql.validate_date_time
+report_ids_by_time_sql = pipeline_mysql.report_ids_by_time_sql
+
+cell_ref = pipeline_xlsx.cell_ref
+sheet_xml = pipeline_xlsx.sheet_xml
+write_xlsx = pipeline_xlsx.write_xlsx
 
 
 def command_ingest(args: argparse.Namespace) -> int:

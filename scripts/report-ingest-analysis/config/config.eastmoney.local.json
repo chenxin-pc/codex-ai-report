@@ -1,6 +1,6 @@
 {
   "input": {
-    "mode": "local_dir",
+    "mode": "eastmoney",
     "limit": 10,
     "local_dir": "./reports",
     "url_manifest": "./reports/report_urls.csv",
@@ -27,10 +27,7 @@
     "max_text_length": 2000
   },
   "evaluation": {
-    "queries": [
-      "AI 算力产业链未来一年景气度如何？",
-      "半导体设备国产替代有哪些投资机会？"
-    ]
+    "queries": []
   },
   "runtime": {
     "continue_on_error": true
