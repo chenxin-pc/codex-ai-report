@@ -9,4 +9,36 @@
         VALUES(#{title}, #{source}, #{institution}, #{publishDate}, #{createdAt})
     </insert>
 
+    <select id="selectById" parameterType="long" resultType="com.example.aimilvusweb.entity.ReportDocument">
+        SELECT id, title, source, institution, publish_date, created_at
+        FROM report_document
+        WHERE id = #{reportId}
+    </select>
+
+    <select id="selectObservations" resultType="com.example.aimilvusweb.dto.ReportObservationRespDTO">
+        SELECT
+            rd.id AS reportId,
+            rd.title AS title,
+            rd.source AS source,
+            rd.institution AS institution,
+            rd.publish_date AS publishDate,
+            rd.created_at AS createdAt,
+            ij.job_uid AS jobUid,
+            ij.ocr_status AS ocrStatus,
+            ij.chunk_status AS chunkStatus,
+            ij.vector_status AS vectorStatus,
+            ij.last_error_code AS lastErrorCode,
+            ij.updated_at AS updatedAt
+        FROM report_document rd
+        LEFT JOIN ingest_job ij
+            ON ij.id = (
+                SELECT MAX(i2.id)
+                FROM ingest_job i2
+                WHERE i2.report_id = rd.id
+            )
+        WHERE (#{titleKeyword} = '' OR LOWER(rd.title) LIKE CONCAT('%', LOWER(#{titleKeyword}), '%'))
+        ORDER BY rd.id DESC
+        LIMIT #{limit}
+    </select>
+
 </mapper>

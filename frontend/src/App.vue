@@ -10,9 +10,18 @@
       </div>
 
       <nav class="nav-list">
-        <a href="#upload" class="nav-item active">入库</a>
-        <a href="#query" class="nav-item">检索</a>
-        <a href="#result" class="nav-item">结论</a>
+        <button class="nav-item" :class="{ active: activeMainTab === 'upload' }" type="button" @click="activeMainTab = 'upload'">
+          入库
+        </button>
+        <button class="nav-item" :class="{ active: activeMainTab === 'query' }" type="button" @click="activeMainTab = 'query'">
+          检索
+        </button>
+        <button class="nav-item" :class="{ active: activeMainTab === 'result' }" type="button" @click="activeMainTab = 'result'">
+          结论
+        </button>
+        <button class="nav-item" :class="{ active: activeMainTab === 'observation' }" type="button" @click="activeMainTab = 'observation'">
+          研报观测
+        </button>
       </nav>
 
       <div class="runtime-panel">
@@ -33,7 +42,7 @@
         </div>
       </header>
 
-      <section id="upload" class="band upload-band">
+      <section v-if="activeMainTab === 'upload'" id="upload" class="band upload-band">
         <div class="section-heading">
           <span>01</span>
           <div>
@@ -74,9 +83,15 @@
         </div>
 
         <p v-if="uploadMsg" class="feedback" :class="uploadTone">{{ uploadMsg }}</p>
+        <div class="query-actions">
+          <button class="ghost-btn" type="button" :disabled="!latestJobId" @click="checkLatestJob">
+            查询最新任务状态
+          </button>
+          <span v-if="latestJobId" class="mini-tip">jobId: {{ latestJobId }}</span>
+        </div>
       </section>
 
-      <section id="query" class="band query-band">
+      <section v-if="activeMainTab === 'query'" id="query" class="band query-band">
         <div class="section-heading">
           <span>02</span>
           <div>
@@ -85,7 +100,7 @@
           </div>
         </div>
 
-        <div class="query-layout">
+        <div class="observation-layout">
           <div class="question-box">
             <textarea v-model.trim="query" rows="6" placeholder="输入你想分析的问题，例如：哪些研报看好储能板块，核心逻辑和风险是什么？"></textarea>
             <div class="query-actions">
@@ -106,7 +121,7 @@
         <p v-if="errMsg" class="feedback danger">{{ errMsg }}</p>
       </section>
 
-      <section id="result" class="band result-band">
+      <section v-if="activeMainTab === 'result'" id="result" class="band result-band">
         <div class="section-heading">
           <span>03</span>
           <div>
@@ -139,19 +154,182 @@
             </article>
           </div>
         </div>
+        <p v-if="errMsg" class="feedback danger">{{ errMsg }}</p>
+      </section>
+
+      <section v-if="activeMainTab === 'observation'" id="observations" class="band result-band">
+        <div class="section-heading">
+          <span>04</span>
+          <div>
+            <h2>全部研报</h2>
+            <p>查看已入库研报和最新导入状态，可一键跳转到处理链路观测。</p>
+          </div>
+        </div>
+        <div class="observation-layout">
+          <div class="question-box">
+            <div class="form-grid">
+              <label>
+                <span>标题关键词</span>
+                <input v-model.trim="observationQuery.titleKeyword" placeholder="例如：新能源、AI 算力" />
+              </label>
+              <label>
+                <span>返回数量</span>
+                <input v-model.number="observationQuery.limit" type="number" min="1" max="200" />
+              </label>
+            </div>
+            <div class="query-actions">
+              <button class="primary-btn" type="button" :disabled="observationLoading" @click="loadObservations">
+                {{ observationLoading ? '加载中...' : '刷新研报列表' }}
+              </button>
+            </div>
+            <div class="tab-group">
+              <button
+                type="button"
+                class="tab-btn"
+                :class="{ active: observationView === 'table' }"
+                @click="observationView = 'table'"
+              >
+                行列表
+              </button>
+              <button
+                type="button"
+                class="tab-btn"
+                :class="{ active: observationView === 'card' }"
+                @click="observationView = 'card'"
+              >
+                卡片
+              </button>
+            </div>
+          </div>
+          <div class="observation-pane">
+            <div v-if="observationView === 'table'" class="observation-table-wrap">
+              <table class="observation-table">
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>标题</th>
+                    <th>状态</th>
+                    <th>来源/机构</th>
+                    <th>发布日期</th>
+                    <th>jobId</th>
+                    <th>错误</th>
+                    <th>操作</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="item in reportObservations" :key="item.reportId">
+                    <td>#{{ item.reportId }}</td>
+                    <td :title="item.title || '未命名研报'" class="nowrap-ellipsis">{{ item.title || '未命名研报' }}</td>
+                    <td>{{ item.ocrStatus || '-' }} / {{ item.chunkStatus || '-' }} / {{ item.vectorStatus || '-' }}</td>
+                    <td>{{ item.source || '-' }} / {{ item.institution || '-' }}</td>
+                    <td>{{ item.publishDate || '-' }}</td>
+                    <td :title="item.jobUid || '-'" class="nowrap-ellipsis">{{ item.jobUid || '-' }}</td>
+                    <td :title="item.lastErrorCode || '-'">{{ item.lastErrorCode || '-' }}</td>
+                    <td><button class="ghost-btn small-btn" type="button" @click="observeReport(item)">观测链路</button></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <div v-else class="evidence-list">
+              <article v-for="item in reportObservations" :key="item.reportId" class="evidence-item">
+                <header>
+                  <strong>#{{ item.reportId }} {{ truncateText(item.title || '未命名研报', 26) }}</strong>
+                  <span>{{ item.ocrStatus || '-' }} / {{ item.chunkStatus || '-' }} / {{ item.vectorStatus || '-' }}</span>
+                </header>
+                <small>{{ item.source || '-' }} / {{ item.institution || '-' }} / {{ item.publishDate || '-' }}</small>
+                <pre>jobId={{ item.jobUid || '-' }}  error={{ item.lastErrorCode || '-' }}</pre>
+                <div class="query-actions">
+                  <button class="ghost-btn" type="button" @click="observeReport(item)">观测链路</button>
+                </div>
+              </article>
+            </div>
+            <p v-if="!reportObservations.length && !observationLoading" class="feedback">暂无研报记录</p>
+          </div>
+        </div>
+      </section>
+
+      <section v-if="activeMainTab === 'observation'" ref="timelineSectionRef" class="band result-band">
+        <div class="section-heading">
+          <span>05</span>
+          <div>
+            <h2>处理链路</h2>
+            <p>按 reportId 或标题关键词查看 OCR / Chunk / Vector 阶段事件。</p>
+          </div>
+        </div>
+        <div class="observation-layout">
+          <div class="question-box">
+            <div class="form-grid">
+              <label>
+                <span>reportId</span>
+                <input v-model.trim="timelineQuery.reportId" placeholder="例如：123" />
+              </label>
+              <label>
+                <span>标题关键词</span>
+                <input v-model.trim="timelineQuery.titleKeyword" placeholder="例如：新能源策略" />
+              </label>
+            </div>
+            <div class="query-actions">
+              <button class="primary-btn" type="button" :disabled="timelineLoading" @click="loadTimeline">
+                {{ timelineLoading ? '查询中...' : '查询链路' }}
+              </button>
+            </div>
+          </div>
+          <div class="evidence-list">
+            <article v-for="(item, idx) in stageEvents" :key="idx" class="evidence-item">
+              <header>
+                <strong>{{ item.stage }} / {{ item.status }}</strong>
+                <span>{{ item.durationMs || 0 }}ms</span>
+              </header>
+              <small>{{ item.reportTitle || '-' }} / {{ item.modelName || '-' }}</small>
+              <pre>
+jobId={{ item.jobId || '-' }}  traceId={{ item.traceId || '-' }}
+reportId={{ item.reportId || '-' }}  attempt={{ item.attempt }}  createdAt={{ formatDateTime(item.createdAt) }}
+startedAt={{ formatDateTime(item.startedAt) }}  finishedAt={{ formatDateTime(item.finishedAt) }}
+input={{ item.inputSize ?? '-' }}  output={{ item.outputSize ?? '-' }}  durationMs={{ item.durationMs ?? '-' }}
+errorCode={{ item.errorCode || '-' }}  error={{ truncateText(item.errorMessageShort, 80) }}
+              </pre>
+              <div class="query-actions">
+                <button class="ghost-btn" type="button" @click="openStageEventDetail(item)">查看全部</button>
+              </div>
+            </article>
+            <p v-if="!timelineLoading && !stageEvents.length" class="feedback">暂无链路事件，请确认该研报已进入异步导入流程。</p>
+          </div>
+        </div>
+        <p v-if="observationMsg" class="feedback">{{ observationMsg }}</p>
       </section>
     </section>
+
+    <div v-if="stageEventDetail" class="event-modal-mask" @click.self="stageEventDetail = null">
+      <section class="event-modal">
+        <header>
+          <strong>{{ stageEventDetail.stage }} / {{ stageEventDetail.status }}</strong>
+          <button class="ghost-btn" type="button" @click="stageEventDetail = null">关闭</button>
+        </header>
+        <pre>{{ formatEventDetail(stageEventDetail) }}</pre>
+      </section>
+    </div>
   </main>
 </template>
 
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, nextTick, onMounted, ref } from 'vue'
 
 const uploadForm = ref({ title: '', source: '', institution: '', publishDate: '' })
 const selectedFile = ref(null)
 const uploading = ref(false)
 const uploadMsg = ref('')
 const uploadTone = ref('info')
+const latestJobId = ref('')
+const stageEvents = ref([])
+const timelineQuery = ref({ reportId: '', titleKeyword: '' })
+const timelineSectionRef = ref(null)
+const stageEventDetail = ref(null)
+const reportObservations = ref([])
+const observationLoading = ref(false)
+const observationQuery = ref({ titleKeyword: '', limit: 50 })
+const observationView = ref('table')
+const timelineLoading = ref(false)
+const observationMsg = ref('')
 
 const query = ref('')
 const loading = ref(false)
@@ -159,6 +337,7 @@ const errMsg = ref('')
 const result = ref(null)
 const backendState = ref('idle')
 const streamController = ref(null)
+const activeMainTab = ref('upload')
 let streamRequestId = 0
 
 const queryTemplates = [
@@ -207,13 +386,75 @@ const uploadPdf = async () => {
 
     const data = await requestJson('/api/reports/upload', { method: 'POST', body: formData })
     backendState.value = 'ok'
-    setUploadMessage(`入库成功：reportId=${data.reportId}，chunkCount=${data.chunkCount}`, 'success')
+    latestJobId.value = data.jobId || ''
+    setUploadMessage(`任务已提交：jobId=${data.jobId}`, 'success')
   } catch (error) {
     backendState.value = 'error'
     setUploadMessage(`入库失败：${error.message}`, 'danger')
   } finally {
     uploading.value = false
   }
+}
+
+const checkLatestJob = async () => {
+  if (!latestJobId.value) return
+  try {
+    const data = await requestJson(`/api/reports/ingest-jobs/${latestJobId.value}`)
+    setUploadMessage(
+      `任务状态：OCR=${data.ocrStatus} / CHUNK=${data.chunkStatus} / VECTOR=${data.vectorStatus}` +
+        (data.reportId ? `，reportId=${data.reportId}` : ''),
+      'info'
+    )
+  } catch (error) {
+    setUploadMessage(`任务查询失败：${error.message}`, 'danger')
+  }
+}
+
+const loadTimeline = async () => {
+  timelineLoading.value = true
+  observationMsg.value = ''
+  try {
+    const reportId = timelineQuery.value.reportId
+    const titleKeyword = timelineQuery.value.titleKeyword
+    const queryString = reportId
+      ? `reportId=${encodeURIComponent(reportId)}`
+      : `titleKeyword=${encodeURIComponent(titleKeyword)}&limit=50`
+    stageEvents.value = await requestJson(`/api/reports/ingest-stage-events?${queryString}`)
+    observationMsg.value = stageEvents.value.length
+      ? `已加载 ${stageEvents.value.length} 条链路事件`
+      : '未查询到链路事件'
+  } catch (error) {
+    errMsg.value = `链路查询失败：${toUiErrorMessage(error, '后端服务可能未启动，请先启动 8080 后端')}`
+  } finally {
+    timelineLoading.value = false
+  }
+}
+
+const loadObservations = async () => {
+  observationLoading.value = true
+  try {
+    const query = new URLSearchParams()
+    query.set('titleKeyword', observationQuery.value.titleKeyword || '')
+    query.set('limit', String(normalizeLimit(observationQuery.value.limit)))
+    reportObservations.value = await requestJson(`/api/reports/observations?${query.toString()}`)
+  } catch (error) {
+    errMsg.value = `研报列表加载失败：${toUiErrorMessage(error, '后端服务可能未启动，请先启动 8080 后端')}`
+  } finally {
+    observationLoading.value = false
+  }
+}
+
+const observeReport = async (item) => {
+  timelineQuery.value.reportId = String(item.reportId || '')
+  timelineQuery.value.titleKeyword = ''
+  observationMsg.value = `已选择 reportId=${timelineQuery.value.reportId}，正在查询链路...`
+  await loadTimeline()
+  await nextTick()
+  timelineSectionRef.value?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+}
+
+const openStageEventDetail = (item) => {
+  stageEventDetail.value = item
 }
 
 const runRecommend = async () => {
@@ -388,5 +629,52 @@ const formatBytes = (bytes) => {
 const formatScore = (score) => {
   if (score === null || score === undefined || Number.isNaN(Number(score))) return 'score -'
   return `score ${Number(score).toFixed(4)}`
+}
+
+const normalizeLimit = (value) => {
+  const parsed = Number(value)
+  if (Number.isNaN(parsed)) return 50
+  return Math.max(1, Math.min(200, Math.floor(parsed)))
+}
+
+onMounted(() => {
+  loadObservations()
+})
+
+const truncateText = (value, maxLength) => {
+  if (!value) return '-'
+  return value.length > maxLength ? `${value.slice(0, maxLength)}...` : value
+}
+
+const formatDateTime = (value) => {
+  if (!value) return '-'
+  return new Date(value).toLocaleString('zh-CN', { hour12: false })
+}
+
+const formatEventDetail = (item) => {
+  return [
+    `jobId: ${item.jobId || '-'}`,
+    `traceId: ${item.traceId || '-'}`,
+    `reportId: ${item.reportId || '-'}`,
+    `reportTitle: ${item.reportTitle || '-'}`,
+    `stage: ${item.stage || '-'}`,
+    `status: ${item.status || '-'}`,
+    `attempt: ${item.attempt ?? '-'}`,
+    `modelName: ${item.modelName || '-'}`,
+    `inputSize: ${item.inputSize ?? '-'}`,
+    `outputSize: ${item.outputSize ?? '-'}`,
+    `durationMs: ${item.durationMs ?? '-'}`,
+    `startedAt: ${formatDateTime(item.startedAt)}`,
+    `finishedAt: ${formatDateTime(item.finishedAt)}`,
+    `createdAt: ${formatDateTime(item.createdAt)}`,
+    `errorCode: ${item.errorCode || '-'}`,
+    `errorMessage: ${item.errorMessageShort || '-'}`].join('\n')
+}
+
+const toUiErrorMessage = (error, fallbackMessage) => {
+  const message = error?.message || ''
+  if (!message) return fallbackMessage
+  if (message.includes('Failed to fetch') || message.includes('NetworkError')) return fallbackMessage
+  return message
 }
 </script>
