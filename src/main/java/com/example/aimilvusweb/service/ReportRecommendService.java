@@ -22,6 +22,9 @@ import java.util.Map;
 @Service
 /**
  * @Description: ReportRecommendService类，负责相关业务能力的组织与实现。
+ * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
+ * @Param: 详见方法签名；无入参时为无。
+ * @Return: 详见返回类型；void 时为无（仅副作用）。
  * @author: cx
  * @Date: 2026-05-17 10:24:01
  */
@@ -50,6 +53,9 @@ public class ReportRecommendService {
      * @Logic: 保存缓存、模型调用、Prompt模板与检索服务依赖，供同步与流式推荐链路复用。
      * @Param: redisTemplateProvider Redis模板提供器；qwenClient 模型调用客户端；promptTemplateService Prompt模板服务；reportRetrievalService 检索服务。
      * @Return: 无（仅初始化对象状态）。
+ * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
+ * @Param: 详见方法签名；无入参时为无。
+ * @Return: 详见返回类型；void 时为无（仅副作用）。
      * @author: cx
      * @Date: 2026-05-17 14:48:00
      */
@@ -68,6 +74,9 @@ public class ReportRecommendService {
      * @Logic: 先查缓存命中并返回；未命中则构建证据上下文、调用结构化推荐、写入缓存后返回结果。
      * @Param: query 用户投研问题。
      * @Return: 结构化推荐结果对象，包含检索Top5与模型输出字段。
+ * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
+ * @Param: 详见方法签名；无入参时为无。
+ * @Return: 详见返回类型；void 时为无（仅副作用）。
      * @author: cx
      * @Date: 2026-05-17 14:48:00
      */
@@ -89,6 +98,9 @@ public class ReportRecommendService {
      * @Logic: 先构建检索上下文并发送status/evidence阶段事件，再拼接模型增量流，统一补发done；任意异常转为error并结束。
      * @Param: query 用户投研问题。
      * @Return: SSE事件流，按event区分status、evidence、delta、done和error。
+ * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
+ * @Param: 详见方法签名；无入参时为无。
+ * @Return: 详见返回类型；void 时为无（仅副作用）。
      * @author: cx
      * @Date: 2026-05-17 14:48:00
      */
@@ -109,6 +121,9 @@ public class ReportRecommendService {
      * @Logic: 证据为空直接输出证据不足delta；证据存在时加载流式Prompt并调用模型增量流，过滤空片段，空流降级提示，异常转error事件。
      * @Param: query 用户投研问题；context 检索证据上下文（Top5与拼接证据文本）。
      * @Return: 模型阶段SSE事件流，事件主要为delta，异常时为error。
+ * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
+ * @Param: 详见方法签名；无入参时为无。
+ * @Return: 详见返回类型；void 时为无（仅副作用）。
      * @author: cx
      * @Date: 2026-05-17 14:48:00
      */
@@ -131,6 +146,9 @@ public class ReportRecommendService {
      * @Logic: 加载同步推荐Prompt并渲染变量后调用结构化模型输出；当模型客户端不可用时返回固定降级结果。
      * @Param: query 用户投研问题；evidence 拼接后的召回证据文本。
      * @Return: 结构化推荐DTO，包含analysis、recommendation、risks与citations。
+ * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
+ * @Param: 详见方法签名；无入参时为无。
+ * @Return: 详见返回类型；void 时为无（仅副作用）。
      * @author: cx
      * @Date: 2026-05-17 14:48:00
      */
@@ -155,6 +173,9 @@ public class ReportRecommendService {
      * @Logic: 调用检索服务获取候选chunk，构建前端Top5展示对象，并将证据按Chunk编号与元信息拼接为模型输入文本。
      * @Param: query 用户投研问题。
      * @Return: 推荐上下文对象，包含Top5列表与拼接后的证据文本。
+ * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
+ * @Param: 详见方法签名；无入参时为无。
+ * @Return: 详见返回类型；void 时为无（仅副作用）。
      * @author: cx
      * @Date: 2026-05-17 14:48:00
      */
@@ -185,6 +206,9 @@ public class ReportRecommendService {
      * @Logic: 使用统一事件构造器包装阶段与消息，生成status类型SSE事件。
      * @Param: stage 阶段标识；message 阶段说明文本。
      * @Return: status事件对象。
+ * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
+ * @Param: 详见方法签名；无入参时为无。
+ * @Return: 详见返回类型；void 时为无（仅副作用）。
      * @author: cx
      * @Date: 2026-05-17 14:48:00
      */
@@ -197,6 +221,9 @@ public class ReportRecommendService {
      * @Logic: 将模型增量文本写入事件数据并标记为delta事件。
      * @Param: text 模型输出的增量文本片段。
      * @Return: delta事件对象。
+ * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
+ * @Param: 详见方法签名；无入参时为无。
+ * @Return: 详见返回类型；void 时为无（仅副作用）。
      * @author: cx
      * @Date: 2026-05-17 14:48:00
      */
@@ -209,6 +236,9 @@ public class ReportRecommendService {
      * @Logic: 生成固定completed阶段的done事件，作为流式响应结束标记。
      * @Param: 无。
      * @Return: done事件对象。
+ * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
+ * @Param: 详见方法签名；无入参时为无。
+ * @Return: 详见返回类型；void 时为无（仅副作用）。
      * @author: cx
      * @Date: 2026-05-17 14:48:00
      */
@@ -221,6 +251,9 @@ public class ReportRecommendService {
      * @Logic: 对空错误消息做兜底后封装为error阶段事件，避免向前端输出空信息。
      * @Param: message 原始错误消息。
      * @Return: error事件对象。
+ * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
+ * @Param: 详见方法签名；无入参时为无。
+ * @Return: 详见返回类型；void 时为无（仅副作用）。
      * @author: cx
      * @Date: 2026-05-17 14:48:00
      */
@@ -234,6 +267,9 @@ public class ReportRecommendService {
      * @Logic: 按事件名与事件数据创建ServerSentEvent实例，统一服务内事件封装逻辑。
      * @Param: eventName SSE事件名；data 事件负载对象。
      * @Return: 通用SSE事件对象。
+ * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
+ * @Param: 详见方法签名；无入参时为无。
+ * @Return: 详见返回类型；void 时为无（仅副作用）。
      * @author: cx
      * @Date: 2026-05-17 14:48:00
      */
@@ -248,6 +284,9 @@ public class ReportRecommendService {
      * @Logic: 获取Redis模板并读取缓存键值，值为空直接返回null；存在值时尝试反序列化，失败也降级为null。
      * @Param: query 用户投研问题。
      * @Return: 命中时返回缓存推荐结果；未命中或解析失败返回null。
+ * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
+ * @Param: 详见方法签名；无入参时为无。
+ * @Return: 详见返回类型；void 时为无（仅副作用）。
      * @author: cx
      * @Date: 2026-05-17 14:48:00
      */
@@ -272,6 +311,9 @@ public class ReportRecommendService {
      * @Logic: 获取Redis模板后将序列化结果写入带TTL键值；任一异常被吞掉以保证推荐主流程可用。
      * @Param: query 用户投研问题；response 同步推荐结果对象。
      * @Return: 无（仅缓存副作用）。
+ * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
+ * @Param: 详见方法签名；无入参时为无。
+ * @Return: 详见返回类型；void 时为无（仅副作用）。
      * @author: cx
      * @Date: 2026-05-17 14:48:00
      */
@@ -292,6 +334,9 @@ public class ReportRecommendService {
      * @Logic: 将业务固定前缀与去空白后的query拼接，生成稳定缓存键。
      * @Param: query 用户投研问题。
      * @Return: 推荐缓存键字符串。
+ * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
+ * @Param: 详见方法签名；无入参时为无。
+ * @Return: 详见返回类型；void 时为无（仅副作用）。
      * @author: cx
      * @Date: 2026-05-17 14:48:00
      */

@@ -28,6 +28,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -38,6 +39,9 @@ import java.util.stream.Collectors;
 @Service
 /**
  * @Description: ReportIngestService类，负责相关业务能力的组织与实现。
+ * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
+ * @Param: 详见方法签名；无入参时为无。
+ * @Return: 详见返回类型；void 时为无（仅副作用）。
  * @author: cx
  * @Date: 2026-05-17 10:24:01
  */
@@ -45,6 +49,9 @@ public class ReportIngestService {
     private static final int EMBEDDING_BATCH_SIZE = 10;
     /**
      * @Description: 执行of相关业务处理。
+ * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
+ * @Param: 详见方法签名；无入参时为无。
+ * @Return: 详见返回类型；void 时为无（仅副作用）。
      * @author: cx
      * @Date: 2026-05-17 10:24:01
      */
@@ -54,6 +61,9 @@ public class ReportIngestService {
     );
     /**
      * @Description: 执行of相关业务处理。
+ * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
+ * @Param: 详见方法签名；无入参时为无。
+ * @Return: 详见返回类型；void 时为无（仅副作用）。
      * @author: cx
      * @Date: 2026-05-17 10:24:01
      */
@@ -62,6 +72,9 @@ public class ReportIngestService {
     );
     /**
      * @Description: 执行of相关业务处理。
+ * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
+ * @Param: 详见方法签名；无入参时为无。
+ * @Return: 详见返回类型；void 时为无（仅副作用）。
      * @author: cx
      * @Date: 2026-05-17 10:24:01
      */
@@ -83,6 +96,9 @@ public class ReportIngestService {
 
     /**
      * @Description: 初始化ReportIngestService依赖与运行所需组件。
+ * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
+ * @Param: 详见方法签名；无入参时为无。
+ * @Return: 详见返回类型；void 时为无（仅副作用）。
      * @author: cx
      * @Date: 2026-05-17 10:24:01
      */
@@ -110,6 +126,9 @@ public class ReportIngestService {
 
     /**
      * @Description: 执行ingest相关业务处理。
+ * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
+ * @Param: 详见方法签名；无入参时为无。
+ * @Return: 详见返回类型；void 时为无（仅副作用）。
      * @author: cx
      * @Date: 2026-05-17 10:24:01
      */
@@ -117,25 +136,134 @@ public class ReportIngestService {
     public ReportUploadRespDTO ingest(MultipartFile file, String title, String source, String institution, LocalDate publishDate) {
         String stage = "VALIDATION";
         try {
+            // 先确保向量存储可用，避免前置处理成功后才在落向量阶段失败导致补偿复杂化。
             VectorStore vectorStore = requireVectorStore();
             validateFile(file);
             stage = "OCR_AND_CHUNK";
+            // OCR 与语义切片绑定在同一预处理步骤，保证后续落库输入的一致性。
             IngestPreparation preparation = parseAndChunk(file);
             stage = "MYSQL";
             ReportDocument report = persistReportDocument(file, title, source, institution, publishDate);
             persistOcrQualityData(report, preparation.ocrResult());
             List<ReportChunk> persistedChildChunks = persistChunks(report, preparation.chunks());
             stage = "MILVUS";
+            // 向量写入采用批量策略，降低单次请求体积并便于定位失败批次。
             addVectorDocumentsInBatches(vectorStore, buildVectorDocuments(report, persistedChildChunks));
-            return buildUploadResp(report, persistedChildChunks.size());
+            return buildUploadResp(null, report, persistedChildChunks.size());
         } catch (RuntimeException e) {
+            // 记录当前失败阶段用于运维排障与后续重试策略判定。
             reportIngestFailureService.recordFailure(file, title, source, institution, stage, e);
             throw e;
         }
     }
 
     /**
+     * @Description: 异步 OCR 阶段执行入口，负责主档入库与 OCR/段落数据落库。
+     * @Logic: 校验文件后先创建 report_document，再写入页级 OCR 与 paragraph atom；已绑定 reportId 时直接返回以保障幂等。
+     * @Param: file 上传文件；title/source/institution/publishDate 报告元信息；existingReportId 已存在报告ID。
+     * @Return: 报告ID。
+ * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
+ * @Param: 详见方法签名；无入参时为无。
+ * @Return: 详见返回类型；void 时为无（仅副作用）。
+     * @author: cx
+     * @Date: 2026-05-19 23:15:00
+     */
+    @Transactional
+    public Long ingestOcrStage(MultipartFile file,
+                               String title,
+                               String source,
+                               String institution,
+                               LocalDate publishDate,
+                               Long existingReportId) {
+        if (existingReportId != null) {
+            return existingReportId;
+        }
+        validateFile(file);
+        ReportOcrParseResult ocrResult = reportOcrParseService.parseDetailed(file);
+        ReportDocument report = persistReportDocument(file, title, source, institution, publishDate);
+        persistOcrQualityData(report, ocrResult);
+        return report.getId();
+    }
+
+    /**
+     * @Description: 异步 Chunk 阶段执行入口，根据已落库段落生成并持久化语义切片。
+     * @Logic: 已存在切片时直接返回避免重复；否则读取 paragraph atom，调用切片服务生成并写入 chunk 与诊断表。
+     * @Param: reportId 报告ID。
+     * @Return: 子切片数量。
+ * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
+ * @Param: 详见方法签名；无入参时为无。
+ * @Return: 详见返回类型；void 时为无（仅副作用）。
+     * @author: cx
+     * @Date: 2026-05-19 23:15:00
+     */
+    @Transactional
+    public int ingestChunkStage(Long reportId) {
+        List<ReportChunk> existingChunks = reportChunkMapper.selectByReportId(reportId);
+        long existingChildCount = existingChunks.stream().filter(chunk -> "CHILD".equals(chunk.getChunkType())).count();
+        // 发现已有子切片时直接返回，避免重复切片造成数据膨胀。
+        if (existingChildCount > 0) {
+            return (int) existingChildCount;
+        }
+        List<ParagraphAtom> atoms = reportParagraphAtomMapper.selectByReportId(reportId).stream()
+                .sorted(Comparator.comparing(ReportParagraphAtom::getParagraphId))
+                .map(atom -> new ParagraphAtom(
+                        atom.getParagraphId(),
+                        atom.getPageNumber() == null ? 0 : atom.getPageNumber(),
+                        atom.getSectionPath() == null ? "正文" : atom.getSectionPath(),
+                        atom.getParagraphText(),
+                        atom.getTokenCount() == null ? 0 : atom.getTokenCount(),
+                        atom.getDiagnostics() == null ? "" : atom.getDiagnostics()))
+                .toList();
+        ReportSemanticChunks chunks = reportSemanticChunkService.chunk(atoms);
+        if (chunks.isEmpty()) {
+            throw new IllegalArgumentException("No valid chunks generated from paragraph atoms");
+        }
+        ReportDocument report = reportDocumentMapper.selectById(reportId);
+        if (report == null) {
+            throw new IllegalArgumentException("Report not found: " + reportId);
+        }
+        return persistChunks(report, chunks).size();
+    }
+
+    /**
+     * @Description: 异步向量阶段执行入口，将已落库子切片写入向量库并回写向量状态。
+     * @Logic: 只处理未向量化 CHILD 切片，分批写入 Milvus，成功后逐条回写 vectorStored=true。
+     * @Param: reportId 报告ID。
+     * @Return: 本次向量化切片数量。
+ * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
+ * @Param: 详见方法签名；无入参时为无。
+ * @Return: 详见返回类型；void 时为无（仅副作用）。
+     * @author: cx
+     * @Date: 2026-05-19 23:15:00
+     */
+    @Transactional
+    public int ingestVectorStage(Long reportId) {
+        VectorStore vectorStore = requireVectorStore();
+        ReportDocument report = reportDocumentMapper.selectById(reportId);
+        if (report == null) {
+            throw new IllegalArgumentException("Report not found: " + reportId);
+        }
+        List<ReportChunk> allChunks = reportChunkMapper.selectByReportId(reportId);
+        List<ReportChunk> pendingChildren = allChunks.stream()
+                .filter(chunk -> "CHILD".equals(chunk.getChunkType()))
+                .filter(chunk -> chunk.getVectorStored() == null || !chunk.getVectorStored())
+                .toList();
+        // 只处理未入向量切片，保障向量阶段可重复执行且结果幂等。
+        if (pendingChildren.isEmpty()) {
+            return 0;
+        }
+        addVectorDocumentsInBatches(vectorStore, buildVectorDocuments(report, pendingChildren));
+        for (ReportChunk chunk : pendingChildren) {
+            reportChunkMapper.updateVectorStoredByChunkUid(chunk.getChunkUid(), true);
+        }
+        return pendingChildren.size();
+    }
+
+    /**
      * @Description: 执行requireVectorStore相关业务处理。
+ * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
+ * @Param: 详见方法签名；无入参时为无。
+ * @Return: 详见返回类型；void 时为无（仅副作用）。
      * @author: cx
      * @Date: 2026-05-17 10:24:01
      */
@@ -149,6 +277,9 @@ public class ReportIngestService {
 
     /**
      * @Description: 校验输入参数与业务约束。
+ * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
+ * @Param: 详见方法签名；无入参时为无。
+ * @Return: 详见返回类型；void 时为无（仅副作用）。
      * @author: cx
      * @Date: 2026-05-17 10:24:01
      */
@@ -160,6 +291,9 @@ public class ReportIngestService {
 
     /**
      * @Description: 解析输入内容并输出结构化结果。
+ * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
+ * @Param: 详见方法签名；无入参时为无。
+ * @Return: 详见返回类型；void 时为无（仅副作用）。
      * @author: cx
      * @Date: 2026-05-17 10:24:01
      */
@@ -174,6 +308,9 @@ public class ReportIngestService {
 
     /**
      * @Description: 执行persistReportDocument相关业务处理。
+ * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
+ * @Param: 详见方法签名；无入参时为无。
+ * @Return: 详见返回类型；void 时为无（仅副作用）。
      * @author: cx
      * @Date: 2026-05-17 10:24:01
      */
@@ -190,6 +327,9 @@ public class ReportIngestService {
 
     /**
      * @Description: 执行persistOcrQualityData相关业务处理。
+ * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
+ * @Param: 详见方法签名；无入参时为无。
+ * @Return: 详见返回类型；void 时为无（仅副作用）。
      * @author: cx
      * @Date: 2026-05-17 10:24:01
      */
@@ -220,6 +360,9 @@ public class ReportIngestService {
 
     /**
      * @Description: 执行persistChunks相关业务处理。
+ * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
+ * @Param: 详见方法签名；无入参时为无。
+ * @Return: 详见返回类型；void 时为无（仅副作用）。
      * @author: cx
      * @Date: 2026-05-17 10:24:01
      */
@@ -268,6 +411,9 @@ public class ReportIngestService {
 
     /**
      * @Description: 构建目标对象或请求数据。
+ * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
+ * @Param: 详见方法签名；无入参时为无。
+ * @Return: 详见返回类型；void 时为无（仅副作用）。
      * @author: cx
      * @Date: 2026-05-17 10:24:01
      */
@@ -300,6 +446,9 @@ public class ReportIngestService {
 
     /**
      * @Description: 执行persistChunkDiagnostic相关业务处理。
+ * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
+ * @Param: 详见方法签名；无入参时为无。
+ * @Return: 详见返回类型；void 时为无（仅副作用）。
      * @author: cx
      * @Date: 2026-05-17 10:24:01
      */
@@ -332,6 +481,9 @@ public class ReportIngestService {
 
     /**
      * @Description: 执行newChunkUid相关业务处理。
+ * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
+ * @Param: 详见方法签名；无入参时为无。
+ * @Return: 详见返回类型；void 时为无（仅副作用）。
      * @author: cx
      * @Date: 2026-05-17 10:24:01
      */
@@ -341,6 +493,9 @@ public class ReportIngestService {
 
     /**
      * @Description: 构建目标对象或请求数据。
+ * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
+ * @Param: 详见方法签名；无入参时为无。
+ * @Return: 详见返回类型；void 时为无（仅副作用）。
      * @author: cx
      * @Date: 2026-05-17 10:24:01
      */
@@ -371,6 +526,9 @@ public class ReportIngestService {
 
     /**
      * @Description: 向目标集合追加处理结果。
+ * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
+ * @Param: 详见方法签名；无入参时为无。
+ * @Return: 详见返回类型；void 时为无（仅副作用）。
      * @author: cx
      * @Date: 2026-05-17 10:24:01
      */
@@ -383,6 +541,9 @@ public class ReportIngestService {
 
     /**
      * @Description: 执行shouldKeepSlice相关业务处理。
+ * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
+ * @Param: 详见方法签名；无入参时为无。
+ * @Return: 详见返回类型；void 时为无（仅副作用）。
      * @author: cx
      * @Date: 2026-05-17 10:24:01
      */
@@ -392,6 +553,9 @@ public class ReportIngestService {
 
     /**
      * @Description: 根据上下文解析并确定最终值。
+ * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
+ * @Param: 详见方法签名；无入参时为无。
+ * @Return: 详见返回类型；void 时为无（仅副作用）。
      * @author: cx
      * @Date: 2026-05-17 10:24:01
      */
@@ -413,6 +577,9 @@ public class ReportIngestService {
 
     /**
      * @Description: 根据上下文解析并确定最终值。
+ * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
+ * @Param: 详见方法签名；无入参时为无。
+ * @Return: 详见返回类型；void 时为无（仅副作用）。
      * @author: cx
      * @Date: 2026-05-17 10:24:01
      */
@@ -454,6 +621,9 @@ public class ReportIngestService {
 
     /**
      * @Description: 构建目标对象或请求数据。
+ * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
+ * @Param: 详见方法签名；无入参时为无。
+ * @Return: 详见返回类型；void 时为无（仅副作用）。
      * @author: cx
      * @Date: 2026-05-17 10:24:01
      */
@@ -471,6 +641,9 @@ public class ReportIngestService {
 
     /**
      * @Description: 对输入数据进行规范化处理。
+ * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
+ * @Param: 详见方法签名；无入参时为无。
+ * @Return: 详见返回类型；void 时为无（仅副作用）。
      * @author: cx
      * @Date: 2026-05-17 10:24:01
      */
@@ -484,6 +657,9 @@ public class ReportIngestService {
 
     /**
      * @Description: 判断是否满足FinancialTableCandidate条件。
+ * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
+ * @Param: 详见方法签名；无入参时为无。
+ * @Return: 详见返回类型；void 时为无（仅副作用）。
      * @author: cx
      * @Date: 2026-05-17 10:24:01
      */
@@ -503,11 +679,14 @@ public class ReportIngestService {
 
     /**
      * @Description: 构建目标对象或请求数据。
+ * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
+ * @Param: 详见方法签名；无入参时为无。
+ * @Return: 详见返回类型；void 时为无（仅副作用）。
      * @author: cx
      * @Date: 2026-05-17 10:24:01
      */
-    private ReportUploadRespDTO buildUploadResp(ReportDocument report, int chunkCount) {
-        return new ReportUploadRespDTO(report.getId(), report.getTitle(), chunkCount, "Upload and ingest completed");
+    private ReportUploadRespDTO buildUploadResp(String jobId, ReportDocument report, int chunkCount) {
+        return new ReportUploadRespDTO(jobId, report.getId(), report.getTitle(), chunkCount, "Upload and ingest completed");
     }
 
     private record IngestPreparation(ReportOcrParseResult ocrResult, ReportSemanticChunks chunks) {

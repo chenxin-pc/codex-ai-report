@@ -14,6 +14,9 @@ import java.util.Map;
 @RestControllerAdvice
 /**
  * @Description: GlobalExceptionHandler类，负责相关业务能力的组织与实现。
+ * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
+ * @Param: 详见方法签名；无入参时为无。
+ * @Return: 详见返回类型；void 时为无（仅副作用）。
  * @author: cx
  * @Date: 2026-05-17 10:24:01
  */
@@ -21,6 +24,9 @@ public class GlobalExceptionHandler {
 
     /**
      * @Description: 执行handleIllegalArg相关业务处理。
+ * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
+ * @Param: 详见方法签名；无入参时为无。
+ * @Return: 详见返回类型；void 时为无（仅副作用）。
      * @author: cx
      * @Date: 2026-05-17 10:24:01
      */
@@ -31,6 +37,9 @@ public class GlobalExceptionHandler {
 
     /**
      * @Description: 执行handleValidation相关业务处理。
+ * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
+ * @Param: 详见方法签名；无入参时为无。
+ * @Return: 详见返回类型；void 时为无（仅副作用）。
      * @author: cx
      * @Date: 2026-05-17 10:24:01
      */
@@ -44,6 +53,9 @@ public class GlobalExceptionHandler {
 
     /**
      * @Description: 执行handleConstraint相关业务处理。
+ * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
+ * @Param: 详见方法签名；无入参时为无。
+ * @Return: 详见返回类型；void 时为无（仅副作用）。
      * @author: cx
      * @Date: 2026-05-17 10:24:01
      */
@@ -54,6 +66,9 @@ public class GlobalExceptionHandler {
 
     /**
      * @Description: 执行handleLlmSemanticChunk相关业务处理。
+ * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
+ * @Param: 详见方法签名；无入参时为无。
+ * @Return: 详见返回类型；void 时为无（仅副作用）。
      * @author: cx
      * @Date: 2026-05-17 10:24:01
      */
@@ -64,6 +79,9 @@ public class GlobalExceptionHandler {
 
     /**
      * @Description: 执行handleGeneral相关业务处理。
+ * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
+ * @Param: 详见方法签名；无入参时为无。
+ * @Return: 详见返回类型；void 时为无（仅副作用）。
      * @author: cx
      * @Date: 2026-05-17 10:24:01
      */
@@ -74,6 +92,9 @@ public class GlobalExceptionHandler {
 
     /**
      * @Description: 构建目标对象或请求数据。
+ * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
+ * @Param: 详见方法签名；无入参时为无。
+ * @Return: 详见返回类型；void 时为无（仅副作用）。
      * @author: cx
      * @Date: 2026-05-17 10:24:01
      */

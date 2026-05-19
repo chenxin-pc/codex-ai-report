@@ -6,6 +6,9 @@ import java.util.regex.Pattern;
 
 /**
  * @Description: SemanticChunkUtils类，负责相关业务能力的组织与实现。
+ * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
+ * @Param: 详见方法签名；无入参时为无。
+ * @Return: 详见返回类型；void 时为无（仅副作用）。
  * @author: cx
  * @Date: 2026-05-17 10:24:01
  */
@@ -17,6 +20,9 @@ public final class SemanticChunkUtils {
 
     /**
      * @Description: 初始化SemanticChunkUtils依赖与运行所需组件。
+ * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
+ * @Param: 详见方法签名；无入参时为无。
+ * @Return: 详见返回类型；void 时为无（仅副作用）。
      * @author: cx
      * @Date: 2026-05-17 10:24:01
      */
@@ -38,6 +44,9 @@ public final class SemanticChunkUtils {
     ) {
         /**
          * @Description: 判断是否满足Empty条件。
+ * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
+ * @Param: 详见方法签名；无入参时为无。
+ * @Return: 详见返回类型；void 时为无（仅副作用）。
          * @author: cx
          * @Date: 2026-05-17 10:24:01
          */
@@ -61,6 +70,9 @@ public final class SemanticChunkUtils {
     ) {
         /**
          * @Description: 初始化ReportChunkSlice依赖与运行所需组件。
+ * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
+ * @Param: 详见方法签名；无入参时为无。
+ * @Return: 详见返回类型；void 时为无（仅副作用）。
          * @author: cx
          * @Date: 2026-05-17 10:24:01
          */
@@ -84,6 +96,9 @@ public final class SemanticChunkUtils {
     ) {
         /**
          * @Description: 初始化ParagraphAtom依赖与运行所需组件。
+ * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
+ * @Param: 详见方法签名；无入参时为无。
+ * @Return: 详见返回类型；void 时为无（仅副作用）。
          * @author: cx
          * @Date: 2026-05-17 10:24:01
          */
@@ -103,6 +118,9 @@ public final class SemanticChunkUtils {
 
     /**
      * @Description: 执行文本切片并返回切片结果。
+ * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
+ * @Param: 详见方法签名；无入参时为无。
+ * @Return: 详见返回类型；void 时为无（仅副作用）。
      * @author: cx
      * @Date: 2026-05-17 10:24:01
      */
@@ -112,6 +130,9 @@ public final class SemanticChunkUtils {
 
     /**
      * @Description: 执行文本切片并返回切片结果。
+ * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
+ * @Param: 详见方法签名；无入参时为无。
+ * @Return: 详见返回类型；void 时为无（仅副作用）。
      * @author: cx
      * @Date: 2026-05-17 10:24:01
      */
@@ -138,6 +159,9 @@ public final class SemanticChunkUtils {
 
     /**
      * @Description: 将文本拆分为最小语义单元。
+ * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
+ * @Param: 详见方法签名；无入参时为无。
+ * @Return: 详见返回类型；void 时为无（仅副作用）。
      * @author: cx
      * @Date: 2026-05-17 10:24:01
      */
@@ -153,6 +177,9 @@ public final class SemanticChunkUtils {
 
     /**
      * @Description: 执行文本切片并返回切片结果。
+ * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
+ * @Param: 详见方法签名；无入参时为无。
+ * @Return: 详见返回类型；void 时为无（仅副作用）。
      * @author: cx
      * @Date: 2026-05-17 10:24:01
      */
@@ -162,6 +189,9 @@ public final class SemanticChunkUtils {
 
     /**
      * @Description: 执行文本切片并返回切片结果。
+ * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
+ * @Param: 详见方法签名；无入参时为无。
+ * @Return: 详见返回类型；void 时为无（仅副作用）。
      * @author: cx
      * @Date: 2026-05-17 10:24:01
      */
@@ -208,6 +238,9 @@ public final class SemanticChunkUtils {
 
     /**
      * @Description: 执行文本切片并返回切片结果。
+ * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
+ * @Param: 详见方法签名；无入参时为无。
+ * @Return: 详见返回类型；void 时为无（仅副作用）。
      * @author: cx
      * @Date: 2026-05-17 10:24:01
      */
@@ -248,6 +281,9 @@ public final class SemanticChunkUtils {
 
     /**
      * @Description: 执行estimateTokens相关业务处理。
+ * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
+ * @Param: 详见方法签名；无入参时为无。
+ * @Return: 详见返回类型；void 时为无（仅副作用）。
      * @author: cx
      * @Date: 2026-05-17 10:24:01
      */
@@ -270,6 +306,9 @@ public final class SemanticChunkUtils {
 
     /**
      * @Description: 解析输入内容并输出结构化结果。
+ * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
+ * @Param: 详见方法签名；无入参时为无。
+ * @Return: 详见返回类型；void 时为无（仅副作用）。
      * @author: cx
      * @Date: 2026-05-17 10:24:01
      */
@@ -301,6 +340,9 @@ public final class SemanticChunkUtils {
 
     /**
      * @Description: 根据上下文解析并确定最终值。
+ * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
+ * @Param: 详见方法签名；无入参时为无。
+ * @Return: 详见返回类型；void 时为无（仅副作用）。
      * @author: cx
      * @Date: 2026-05-17 10:24:01
      */
@@ -318,6 +360,9 @@ public final class SemanticChunkUtils {
 
     /**
      * @Description: 判断是否满足Heading条件。
+ * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
+ * @Param: 详见方法签名；无入参时为无。
+ * @Return: 详见返回类型；void 时为无（仅副作用）。
      * @author: cx
      * @Date: 2026-05-17 10:24:01
      */
@@ -331,6 +376,9 @@ public final class SemanticChunkUtils {
 
     /**
      * @Description: 执行cleanHeading相关业务处理。
+ * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
+ * @Param: 详见方法签名；无入参时为无。
+ * @Return: 详见返回类型；void 时为无（仅副作用）。
      * @author: cx
      * @Date: 2026-05-17 10:24:01
      */
@@ -340,6 +388,9 @@ public final class SemanticChunkUtils {
 
     /**
      * @Description: 构建目标对象或请求数据。
+ * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
+ * @Param: 详见方法签名；无入参时为无。
+ * @Return: 详见返回类型；void 时为无（仅副作用）。
      * @author: cx
      * @Date: 2026-05-17 10:24:01
      */
@@ -372,6 +423,9 @@ public final class SemanticChunkUtils {
 
     /**
      * @Description: 构建目标对象或请求数据。
+ * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
+ * @Param: 详见方法签名；无入参时为无。
+ * @Return: 详见返回类型；void 时为无（仅副作用）。
      * @author: cx
      * @Date: 2026-05-17 10:24:01
      */
@@ -407,6 +461,9 @@ public final class SemanticChunkUtils {
 
     /**
      * @Description: 向目标集合追加处理结果。
+ * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
+ * @Param: 详见方法签名；无入参时为无。
+ * @Return: 详见返回类型；void 时为无（仅副作用）。
      * @author: cx
      * @Date: 2026-05-17 10:24:01
      */
@@ -426,6 +483,9 @@ public final class SemanticChunkUtils {
 
     /**
      * @Description: 执行startsNewAnalyticalUnit相关业务处理。
+ * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
+ * @Param: 详见方法签名；无入参时为无。
+ * @Return: 详见返回类型；void 时为无（仅副作用）。
      * @author: cx
      * @Date: 2026-05-17 10:24:01
      */
@@ -443,6 +503,9 @@ public final class SemanticChunkUtils {
 
     /**
      * @Description: 执行tailByTokens相关业务处理。
+ * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
+ * @Param: 详见方法签名；无入参时为无。
+ * @Return: 详见返回类型；void 时为无（仅副作用）。
      * @author: cx
      * @Date: 2026-05-17 10:24:01
      */
@@ -470,6 +533,9 @@ public final class SemanticChunkUtils {
 
     /**
      * @Description: 执行formatChunkText相关业务处理。
+ * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
+ * @Param: 详见方法签名；无入参时为无。
+ * @Return: 详见返回类型；void 时为无（仅副作用）。
      * @author: cx
      * @Date: 2026-05-17 10:24:01
      */
@@ -479,6 +545,9 @@ public final class SemanticChunkUtils {
 
     /**
      * @Description: 按规则拆分输入内容。
+ * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
+ * @Param: 详见方法签名；无入参时为无。
+ * @Return: 详见返回类型；void 时为无（仅副作用）。
      * @author: cx
      * @Date: 2026-05-17 10:24:01
      */
@@ -525,6 +594,9 @@ public final class SemanticChunkUtils {
 
     /**
      * @Description: 按规则拆分输入内容。
+ * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
+ * @Param: 详见方法签名；无入参时为无。
+ * @Return: 详见返回类型；void 时为无（仅副作用）。
      * @author: cx
      * @Date: 2026-05-17 10:24:01
      */
@@ -551,6 +623,9 @@ public final class SemanticChunkUtils {
 
     /**
      * @Description: 对输入数据进行规范化处理。
+ * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
+ * @Param: 详见方法签名；无入参时为无。
+ * @Return: 详见返回类型；void 时为无（仅副作用）。
      * @author: cx
      * @Date: 2026-05-17 10:24:01
      */
@@ -599,6 +674,9 @@ public final class SemanticChunkUtils {
 
     /**
      * @Description: 执行hardSplitByTokenBudget相关业务处理。
+ * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
+ * @Param: 详见方法签名；无入参时为无。
+ * @Return: 详见返回类型；void 时为无（仅副作用）。
      * @author: cx
      * @Date: 2026-05-17 10:24:01
      */
@@ -630,6 +708,9 @@ public final class SemanticChunkUtils {
 
     /**
      * @Description: 执行stripSectionPrefix相关业务处理。
+ * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
+ * @Param: 详见方法签名；无入参时为无。
+ * @Return: 详见返回类型；void 时为无（仅副作用）。
      * @author: cx
      * @Date: 2026-05-17 10:24:01
      */
@@ -647,6 +728,9 @@ public final class SemanticChunkUtils {
 
     /**
      * @Description: 根据上下文解析并确定最终值。
+ * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
+ * @Param: 详见方法签名；无入参时为无。
+ * @Return: 详见返回类型；void 时为无（仅副作用）。
      * @author: cx
      * @Date: 2026-05-17 10:24:01
      */
@@ -664,6 +748,9 @@ public final class SemanticChunkUtils {
 
     /**
      * @Description: 根据上下文解析并确定最终值。
+ * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
+ * @Param: 详见方法签名；无入参时为无。
+ * @Return: 详见返回类型；void 时为无（仅副作用）。
      * @author: cx
      * @Date: 2026-05-17 10:24:01
      */
@@ -678,6 +765,9 @@ public final class SemanticChunkUtils {
 
     /**
      * @Description: 根据上下文解析并确定最终值。
+ * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
+ * @Param: 详见方法签名；无入参时为无。
+ * @Return: 详见返回类型；void 时为无（仅副作用）。
      * @author: cx
      * @Date: 2026-05-17 10:24:01
      */
@@ -692,6 +782,9 @@ public final class SemanticChunkUtils {
 
     /**
      * @Description: 对输入数据进行规范化处理。
+ * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
+ * @Param: 详见方法签名；无入参时为无。
+ * @Return: 详见返回类型；void 时为无（仅副作用）。
      * @author: cx
      * @Date: 2026-05-17 10:24:01
      */

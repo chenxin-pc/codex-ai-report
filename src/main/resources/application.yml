@@ -26,7 +26,7 @@ spring:
       base-url: ${DASHSCOPE_BASE_URL:https://dashscope.aliyuncs.com/compatible-mode}
       chat:
         options:
-          model: ${QWEN_CHAT_MODEL:qwen-plus}
+          model: ${QWEN_CHAT_MODEL:qwen-plus-latest}
       embedding:
         options:
           model: ${QWEN_EMBEDDING_MODEL:text-embedding-v3}
@@ -83,3 +83,11 @@ app:
       min-similarity-score: ${REPORT_RETRIEVAL_MIN_SIMILARITY_SCORE:0.0}
       rerank-enabled: ${REPORT_RETRIEVAL_RERANK_ENABLED:false}
       max-parent-context-tokens: ${REPORT_RETRIEVAL_MAX_PARENT_CONTEXT_TOKENS:4500}
+  report-ingest-async:
+    fixed-delay-ms: ${REPORT_INGEST_ASYNC_FIXED_DELAY_MS:3000}
+    batch-size: ${REPORT_INGEST_ASYNC_BATCH_SIZE:5}
+    max-attempts: ${REPORT_INGEST_ASYNC_MAX_ATTEMPTS:3}
+    backoff-first-ms: ${REPORT_INGEST_ASYNC_BACKOFF_FIRST_MS:60000}
+    backoff-second-ms: ${REPORT_INGEST_ASYNC_BACKOFF_SECOND_MS:300000}
+    backoff-third-ms: ${REPORT_INGEST_ASYNC_BACKOFF_THIRD_MS:900000}
+    spool-dir: ${REPORT_INGEST_ASYNC_SPOOL_DIR:reports/ingest-spool}

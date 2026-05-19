@@ -1,0 +1,35 @@
+{
+  "input": {
+    "mode": "eastmoney",
+    "limit": 1,
+    "local_dir": "./reports",
+    "url_manifest": "./reports/report_urls.csv",
+    "eastmoney_manifest": "./reports/eastmoney_urls.csv",
+    "eastmoney_manifest_url": "",
+    "download_dir": "./outputs/downloads"
+  },
+  "api": {
+    "base_url": "http://localhost:8080",
+    "upload_path": "/api/reports/upload",
+    "recommend_path": "/api/reports/recommend"
+  },
+  "database": {
+    "mysql_command": "mysql",
+    "mysql_container": "",
+    "host": "localhost",
+    "port": 3306,
+    "database": "ai_report_rag",
+    "username": "${MYSQL_USERNAME}",
+    "password": "${MYSQL_PASSWORD}"
+  },
+  "output": {
+    "dir": "./outputs/report-ingest-analysis",
+    "max_text_length": 2000
+  },
+  "evaluation": {
+    "queries": []
+  },
+  "runtime": {
+    "continue_on_error": true
+  }
+}

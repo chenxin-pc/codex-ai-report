@@ -18,6 +18,9 @@ import java.util.regex.Pattern;
 @Service
 /**
  * @Description: ReportOcrParseService类，负责相关业务能力的组织与实现。
+ * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
+ * @Param: 详见方法签名；无入参时为无。
+ * @Return: 详见返回类型；void 时为无（仅副作用）。
  * @author: cx
  * @Date: 2026-05-17 10:24:01
  */
@@ -35,6 +38,9 @@ public class ReportOcrParseService {
 
     /**
      * @Description: 初始化ReportOcrParseService依赖与运行所需组件。
+ * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
+ * @Param: 详见方法签名；无入参时为无。
+ * @Return: 详见返回类型；void 时为无（仅副作用）。
      * @author: cx
      * @Date: 2026-05-17 10:24:01
      */
@@ -44,6 +50,9 @@ public class ReportOcrParseService {
 
     /**
      * @Description: 解析输入内容并输出结构化结果。
+ * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
+ * @Param: 详见方法签名；无入参时为无。
+ * @Return: 详见返回类型；void 时为无（仅副作用）。
      * @author: cx
      * @Date: 2026-05-17 10:24:01
      */
@@ -53,6 +62,9 @@ public class ReportOcrParseService {
 
     /**
      * @Description: 解析输入内容并输出结构化结果。
+ * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
+ * @Param: 详见方法签名；无入参时为无。
+ * @Return: 详见返回类型；void 时为无（仅副作用）。
      * @author: cx
      * @Date: 2026-05-17 10:24:01
      */
@@ -70,6 +82,9 @@ public class ReportOcrParseService {
 
     /**
      * @Description: 对输入数据进行规范化处理。
+ * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
+ * @Param: 详见方法签名；无入参时为无。
+ * @Return: 详见返回类型；void 时为无（仅副作用）。
      * @author: cx
      * @Date: 2026-05-17 10:24:01
      */
@@ -148,6 +163,9 @@ public class ReportOcrParseService {
 
     /**
      * @Description: 执行cleanMarkup相关业务处理。
+ * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
+ * @Param: 详见方法签名；无入参时为无。
+ * @Return: 详见返回类型；void 时为无（仅副作用）。
      * @author: cx
      * @Date: 2026-05-17 10:24:01
      */
@@ -179,6 +197,9 @@ public class ReportOcrParseService {
 
     /**
      * @Description: 执行replaceAndCount相关业务处理。
+ * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
+ * @Param: 详见方法签名；无入参时为无。
+ * @Return: 详见返回类型；void 时为无（仅副作用）。
      * @author: cx
      * @Date: 2026-05-17 10:24:01
      */
@@ -197,6 +218,9 @@ public class ReportOcrParseService {
 
     /**
      * @Description: 执行unwrapAndCount相关业务处理。
+ * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
+ * @Param: 详见方法签名；无入参时为无。
+ * @Return: 详见返回类型；void 时为无（仅副作用）。
      * @author: cx
      * @Date: 2026-05-17 10:24:01
      */
@@ -218,6 +242,9 @@ public class ReportOcrParseService {
 
     /**
      * @Description: 执行countOccurrences相关业务处理。
+ * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
+ * @Param: 详见方法签名；无入参时为无。
+ * @Return: 详见返回类型；void 时为无（仅副作用）。
      * @author: cx
      * @Date: 2026-05-17 10:24:01
      */
@@ -233,6 +260,9 @@ public class ReportOcrParseService {
 
     /**
      * @Description: 刷新缓冲内容并落入结果集合。
+ * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
+ * @Param: 详见方法签名；无入参时为无。
+ * @Return: 详见返回类型；void 时为无（仅副作用）。
      * @author: cx
      * @Date: 2026-05-17 10:24:01
      */
@@ -251,6 +281,9 @@ public class ReportOcrParseService {
 
     /**
      * @Description: 将文本拆分为最小语义单元。
+ * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
+ * @Param: 详见方法签名；无入参时为无。
+ * @Return: 详见返回类型；void 时为无（仅副作用）。
      * @author: cx
      * @Date: 2026-05-17 10:24:01
      */
@@ -284,6 +317,9 @@ public class ReportOcrParseService {
 
     /**
      * @Description: 合并多源数据并返回结果。
+ * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
+ * @Param: 详见方法签名；无入参时为无。
+ * @Return: 详见返回类型；void 时为无（仅副作用）。
      * @author: cx
      * @Date: 2026-05-17 10:24:01
      */
@@ -302,6 +338,9 @@ public class ReportOcrParseService {
 
     /**
      * @Description: 判断是否满足PageMarker条件。
+ * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
+ * @Param: 详见方法签名；无入参时为无。
+ * @Return: 详见返回类型；void 时为无（仅副作用）。
      * @author: cx
      * @Date: 2026-05-17 10:24:01
      */
@@ -311,6 +350,9 @@ public class ReportOcrParseService {
 
     /**
      * @Description: 判断是否满足LikelyHeading条件。
+ * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
+ * @Param: 详见方法签名；无入参时为无。
+ * @Return: 详见返回类型；void 时为无（仅副作用）。
      * @author: cx
      * @Date: 2026-05-17 10:24:01
      */
@@ -325,6 +367,9 @@ public class ReportOcrParseService {
 
     /**
      * @Description: 执行endsSentence相关业务处理。
+ * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
+ * @Param: 详见方法签名；无入参时为无。
+ * @Return: 详见返回类型；void 时为无（仅副作用）。
      * @author: cx
      * @Date: 2026-05-17 10:24:01
      */
@@ -339,6 +384,9 @@ public class ReportOcrParseService {
 
     /**
      * @Description: 执行startsNewSemanticLine相关业务处理。
+ * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
+ * @Param: 详见方法签名；无入参时为无。
+ * @Return: 详见返回类型；void 时为无（仅副作用）。
      * @author: cx
      * @Date: 2026-05-17 10:24:01
      */
@@ -348,6 +396,9 @@ public class ReportOcrParseService {
 
     /**
      * @Description: 追加文本片段并维护上下文。
+ * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
+ * @Param: 详见方法签名；无入参时为无。
+ * @Return: 详见返回类型；void 时为无（仅副作用）。
      * @author: cx
      * @Date: 2026-05-17 10:24:01
      */
@@ -365,6 +416,9 @@ public class ReportOcrParseService {
 
     /**
      * @Description: 执行needsSpace相关业务处理。
+ * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
+ * @Param: 详见方法签名；无入参时为无。
+ * @Return: 详见返回类型；void 时为无（仅副作用）。
      * @author: cx
      * @Date: 2026-05-17 10:24:01
      */
@@ -374,6 +428,9 @@ public class ReportOcrParseService {
 
     /**
      * @Description: 判断是否满足AsciiLetterOrDigit条件。
+ * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
+ * @Param: 详见方法签名；无入参时为无。
+ * @Return: 详见返回类型；void 时为无（仅副作用）。
      * @author: cx
      * @Date: 2026-05-17 10:24:01
      */
@@ -383,6 +440,9 @@ public class ReportOcrParseService {
 
     /**
      * @Description: 判断是否满足LikelyNoiseLine条件。
+ * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
+ * @Param: 详见方法签名；无入参时为无。
+ * @Return: 详见返回类型；void 时为无（仅副作用）。
      * @author: cx
      * @Date: 2026-05-17 10:24:01
      */

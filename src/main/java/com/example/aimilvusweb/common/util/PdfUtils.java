@@ -14,6 +14,9 @@ import java.util.Locale;
 
 /**
  * @Description: PdfUtils类，负责相关业务能力的组织与实现。
+ * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
+ * @Param: 详见方法签名；无入参时为无。
+ * @Return: 详见返回类型；void 时为无（仅副作用）。
  * @author: cx
  * @Date: 2026-05-17 10:24:01
  */
@@ -29,6 +32,9 @@ public final class PdfUtils {
 
     /**
      * @Description: 初始化PdfUtils依赖与运行所需组件。
+ * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
+ * @Param: 详见方法签名；无入参时为无。
+ * @Return: 详见返回类型；void 时为无（仅副作用）。
      * @author: cx
      * @Date: 2026-05-17 10:24:01
      */
@@ -37,6 +43,9 @@ public final class PdfUtils {
 
     /**
      * @Description: 执行extractText相关业务处理。
+ * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
+ * @Param: 详见方法签名；无入参时为无。
+ * @Return: 详见返回类型；void 时为无（仅副作用）。
      * @author: cx
      * @Date: 2026-05-17 10:24:01
      */
@@ -54,6 +63,9 @@ public final class PdfUtils {
 
     /**
      * @Description: 执行extractTextByLayout相关业务处理。
+ * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
+ * @Param: 详见方法签名；无入参时为无。
+ * @Return: 详见返回类型；void 时为无（仅副作用）。
      * @author: cx
      * @Date: 2026-05-17 10:24:01
      */
@@ -70,6 +82,9 @@ public final class PdfUtils {
 
     /**
      * @Description: 执行extractPageText相关业务处理。
+ * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
+ * @Param: 详见方法签名；无入参时为无。
+ * @Return: 详见返回类型；void 时为无（仅副作用）。
      * @author: cx
      * @Date: 2026-05-17 10:24:01
      */
@@ -83,6 +98,9 @@ public final class PdfUtils {
 
     /**
      * @Description: 构建目标对象或请求数据。
+ * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
+ * @Param: 详见方法签名；无入参时为无。
+ * @Return: 详见返回类型；void 时为无（仅副作用）。
      * @author: cx
      * @Date: 2026-05-17 10:24:01
      */
@@ -107,6 +125,9 @@ public final class PdfUtils {
 
     /**
      * @Description: 执行extractRegionText相关业务处理。
+ * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
+ * @Param: 详见方法签名；无入参时为无。
+ * @Return: 详见返回类型；void 时为无（仅副作用）。
      * @author: cx
      * @Date: 2026-05-17 10:24:01
      */
@@ -126,6 +147,9 @@ public final class PdfUtils {
 
     /**
      * @Description: 执行detectLayout相关业务处理。
+ * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
+ * @Param: 详见方法签名；无入参时为无。
+ * @Return: 详见返回类型；void 时为无（仅副作用）。
      * @author: cx
      * @Date: 2026-05-17 10:24:01
      */
@@ -138,6 +162,9 @@ public final class PdfUtils {
 
     /**
      * @Description: 根据上下文解析并确定最终值。
+ * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
+ * @Param: 详见方法签名；无入参时为无。
+ * @Return: 详见返回类型；void 时为无（仅副作用）。
      * @author: cx
      * @Date: 2026-05-17 10:24:01
      */
@@ -160,6 +187,9 @@ public final class PdfUtils {
 
     /**
      * @Description: 执行cleanPageText相关业务处理。
+ * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
+ * @Param: 详见方法签名；无入参时为无。
+ * @Return: 详见返回类型；void 时为无（仅副作用）。
      * @author: cx
      * @Date: 2026-05-17 10:24:01
      */
@@ -189,6 +219,9 @@ public final class PdfUtils {
 
     /**
      * @Description: 对输入数据进行规范化处理。
+ * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
+ * @Param: 详见方法签名；无入参时为无。
+ * @Return: 详见返回类型；void 时为无（仅副作用）。
      * @author: cx
      * @Date: 2026-05-17 10:24:01
      */
@@ -215,6 +248,9 @@ public final class PdfUtils {
 
     /**
      * @Description: 刷新缓冲内容并落入结果集合。
+ * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
+ * @Param: 详见方法签名；无入参时为无。
+ * @Return: 详见返回类型；void 时为无（仅副作用）。
      * @author: cx
      * @Date: 2026-05-17 10:24:01
      */
@@ -228,6 +264,9 @@ public final class PdfUtils {
 
     /**
      * @Description: 判断是否满足PageMarkLine条件。
+ * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
+ * @Param: 详见方法签名；无入参时为无。
+ * @Return: 详见返回类型；void 时为无（仅副作用）。
      * @author: cx
      * @Date: 2026-05-17 10:24:01
      */
@@ -238,6 +277,9 @@ public final class PdfUtils {
 
     /**
      * @Description: 判断是否满足LikelyTableNoiseLine条件。
+ * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
+ * @Param: 详见方法签名；无入参时为无。
+ * @Return: 详见返回类型；void 时为无（仅副作用）。
      * @author: cx
      * @Date: 2026-05-17 10:24:01
      */
@@ -269,6 +311,9 @@ public final class PdfUtils {
 
     /**
      * @Description: 判断是否满足LikelyLowSemanticBlock条件。
+ * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
+ * @Param: 详见方法签名；无入参时为无。
+ * @Return: 详见返回类型；void 时为无（仅副作用）。
      * @author: cx
      * @Date: 2026-05-17 10:24:01
      */
@@ -297,6 +342,9 @@ public final class PdfUtils {
 
     /**
      * @Description: 判断是否满足LikelyTwoColumn条件。
+ * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
+ * @Param: 详见方法签名；无入参时为无。
+ * @Return: 详见返回类型；void 时为无（仅副作用）。
      * @author: cx
      * @Date: 2026-05-17 10:24:01
      */
@@ -315,6 +363,9 @@ public final class PdfUtils {
 
     /**
      * @Description: 对输入数据进行规范化处理。
+ * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
+ * @Param: 详见方法签名；无入参时为无。
+ * @Return: 详见返回类型；void 时为无（仅副作用）。
      * @author: cx
      * @Date: 2026-05-17 10:24:01
      */

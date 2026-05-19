@@ -23,6 +23,9 @@ import static org.mockito.Mockito.when;
 
 /**
  * @Description: ReportRecommendServiceTests类，负责相关业务能力的组织与实现。
+ * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
+ * @Param: 详见方法签名；无入参时为无。
+ * @Return: 详见返回类型；void 时为无（仅副作用）。
  * @author: cx
  * @Date: 2026-05-17 10:24:01
  */
@@ -115,6 +118,9 @@ class ReportRecommendServiceTests {
      * @Logic: 创建无Redis缓存的测试服务实例，并注入外部传入的模型、Prompt与检索依赖，便于定向控制流式分支。
      * @Param: qwenClient 模型调用mock；promptTemplateService Prompt服务mock；reportRetrievalService 检索服务mock。
      * @Return: 可用于流式推荐测试的ReportRecommendService实例。
+ * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
+ * @Param: 详见方法签名；无入参时为无。
+ * @Return: 详见返回类型；void 时为无（仅副作用）。
      * @author: cx
      * @Date: 2026-05-17 14:48:00
      */
@@ -131,6 +137,9 @@ class ReportRecommendServiceTests {
      * @Logic: 组装包含标题、来源与章节元信息的Document，并包装为RetrievedChunk用于推荐证据链路测试。
      * @Param: 无。
      * @Return: 固定的RetrievedChunk测试样本。
+ * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
+ * @Param: 详见方法签名；无入参时为无。
+ * @Return: 详见返回类型；void 时为无（仅副作用）。
      * @author: cx
      * @Date: 2026-05-17 14:48:00
      */

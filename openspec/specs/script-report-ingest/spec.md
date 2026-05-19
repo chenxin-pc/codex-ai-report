@@ -5,7 +5,7 @@ TBD - created by archiving change script-report-ingest-analysis-pipeline. Update
 ## Requirements
 ### Requirement: 脚本 MUST 支持每次收集 10 篇研报
 
-系统 MUST 提供脚本化入口，用于从配置来源收集最多 10 篇待导入研报。脚本 MUST 支持本地目录和 URL 清单两种输入模式，并为每篇研报记录来源、标题、机构、发布日期、本地文件路径和采集状态。
+系统 MUST 提供脚本化入口，用于从配置来源收集最多 10 篇待导入研报。脚本 MUST 支持本地目录、URL 清单和东方财富来源三种输入模式，并为每篇研报记录来源、标题、机构、发布日期、本地文件路径和采集状态。
 
 #### Scenario: 从本地目录收集研报
 
@@ -20,6 +20,13 @@ TBD - created by archiving change script-report-ingest-analysis-pipeline. Update
 - **WHEN** 用户运行批量导入脚本
 - **THEN** 脚本 MUST 下载最多 10 篇研报到本地工作目录
 - **AND** 脚本 MUST 记录每篇研报的来源 URL 和下载状态
+
+#### Scenario: 从东方财富来源收集研报
+
+- **GIVEN** 用户配置了东方财富来源参数
+- **WHEN** 用户运行批量导入脚本
+- **THEN** 脚本 MUST 拉取最多 10 篇研报并保存为本地 PDF 文件
+- **AND** 脚本 MUST 记录每篇研报的东方财富来源信息和拉取状态
 
 #### Scenario: 可用研报少于 10 篇
 

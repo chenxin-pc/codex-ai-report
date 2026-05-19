@@ -7,6 +7,9 @@ import org.springframework.stereotype.Component;
 
 /**
  * @Description: 研报质量参数配置，聚合切片策略与检索策略相关阈值。
+ * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
+ * @Param: 详见方法签名；无入参时为无。
+ * @Return: 详见返回类型；void 时为无（仅副作用）。
  * @author: cx
  * @Date: 2026-05-17 10:53:07
  */
@@ -20,6 +23,9 @@ public class ReportQualityProperties {
 
     /**
      * @Description: 切片参数配置，控制父子块大小、重叠范围与最小切片阈值。
+ * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
+ * @Param: 详见方法签名；无入参时为无。
+ * @Return: 详见返回类型；void 时为无（仅副作用）。
      * @author: cx
      * @Date: 2026-05-17 10:53:07
      */
@@ -36,6 +42,9 @@ public class ReportQualityProperties {
 
     /**
      * @Description: 检索参数配置，控制召回数量、过滤阈值与上下文长度限制。
+ * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
+ * @Param: 详见方法签名；无入参时为无。
+ * @Return: 详见返回类型；void 时为无（仅副作用）。
      * @author: cx
      * @Date: 2026-05-17 10:53:07
      */

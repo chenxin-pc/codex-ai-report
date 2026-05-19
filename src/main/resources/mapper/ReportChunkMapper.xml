@@ -138,4 +138,10 @@
         ORDER BY chunk_index ASC
     </select>
 
+    <update id="updateVectorStoredByChunkUid">
+        UPDATE report_chunk
+        SET vector_stored = #{vectorStored}
+        WHERE chunk_uid = #{chunkUid}
+    </update>
+
 </mapper>

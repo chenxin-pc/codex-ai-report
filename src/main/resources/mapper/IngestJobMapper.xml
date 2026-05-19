@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.aimilvusweb.repository.IngestJobMapper">
+
+    <resultMap id="IngestJobResultMap" type="com.example.aimilvusweb.entity.IngestJob">
+        <id property="id" column="id"/>
+        <result property="jobUid" column="job_uid"/>
+        <result property="reportId" column="report_id"/>
+        <result property="reportTitleSnapshot" column="report_title_snapshot"/>
+        <result property="titleSearchKey" column="title_search_key"/>
+        <result property="source" column="source"/>
+        <result property="institution" column="institution"/>
+        <result property="publishDate" column="publish_date"/>
+        <result property="originalFilename" column="original_filename"/>
+        <result property="filePath" column="file_path"/>
+        <result property="ocrStatus" column="ocr_status"/>
+        <result property="chunkStatus" column="chunk_status"/>
+        <result property="vectorStatus" column="vector_status"/>
+        <result property="ocrAttemptCount" column="ocr_attempt_count"/>
+        <result property="chunkAttemptCount" column="chunk_attempt_count"/>
+        <result property="vectorAttemptCount" column="vector_attempt_count"/>
+        <result property="nextRunAt" column="next_run_at"/>
+        <result property="priority" column="priority"/>
+        <result property="lastErrorCode" column="last_error_code"/>
+        <result property="lastErrorMessage" column="last_error_message"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="updatedAt" column="updated_at"/>
+    </resultMap>
+
+    <insert id="insert" parameterType="com.example.aimilvusweb.entity.IngestJob" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO ingest_job(
+            job_uid, report_id, report_title_snapshot, title_search_key, source, institution, publish_date, original_filename, file_path,
+            ocr_status, chunk_status, vector_status, ocr_attempt_count, chunk_attempt_count, vector_attempt_count, next_run_at, priority,
+            last_error_code, last_error_message, created_at, updated_at
+        ) VALUES (
+            #{jobUid}, #{reportId}, #{reportTitleSnapshot}, #{titleSearchKey}, #{source}, #{institution}, #{publishDate}, #{originalFilename}, #{filePath},
+            #{ocrStatus}, #{chunkStatus}, #{vectorStatus}, #{ocrAttemptCount}, #{chunkAttemptCount}, #{vectorAttemptCount}, #{nextRunAt}, #{priority},
+            #{lastErrorCode}, #{lastErrorMessage}, #{createdAt}, #{updatedAt}
+        )
+    </insert>
+
+    <select id="selectByJobUid" resultMap="IngestJobResultMap">
+        SELECT
+            id, job_uid, report_id, report_title_snapshot, title_search_key, source, institution, publish_date, original_filename, file_path,
+            ocr_status, chunk_status, vector_status, ocr_attempt_count, chunk_attempt_count, vector_attempt_count, next_run_at, priority,
+            last_error_code, last_error_message, created_at, updated_at
+        FROM ingest_job
+        WHERE job_uid = #{jobUid}
+    </select>
+
+    <select id="selectRunnableForStage" resultMap="IngestJobResultMap">
+        SELECT
+            id, job_uid, report_id, report_title_snapshot, title_search_key, source, institution, publish_date, original_filename, file_path,
+            ocr_status, chunk_status, vector_status, ocr_attempt_count, chunk_attempt_count, vector_attempt_count, next_run_at, priority,
+            last_error_code, last_error_message, created_at, updated_at
+        FROM ingest_job
+        WHERE
+            <choose>
+                <when test="stage == 'OCR'">
+                    ocr_status = #{status}
+                </when>
+                <when test="stage == 'CHUNK'">
+                    ocr_status = 'SUCCEEDED' AND chunk_status = #{status}
+                </when>
+                <otherwise>
+                    ocr_status = 'SUCCEEDED' AND chunk_status = 'SUCCEEDED' AND vector_status = #{status}
+                </otherwise>
+            </choose>
+          AND next_run_at &lt;= #{nextRunAt}
+        ORDER BY priority DESC, next_run_at ASC, id ASC
+        LIMIT #{limit}
+    </select>
+
+    <update id="updateStatusAndAttempt" parameterType="com.example.aimilvusweb.entity.IngestJob">
+        UPDATE ingest_job
+        SET
+            ocr_status = #{ocrStatus},
+            chunk_status = #{chunkStatus},
+            vector_status = #{vectorStatus},
+            ocr_attempt_count = #{ocrAttemptCount},
+            chunk_attempt_count = #{chunkAttemptCount},
+            vector_attempt_count = #{vectorAttemptCount},
+            next_run_at = #{nextRunAt},
+            last_error_code = #{lastErrorCode},
+            last_error_message = #{lastErrorMessage},
+            updated_at = #{updatedAt}
+        WHERE id = #{id}
+    </update>
+
+    <update id="bindReportId">
+        UPDATE ingest_job
+        SET report_id = #{reportId}, updated_at = #{updatedAt}
+        WHERE job_uid = #{jobUid}
+    </update>
+
+    <select id="countByStageStatus" resultType="int">
+        SELECT COUNT(1)
+        FROM ingest_job
+        WHERE
+            <choose>
+                <when test="stage == 'OCR'">
+                    ocr_status = #{status}
+                </when>
+                <when test="stage == 'CHUNK'">
+                    chunk_status = #{status}
+                </when>
+                <otherwise>
+                    vector_status = #{status}
+                </otherwise>
+            </choose>
+    </select>
+
+</mapper>

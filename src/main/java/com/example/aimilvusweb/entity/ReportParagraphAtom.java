@@ -7,6 +7,9 @@ import java.time.Instant;
 
 /**
  * @Description: 段落原子实体，保存段落编号、所属页码、文本内容与质量诊断信息。
+ * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
+ * @Param: 详见方法签名；无入参时为无。
+ * @Return: 详见返回类型；void 时为无（仅副作用）。
  * @author: cx
  * @Date: 2026-05-17 10:53:07
  */
