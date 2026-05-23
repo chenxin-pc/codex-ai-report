@@ -77,6 +77,10 @@ app:
       parent-max-tokens: ${REPORT_CHUNK_PARENT_MAX_TOKENS:5200}
       overlap-tokens: ${REPORT_CHUNK_OVERLAP_TOKENS:120}
       min-slice-token-count: ${REPORT_CHUNK_MIN_SLICE_TOKEN_COUNT:30}
+      llm-max-paragraphs-per-batch: ${REPORT_CHUNK_LLM_MAX_PARAGRAPHS_PER_BATCH:60}
+      llm-max-tokens-per-batch: ${REPORT_CHUNK_LLM_MAX_TOKENS_PER_BATCH:8000}
+      llm-overlap-paragraphs: ${REPORT_CHUNK_LLM_OVERLAP_PARAGRAPHS:10}
+      llm-overlap-max-tokens: ${REPORT_CHUNK_LLM_OVERLAP_MAX_TOKENS:1200}
     retrieval:
       initial-top-k: ${REPORT_RETRIEVAL_INITIAL_TOP_K:20}
       final-top-k: ${REPORT_RETRIEVAL_FINAL_TOP_K:5}

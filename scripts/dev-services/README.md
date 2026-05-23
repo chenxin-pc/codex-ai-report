@@ -8,6 +8,10 @@
   - 作用：启动 `docker-compose.yml` 中的中间件服务并等待服务就绪。
   - 是否主入口：是。
   - 何时修改：新增/删除中间件服务、调整健康等待策略、调整默认启动服务集合时。
+- `commands/start_backend.sh`
+  - 作用：从项目根目录启动 Spring Boot 后端（自动读取项目根 `.env` 配置）。
+  - 是否主入口：是（后端启动入口）。
+  - 何时修改：后端启动命令、JVM 参数或启动前置检查逻辑变更时。
 
 ## 常用命令
 
@@ -21,6 +25,12 @@ bash scripts/dev-services/commands/start_services.sh
 
 ```bash
 bash scripts/dev-services/commands/start_services.sh mysql8 redis
+```
+
+启动后端：
+
+```bash
+bash scripts/dev-services/commands/start_backend.sh
 ```
 
 ## 修改指引

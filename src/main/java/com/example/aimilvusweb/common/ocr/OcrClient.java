@@ -39,7 +39,9 @@ import java.util.Map;
  */
 public class OcrClient {
 
+    /** OCR 配置对象，提供 endpoint、鉴权、模型与渲染参数。 */
     private final OcrProperties properties;
+    /** 用于调用外部 OCR 接口的 HTTP 客户端。 */
     private final RestClient restClient;
 
     /**
@@ -431,6 +433,14 @@ public class OcrClient {
         return null;
     }
 
+    /**
+     * @Description: PDF 页渲染结果，包含页号与该页 JPEG Data URL。
+     * @Logic: 作为 DashScope 页级 OCR 请求输入，避免在主流程中重复处理图片编码。
+     * @Param: pageNumber 页码（从 1 开始）；dataUrl JPEG base64 data url。
+     * @Return: 无（仅数据载体）。
+     * @author: cx
+     * @Date: 2026-05-21 23:20:00
+     */
     private record PageImage(int pageNumber, String dataUrl) {
     }
 }

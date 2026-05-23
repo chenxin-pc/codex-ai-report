@@ -55,6 +55,14 @@ cp .env.example .env
 
 ## 启动后端
 
+推荐使用脚本（默认读取项目根 `.env`）：
+
+```bash
+bash scripts/dev-services/commands/start_backend.sh
+```
+
+或直接执行：
+
 ```bash
 set -a
 source .env

@@ -16,9 +16,6 @@
         <button class="nav-item" :class="{ active: activeMainTab === 'query' }" type="button" @click="activeMainTab = 'query'">
           检索
         </button>
-        <button class="nav-item" :class="{ active: activeMainTab === 'result' }" type="button" @click="activeMainTab = 'result'">
-          结论
-        </button>
         <button class="nav-item" :class="{ active: activeMainTab === 'observation' }" type="button" @click="activeMainTab = 'observation'">
           研报观测
         </button>
@@ -87,7 +84,6 @@
           <button class="ghost-btn" type="button" :disabled="!latestJobId" @click="checkLatestJob">
             查询最新任务状态
           </button>
-          <span v-if="latestJobId" class="mini-tip">jobId: {{ latestJobId }}</span>
         </div>
       </section>
 
@@ -119,9 +115,6 @@
         </div>
 
         <p v-if="errMsg" class="feedback danger">{{ errMsg }}</p>
-      </section>
-
-      <section v-if="activeMainTab === 'result'" id="result" class="band result-band">
         <div class="section-heading">
           <span>03</span>
           <div>
@@ -211,7 +204,6 @@
                     <th>状态</th>
                     <th>来源/机构</th>
                     <th>发布日期</th>
-                    <th>jobId</th>
                     <th>错误</th>
                     <th>操作</th>
                   </tr>
@@ -223,9 +215,11 @@
                     <td>{{ item.ocrStatus || '-' }} / {{ item.chunkStatus || '-' }} / {{ item.vectorStatus || '-' }}</td>
                     <td>{{ item.source || '-' }} / {{ item.institution || '-' }}</td>
                     <td>{{ item.publishDate || '-' }}</td>
-                    <td :title="item.jobUid || '-'" class="nowrap-ellipsis">{{ item.jobUid || '-' }}</td>
                     <td :title="item.lastErrorCode || '-'">{{ item.lastErrorCode || '-' }}</td>
-                    <td><button class="ghost-btn small-btn" type="button" @click="observeReport(item)">观测链路</button></td>
+                    <td>
+                      <button class="ghost-btn small-btn" type="button" @click="observeReport(item)">观测链路</button>
+                      <button class="ghost-btn small-btn" type="button" @click="observeChunks(item)">查询切片</button>
+                    </td>
                   </tr>
                 </tbody>
               </table>
@@ -237,9 +231,10 @@
                   <span>{{ item.ocrStatus || '-' }} / {{ item.chunkStatus || '-' }} / {{ item.vectorStatus || '-' }}</span>
                 </header>
                 <small>{{ item.source || '-' }} / {{ item.institution || '-' }} / {{ item.publishDate || '-' }}</small>
-                <pre>jobId={{ item.jobUid || '-' }}  error={{ item.lastErrorCode || '-' }}</pre>
+                <pre>error={{ item.lastErrorCode || '-' }}</pre>
                 <div class="query-actions">
                   <button class="ghost-btn" type="button" @click="observeReport(item)">观测链路</button>
+                  <button class="ghost-btn" type="button" @click="observeChunks(item)">查询切片</button>
                 </div>
               </article>
             </div>
@@ -282,8 +277,7 @@
               </header>
               <small>{{ item.reportTitle || '-' }} / {{ item.modelName || '-' }}</small>
               <pre>
-jobId={{ item.jobId || '-' }}  traceId={{ item.traceId || '-' }}
-reportId={{ item.reportId || '-' }}  attempt={{ item.attempt }}  createdAt={{ formatDateTime(item.createdAt) }}
+traceId={{ item.traceId || '-' }}  reportId={{ item.reportId || '-' }}  attempt={{ item.attempt }}  createdAt={{ formatDateTime(item.createdAt) }}
 startedAt={{ formatDateTime(item.startedAt) }}  finishedAt={{ formatDateTime(item.finishedAt) }}
 input={{ item.inputSize ?? '-' }}  output={{ item.outputSize ?? '-' }}  durationMs={{ item.durationMs ?? '-' }}
 errorCode={{ item.errorCode || '-' }}  error={{ truncateText(item.errorMessageShort, 80) }}
@@ -296,6 +290,36 @@ errorCode={{ item.errorCode || '-' }}  error={{ truncateText(item.errorMessageSh
           </div>
         </div>
         <p v-if="observationMsg" class="feedback">{{ observationMsg }}</p>
+      </section>
+
+      <section v-if="activeMainTab === 'observation'" ref="chunkObservationSectionRef" class="band result-band">
+        <div class="section-heading">
+          <span>06</span>
+          <div>
+            <h2>切片前后对照</h2>
+            <p>展示每次切片前的原文（段落拼接）和切片后的文本，便于快速核查切片质量。</p>
+          </div>
+        </div>
+        <p v-if="chunkObservationMsg" class="feedback">{{ chunkObservationMsg }}</p>
+        <div class="evidence-list" v-if="chunkObservationData?.chunkPairs?.length">
+          <article v-for="(item, idx) in chunkObservationData.chunkPairs" :key="item.chunkUid || idx" class="evidence-item">
+            <header>
+              <strong>#{{ idx + 1 }} {{ item.chunkType || '-' }} / chunkIndex={{ item.chunkIndex ?? '-' }}</strong>
+              <span>{{ item.tokenCount ?? '-' }} tokens</span>
+            </header>
+            <small>
+              chunkUid={{ item.chunkUid || '-' }} / 段落={{ item.startParagraphId ?? '-' }}-{{ item.endParagraphId ?? '-' }} / 页码={{ item.startPageNumber ?? '-' }}-{{ item.endPageNumber ?? '-' }}
+            </small>
+            <small>
+              sectionPath={{ item.sectionPath || '-' }} / filterReason={{ item.filterReason || '-' }}
+            </small>
+            <p class="feedback" :class="item.sameContent ? 'success' : 'info'">{{ item.differenceSummary || '-' }}</p>
+            <pre>切片前原文：
+{{ item.sourceParagraphText || '-' }}</pre>
+            <pre>切片后数据：
+{{ item.chunkText || '-' }}</pre>
+          </article>
+        </div>
       </section>
     </section>
 
@@ -323,6 +347,7 @@ const latestJobId = ref('')
 const stageEvents = ref([])
 const timelineQuery = ref({ reportId: '', titleKeyword: '' })
 const timelineSectionRef = ref(null)
+const chunkObservationSectionRef = ref(null)
 const stageEventDetail = ref(null)
 const reportObservations = ref([])
 const observationLoading = ref(false)
@@ -330,6 +355,9 @@ const observationQuery = ref({ titleKeyword: '', limit: 50 })
 const observationView = ref('table')
 const timelineLoading = ref(false)
 const observationMsg = ref('')
+const chunkObservationLoading = ref(false)
+const chunkObservationMsg = ref('')
+const chunkObservationData = ref(null)
 
 const query = ref('')
 const loading = ref(false)
@@ -387,7 +415,7 @@ const uploadPdf = async () => {
     const data = await requestJson('/api/reports/upload', { method: 'POST', body: formData })
     backendState.value = 'ok'
     latestJobId.value = data.jobId || ''
-    setUploadMessage(`任务已提交：jobId=${data.jobId}`, 'success')
+    setUploadMessage('任务已提交', 'success')
   } catch (error) {
     backendState.value = 'error'
     setUploadMessage(`入库失败：${error.message}`, 'danger')
@@ -451,6 +479,29 @@ const observeReport = async (item) => {
   await loadTimeline()
   await nextTick()
   timelineSectionRef.value?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+}
+
+const observeChunks = async (item) => {
+  if (!item?.reportId) {
+    chunkObservationMsg.value = '缺少 reportId，无法查询切片'
+    return
+  }
+  chunkObservationLoading.value = true
+  chunkObservationData.value = null
+  chunkObservationMsg.value = `已选择 reportId=${item.reportId}，正在查询切片前后数据...`
+  try {
+    const data = await requestJson(`/api/reports/${encodeURIComponent(item.reportId)}/chunk-observation`)
+    chunkObservationData.value = data
+    chunkObservationMsg.value = data?.chunkPairs?.length
+      ? `已加载 ${data.chunkPairs.length} 条切片对照数据`
+      : '暂无切片数据'
+    await nextTick()
+    chunkObservationSectionRef.value?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  } catch (error) {
+    chunkObservationMsg.value = `切片查询失败：${toUiErrorMessage(error, '后端服务可能未启动，请先启动 8080 后端')}`
+  } finally {
+    chunkObservationLoading.value = false
+  }
 }
 
 const openStageEventDetail = (item) => {
@@ -653,7 +704,6 @@ const formatDateTime = (value) => {
 
 const formatEventDetail = (item) => {
   return [
-    `jobId: ${item.jobId || '-'}`,
     `traceId: ${item.traceId || '-'}`,
     `reportId: ${item.reportId || '-'}`,
     `reportTitle: ${item.reportTitle || '-'}`,

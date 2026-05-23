@@ -37,22 +37,30 @@ TBD - created by archiving change script-report-ingest-analysis-pipeline. Update
 
 ### Requirement: 脚本 MUST 通过后端导入能力完成入库和向量化
 
-脚本 MUST 优先调用现有后端导入接口或受控导入入口完成 OCR、语义切片、MySQL 入库和 Milvus 向量化。脚本 MUST 不绕过后端主链路直接写入 Milvus。
+脚本 MUST 通过受控入口提交导入任务，并由后端异步完成 OCR、语义切片、MySQL 入库和 Milvus 向量化。脚本或调用方 MUST 能查询任务状态与阶段结果，不得绕过后端主链路直接写入 Milvus。
 
-#### Scenario: 调用导入接口成功
+#### Scenario: 提交任务后异步执行成功
 
 - **GIVEN** 脚本输入清单包含待导入 PDF
-- **AND** 后端导入接口可用
+- **AND** 后端导入入口可用
 - **WHEN** 脚本提交研报文件和元数据
-- **THEN** 后端 MUST 完成 OCR、切片、MySQL 入库和 Milvus 向量化
-- **AND** 脚本 MUST 记录返回的 reportId 和导入状态
+- **THEN** 系统 MUST 返回 `jobId` 并记录任务为待执行或执行中
+- **AND** 系统 MUST 在后续异步阶段完成 OCR、切片、MySQL 入库和 Milvus 向量化
+- **AND** 调用方 MUST 可查询到最终成功状态
 
-#### Scenario: 单篇导入失败
+#### Scenario: 单阶段失败并重试后成功
 
-- **GIVEN** 脚本正在批量导入 10 篇研报
-- **WHEN** 其中一篇研报导入失败
-- **THEN** 脚本 MUST 记录失败文件、失败阶段和错误摘要
-- **AND** 脚本 MUST 继续处理其余研报，除非用户配置为遇错停止
+- **GIVEN** 某研报任务在 OCR、切片或向量化阶段出现可重试错误
+- **WHEN** 定时任务按退避策略进行重试
+- **THEN** 系统 MUST 记录每次重试事件
+- **AND** 当重试成功时 MUST 将该阶段状态更新为成功并推进下游阶段
+
+#### Scenario: 阶段失败达到上限
+
+- **GIVEN** 某研报任务在同一阶段连续失败且超过最大重试次数
+- **WHEN** 系统执行最终失败判定
+- **THEN** 系统 MUST 将该阶段标记为最终失败
+- **AND** 系统 MUST 记录失败阶段和错误摘要供后续查询
 
 ### Requirement: 脚本运行 MUST 支持幂等和重试
 

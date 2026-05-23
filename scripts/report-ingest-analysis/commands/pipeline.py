@@ -431,10 +431,15 @@ def ingest_reports(config: dict[str, Any], state: RunState, reports: list[Report
         try:
             payload = upload_report(config, report)
             result.status = "success"
-            result.report_id = int(payload["reportId"])
+            report_id = payload.get("reportId")
+            if report_id is not None:
+                result.report_id = int(report_id)
             if payload.get("chunkCount") is not None:
                 result.chunk_count = int(payload["chunkCount"])
-            print(f"  success: reportId={result.report_id}, chunks={result.chunk_count}")
+            if result.report_id is not None:
+                print(f"  success: reportId={result.report_id}, chunks={result.chunk_count}")
+            else:
+                print(f"  accepted: jobId={payload.get('jobId')}, reportId=pending")
         except (OSError, urllib.error.URLError, RuntimeError, ValueError, json.JSONDecodeError) as exc:
             result.status = "failed"
             result.failure_stage = "upload"

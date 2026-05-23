@@ -51,6 +51,7 @@
     </select>
 
     <select id="selectRunnableForStage" resultMap="IngestJobResultMap">
+        <!-- 定时任务拉取“当前阶段可执行任务”的统一 SQL。 -->
         SELECT
             id, job_uid, report_id, report_title_snapshot, title_search_key, source, institution, publish_date, original_filename, file_path,
             ocr_status, chunk_status, vector_status, ocr_attempt_count, chunk_attempt_count, vector_attempt_count, next_run_at, priority,
@@ -59,17 +60,23 @@
         WHERE
             <choose>
                 <when test="stage == 'OCR'">
+                    <!-- OCR 阶段只看 ocr_status=PENDING。 -->
                     ocr_status = #{status}
                 </when>
                 <when test="stage == 'CHUNK'">
+                    <!-- CHUNK 阶段要求 OCR 已成功，且 chunk_status=PENDING。 -->
                     ocr_status = 'SUCCEEDED' AND chunk_status = #{status}
                 </when>
                 <otherwise>
+                    <!-- VECTOR 阶段要求 OCR/CHUNK 都成功，且 vector_status=PENDING。 -->
                     ocr_status = 'SUCCEEDED' AND chunk_status = 'SUCCEEDED' AND vector_status = #{status}
                 </otherwise>
             </choose>
+          <!-- 到达 next_run_at 才允许被调度；用于退避重试与节流。 -->
           AND next_run_at &lt;= #{nextRunAt}
+        <!-- priority 高的先跑；同优先级按 next_run_at 和 id 稳定排序。 -->
         ORDER BY priority DESC, next_run_at ASC, id ASC
+        <!-- 单轮批量上限，防止一次调度吃满资源。 -->
         LIMIT #{limit}
     </select>
 

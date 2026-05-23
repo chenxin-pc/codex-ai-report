@@ -6,9 +6,11 @@ import com.example.aimilvusweb.dto.RecommendStreamEventDTO;
 import com.example.aimilvusweb.dto.IngestMetricsRespDTO;
 import com.example.aimilvusweb.dto.IngestJobStatusRespDTO;
 import com.example.aimilvusweb.dto.ReportIngestStageEventRespDTO;
+import com.example.aimilvusweb.dto.ReportChunkObservationRespDTO;
 import com.example.aimilvusweb.dto.ReportObservationRespDTO;
 import com.example.aimilvusweb.dto.ReportUploadRespDTO;
 import com.example.aimilvusweb.service.ReportIngestAsyncService;
+import com.example.aimilvusweb.service.ReportQualityQueryService;
 import com.example.aimilvusweb.service.ReportRecommendService;
 import jakarta.validation.Valid;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -41,6 +43,7 @@ public class ReportController {
 
     private final ReportIngestAsyncService reportIngestAsyncService;
     private final ReportRecommendService reportRecommendService;
+    private final ReportQualityQueryService reportQualityQueryService;
 
     /**
      * @Description: 初始化ReportController依赖与运行所需组件。
@@ -53,9 +56,12 @@ public class ReportController {
      * @author: cx
      * @Date: 2026-05-17 14:48:00
      */
-    public ReportController(ReportIngestAsyncService reportIngestAsyncService, ReportRecommendService reportRecommendService) {
+    public ReportController(ReportIngestAsyncService reportIngestAsyncService,
+                            ReportRecommendService reportRecommendService,
+                            ReportQualityQueryService reportQualityQueryService) {
         this.reportIngestAsyncService = reportIngestAsyncService;
         this.reportRecommendService = reportRecommendService;
+        this.reportQualityQueryService = reportQualityQueryService;
     }
 
     /**
@@ -152,6 +158,19 @@ public class ReportController {
             @RequestParam(value = "limit", required = false, defaultValue = "50") int limit
     ) {
         return reportIngestAsyncService.listObservations(titleKeyword, limit);
+    }
+
+    /**
+     * @Description: 查询指定研报的切片前后对照数据。
+     * @Logic: 按 reportId 返回切片前原文与切片后文本，供观测页面核对切片质量。
+     * @Param: reportId 研报ID。
+     * @Return: 切片观测响应。
+     * @author: cx
+     * @Date: 2026-05-20 23:40:00
+     */
+    @GetMapping("/{reportId}/chunk-observation")
+    public ReportChunkObservationRespDTO chunkObservation(@PathVariable("reportId") Long reportId) {
+        return reportQualityQueryService.getChunkObservationByReportId(reportId);
     }
 
     /**

@@ -48,10 +48,10 @@ import java.util.stream.Collectors;
 public class ReportIngestService {
     private static final int EMBEDDING_BATCH_SIZE = 10;
     /**
-     * @Description: 执行of相关业务处理。
- * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
- * @Param: 详见方法签名；无入参时为无。
- * @Return: 详见返回类型；void 时为无（仅副作用）。
+     * @Description: 章节路径关键词黑名单，命中后该切片会被判定为低价值内容并过滤。
+     * @Logic: 用于识别免责声明、分析师声明、联系方式等非投资研究正文内容，避免进入检索与向量库。
+     * @Param: 无。
+     * @Return: 无（仅常量定义）。
      * @author: cx
      * @Date: 2026-05-17 10:24:01
      */
@@ -60,10 +60,10 @@ public class ReportIngestService {
             "分析师声明", "研究所联系方式", "联系方式", "券商简介", "机构介绍", "中邮证券研究所"
     );
     /**
-     * @Description: 执行of相关业务处理。
- * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
- * @Param: 详见方法签名；无入参时为无。
- * @Return: 详见返回类型；void 时为无（仅副作用）。
+     * @Description: 语义段类型黑名单，命中后切片不会进入最终有效 chunk 集合。
+     * @Logic: 结合 LLM 返回的 segmentType 做快速过滤，拦截版式噪声和非业务正文。
+     * @Param: 无。
+     * @Return: 无（仅常量定义）。
      * @author: cx
      * @Date: 2026-05-17 10:24:01
      */
@@ -71,10 +71,10 @@ public class ReportIngestService {
             "DISCLAIMER", "ANALYST_DECLARATION", "BROKER_PROFILE", "CONTACT_INFO", "LAYOUT_NOISE"
     );
     /**
-     * @Description: 执行of相关业务处理。
- * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
- * @Param: 详见方法签名；无入参时为无。
- * @Return: 详见返回类型；void 时为无（仅副作用）。
+     * @Description: 财务表格主题关键词集合，用于“短文本但高价值财务内容”的豁免判断。
+     * @Logic: 当切片命中财务关键词时，即使文本较短或噪声特征偏高，也尽量保留进入检索链路。
+     * @Param: 无。
+     * @Return: 无（仅常量定义）。
      * @author: cx
      * @Date: 2026-05-17 10:24:01
      */
@@ -198,14 +198,19 @@ public class ReportIngestService {
      */
     @Transactional
     public int ingestChunkStage(Long reportId) {
+        // 先查当前报告已有切片，作为幂等保护（避免调度重入导致重复写库）。
         List<ReportChunk> existingChunks = reportChunkMapper.selectByReportId(reportId);
+        // 只统计 CHILD，因为检索与向量化主要消费 CHILD；PARENT 仅用于结构回溯。
         long existingChildCount = existingChunks.stream().filter(chunk -> "CHILD".equals(chunk.getChunkType())).count();
         // 发现已有子切片时直接返回，避免重复切片造成数据膨胀。
         if (existingChildCount > 0) {
             return (int) existingChildCount;
         }
+        // 读取 OCR 阶段已落库的 paragraph atoms，作为切片输入语料。
         List<ParagraphAtom> atoms = reportParagraphAtomMapper.selectByReportId(reportId).stream()
+                // 按 paragraphId 排序，保证切片时段落时序稳定、结果可复现。
                 .sorted(Comparator.comparing(ReportParagraphAtom::getParagraphId))
+                // 数据归一化：把数据库 nullable 字段兜底，避免后续切片 NPE。
                 .map(atom -> new ParagraphAtom(
                         atom.getParagraphId(),
                         atom.getPageNumber() == null ? 0 : atom.getPageNumber(),
@@ -214,14 +219,18 @@ public class ReportIngestService {
                         atom.getTokenCount() == null ? 0 : atom.getTokenCount(),
                         atom.getDiagnostics() == null ? "" : atom.getDiagnostics()))
                 .toList();
+        // 调用语义切片核心：输出 parent/child 草案（含段落范围、页码范围和 token 统计）。
         ReportSemanticChunks chunks = reportSemanticChunkService.chunk(atoms);
+        // 空切片直接失败，避免“任务成功但无有效检索数据”的假阳性状态。
         if (chunks.isEmpty()) {
             throw new IllegalArgumentException("No valid chunks generated from paragraph atoms");
         }
+        // 再次校验 report 主档存在，防止并发删除或数据不一致。
         ReportDocument report = reportDocumentMapper.selectById(reportId);
         if (report == null) {
             throw new IllegalArgumentException("Report not found: " + reportId);
         }
+        // 持久化切片与诊断数据，返回 CHILD 数量供阶段事件 outputSize 展示。
         return persistChunks(report, chunks).size();
     }
 
@@ -689,6 +698,14 @@ public class ReportIngestService {
         return new ReportUploadRespDTO(jobId, report.getId(), report.getTitle(), chunkCount, "Upload and ingest completed");
     }
 
+    /**
+     * @Description: 导入预处理结果，封装 OCR 结果与语义切片结果。
+     * @Logic: 避免主流程中分散传递多个中间变量，保证 OCR 与切片上下文的一致性。
+     * @Param: ocrResult OCR 解析结果；chunks 语义切片结果。
+     * @Return: 无（仅数据载体）。
+     * @author: cx
+     * @Date: 2026-05-21 23:20:00
+     */
     private record IngestPreparation(ReportOcrParseResult ocrResult, ReportSemanticChunks chunks) {
     }
 }

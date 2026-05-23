@@ -114,10 +114,26 @@ public class ReportOcrParseService {
         return new ReportOcrParseResult(document.fullText() == null ? "" : document.fullText(), normalized.text(), List.of(page), atomizePages(List.of(page)));
     }
 
+    /**
+     * @Description: OCR 文本快捷规范化入口，仅返回清洗文本本体。
+     * @Logic: 复用 normalizeOcrTextWithDiagnostics，丢弃诊断信息，适合只需要正文的调用场景。
+     * @Param: rawText OCR 原始文本。
+     * @Return: 清洗后的规范化文本。
+     * @author: cx
+     * @Date: 2026-05-21 23:20:00
+     */
     String normalizeOcrText(String rawText) {
         return normalizeOcrTextWithDiagnostics(rawText).text();
     }
 
+    /**
+     * @Description: OCR 文本规范化核心流程，输出清洗后的段落文本与诊断信息。
+     * @Logic: 先统一换行与空白，再清理 Markdown/LaTeX 标记；随后按行重组段落并过滤疑似噪声行，最终汇总诊断字段返回。
+     * @Param: rawText OCR 原始文本。
+     * @Return: NormalizeResult，包含规范化文本与诊断 JSON。
+     * @author: cx
+     * @Date: 2026-05-21 23:20:00
+     */
     NormalizeResult normalizeOcrTextWithDiagnostics(String rawText) {
         String normalized = rawText == null ? "" : rawText.replace("\r\n", "\n").replace("\r", "\n").trim();
         if (normalized.isBlank()) {
@@ -129,9 +145,14 @@ public class ReportOcrParseService {
         List<String> paragraphs = new ArrayList<>();
         List<String> removedNoiseLines = new ArrayList<>();
         StringBuilder paragraph = new StringBuilder();
-        for (String line : normalized.split("\n")) {
-            String value = line.trim().replaceAll("[ \\t]+", " ");
+        String[] lines = normalized.split("\n");
+        for (int i = 0; i < lines.length; i++) {
+            String value = lines[i].trim().replaceAll("[ \\t]+", " ");
             if (value.isBlank()) {
+                String nextNonBlank = nextNonBlankLine(lines, i + 1);
+                if (shouldKeepParagraphOpen(paragraph, nextNonBlank)) {
+                    continue;
+                }
                 flushParagraph(paragraphs, removedNoiseLines, paragraph);
                 continue;
             }
@@ -159,6 +180,42 @@ public class ReportOcrParseService {
         diagnosticsMap.put("markupCleanCounts", markupCleanResult.counts());
         String diagnostics = JSON.toJSONString(diagnosticsMap);
         return new NormalizeResult(String.join("\n\n", paragraphs), diagnostics);
+    }
+
+    /**
+     * @Description: 获取从指定下标开始的下一个非空行（已做 trim 和空白折叠）。
+ * @Logic: 用于处理 OCR 伪空行导致的过度分段，通过前瞻判断是否应跨空行续接同一段落。
+ * @Param: lines 全量行数组；startInclusive 起始下标（含）。
+ * @Return: 下一个非空行；若不存在返回空字符串。
+     * @author: cx
+     * @Date: 2026-05-23 23:30:00
+     */
+    private String nextNonBlankLine(String[] lines, int startInclusive) {
+        for (int i = startInclusive; i < lines.length; i++) {
+            String value = lines[i].trim().replaceAll("[ \\t]+", " ");
+            if (!value.isBlank()) {
+                return value;
+            }
+        }
+        return "";
+    }
+
+    /**
+     * @Description: 判断遇到空行时是否保持段落开启（不立即 flush）。
+ * @Logic: 当当前段落未以句末符号结束，且下一行更像同段续写而非标题/新语义单元时，认为是 OCR 伪空行并跨空行续接。
+ * @Param: paragraph 当前段落缓冲；nextNonBlank 前瞻到的下一条非空行。
+ * @Return: true 表示跳过本次空行并继续拼接；false 表示按真实段落边界 flush。
+     * @author: cx
+     * @Date: 2026-05-23 23:30:00
+     */
+    private boolean shouldKeepParagraphOpen(StringBuilder paragraph, String nextNonBlank) {
+        if (paragraph.isEmpty() || nextNonBlank == null || nextNonBlank.isBlank()) {
+            return false;
+        }
+        if (isPageMarker(nextNonBlank) || isLikelyHeading(nextNonBlank) || startsNewSemanticLine(nextNonBlank)) {
+            return false;
+        }
+        return !endsSentence(paragraph);
     }
 
     /**
@@ -465,12 +522,36 @@ public class ReportOcrParseService {
         return noiseRatio > 0.75D;
     }
 
+    /**
+     * @Description: 文本规范化结果载体。
+     * @Logic: 保存可用于后续切片的规范化文本，以及清洗过程的诊断信息。
+     * @Param: text 规范化文本；diagnostics 诊断 JSON。
+     * @Return: 无（仅数据载体）。
+     * @author: cx
+     * @Date: 2026-05-21 23:20:00
+     */
     record NormalizeResult(String text, String diagnostics) {
     }
 
+    /**
+     * @Description: 标记清洗结果载体。
+     * @Logic: 记录清洗后文本、是否发生清洗以及各类标记清洗计数。
+     * @Param: text 清洗后文本；cleaned 是否发生清洗；counts 清洗项计数字典。
+     * @Return: 无（仅数据载体）。
+     * @author: cx
+     * @Date: 2026-05-21 23:20:00
+     */
     record MarkupCleanResult(String text, boolean cleaned, Map<String, Integer> counts) {
     }
 
+    /**
+     * @Description: 页级 OCR 结果载体。
+     * @Logic: 统一保存每页原文、清洗文本与页级诊断，供入库与质量观测使用。
+     * @Param: pageNumber 页码；rawText 原文；cleanedText 清洗文；diagnostics 诊断信息。
+     * @Return: 无（仅数据载体）。
+     * @author: cx
+     * @Date: 2026-05-21 23:20:00
+     */
     public record OcrPageResult(
             int pageNumber,
             String rawText,
@@ -479,6 +560,14 @@ public class ReportOcrParseService {
     ) {
     }
 
+    /**
+     * @Description: OCR 解析总结果载体。
+     * @Logic: 汇总整文原文、整文清洗文、页级结构和段落原子，作为切分阶段统一输入。
+     * @Param: rawText 原始全文；cleanedText 清洗全文；pages 页级结果；atoms 段落原子列表。
+     * @Return: 无（仅数据载体）。
+     * @author: cx
+     * @Date: 2026-05-21 23:20:00
+     */
     public record ReportOcrParseResult(
             String rawText,
             String cleanedText,

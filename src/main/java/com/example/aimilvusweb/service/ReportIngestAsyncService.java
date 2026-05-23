@@ -8,6 +8,7 @@ import com.example.aimilvusweb.dto.ReportIngestStageEventRespDTO;
 import com.example.aimilvusweb.dto.ReportUploadRespDTO;
 import com.example.aimilvusweb.entity.IngestJob;
 import com.example.aimilvusweb.entity.ReportIngestStageEvent;
+import com.example.aimilvusweb.enums.IngestStageStatusEnum;
 import com.example.aimilvusweb.repository.IngestJobMapper;
 import com.example.aimilvusweb.repository.ReportDocumentMapper;
 import com.example.aimilvusweb.repository.ReportIngestStageEventMapper;
@@ -243,7 +244,21 @@ public class ReportIngestAsyncService {
     public List<ReportObservationRespDTO> listObservations(String titleKeyword, int limit) {
         String normalizedKeyword = titleKeyword == null ? "" : titleKeyword.trim();
         int normalizedLimit = Math.max(1, Math.min(limit, 200));
-        return reportDocumentMapper.selectObservations(normalizedKeyword, normalizedLimit);
+        return reportDocumentMapper.selectObservations(normalizedKeyword, normalizedLimit).stream()
+                .map(item -> new ReportObservationRespDTO(
+                        item.reportId(),
+                        item.title(),
+                        item.source(),
+                        item.institution(),
+                        item.publishDate(),
+                        item.createdAt(),
+                        item.jobUid(),
+                        statusLabel(item.ocrStatus()),
+                        statusLabel(item.chunkStatus()),
+                        statusLabel(item.vectorStatus()),
+                        item.lastErrorCode(),
+                        item.updatedAt()))
+                .toList();
     }
 
     /**
@@ -275,6 +290,7 @@ public class ReportIngestAsyncService {
      */
     @Scheduled(fixedDelayString = "${app.report-ingest-async.fixed-delay-ms:3000}")
     public void runChunkScheduler() {
+        // 调度入口只负责触发，不直接执行业务，便于统一复用 runStage 的批处理与容错逻辑。
         runStage(STAGE_CHUNK);
     }
 
@@ -306,9 +322,11 @@ public class ReportIngestAsyncService {
      * @Date: 2026-05-19 23:40:00
      */
     private void runStage(String stage) {
+        // 只拉取“当前阶段可执行 + 到达 next_run_at + 状态为 PENDING”的任务，避免跨阶段串扰。
         List<IngestJob> jobs = ingestJobMapper.selectRunnableForStage(stage, STATUS_PENDING, Instant.now(), properties.getBatchSize());
         // 按批次串行推进阶段任务，避免单轮调度把数据库与模型服务打满。
         for (IngestJob job : jobs) {
+            // 单任务执行拆到 processSingle，确保每个任务都有独立事务和阶段事件。
             processSingle(stage, job.getJobUid());
         }
     }
@@ -326,37 +344,57 @@ public class ReportIngestAsyncService {
      */
     @Transactional
     void processSingle(String stage, String jobUid) {
+        // 先按 jobUid 读取最新任务快照，避免使用外层过期对象导致状态覆盖。
         IngestJob job = requireJob(jobUid);
+        // 统一记录阶段起始时间，后续事件耗时从这里计算。
         Instant startedAt = Instant.now();
+        // 每进入一次阶段处理都累加 attempt，用于重试上限和问题排查。
         int attempt = increaseAttempt(job, stage);
+        // 进入执行前先标记为 PROCESSING，避免同阶段并发重复拾取同一任务。
         markStatus(job, stage, STATUS_PROCESSING);
+        // 先落库状态，保证即使进程异常也能看见“处理中”痕迹。
         ingestJobMapper.updateStatusAndAttempt(job);
         try {
+            // 按阶段分派执行：CHUNK 分支会读取 paragraph atoms 产出 child chunks。
             int outputSize = switch (stage) {
                 case STAGE_OCR -> runOcrStage(job);
                 case STAGE_CHUNK -> runChunkStage(job);
                 default -> runVectorStage(job);
             };
+            // 阶段成功后回写 SUCCEEDED，推进下一阶段调度条件。
             markStatus(job, stage, STATUS_SUCCEEDED);
+            // 成功后清空错误字段，避免历史错误误导观测页面。
             job.setLastErrorCode(null);
             job.setLastErrorMessage(null);
+            // next_run_at 置为 now，允许后续阶段在下一轮调度立即可见。
             job.setNextRunAt(Instant.now());
+            // 更新时间用于任务列表排序和耗时粗略估算。
             job.setUpdatedAt(Instant.now());
+            // 持久化成功态与计数器。
             ingestJobMapper.updateStatusAndAttempt(job);
+            // 写阶段事件：包含耗时、模型名、输出规模，供“处理链路”页展示。
             saveStageEvent(job, stage, attempt, STATUS_SUCCEEDED, modelNameOf(stage), null, null, startedAt, outputSize);
         } catch (Exception ex) {
+            // 根据异常类型判断是否允许退避重试。
             boolean retryable = isRetryable(ex);
+            // 事件表里记录“本次尝试最终态”：可重试未达上限记为 PENDING，否则 FAILED_FINAL。
             String failureStatus = retryable && attempt < properties.getMaxAttempts() ? STATUS_PENDING : STATUS_FAILED_FINAL;
             // 可重试异常进入退避重试，不可重试或超过阈值则终态失败，避免无限循环。
             markStatus(job, stage, retryable ? STATUS_FAILED_RETRYABLE : STATUS_FAILED_FINAL);
             if (retryable && attempt < properties.getMaxAttempts()) {
+                // 回退为 PENDING，交给下一轮定时调度重试。
                 markStatus(job, stage, STATUS_PENDING);
             }
+            // 标准化错误码和短错误文案，便于前端和 SQL 检索。
             job.setLastErrorCode(errorCode(ex));
             job.setLastErrorMessage(shortMessage(ex));
+            // 可重试任务按 attempt 退避；不可重试任务立即进入最终可见状态。
             job.setNextRunAt(retryable && attempt < properties.getMaxAttempts() ? Instant.now().plusMillis(backoffMs(attempt)) : Instant.now());
+            // 更新时间，体现最新失败时刻。
             job.setUpdatedAt(Instant.now());
+            // 持久化失败态与下一次调度时间。
             ingestJobMapper.updateStatusAndAttempt(job);
+            // 写失败事件，串联 traceId + 错误信息，支持链路排障。
             saveStageEvent(job, stage, attempt, failureStatus, modelNameOf(stage), job.getLastErrorCode(), job.getLastErrorMessage(), startedAt, null);
         }
     }
@@ -376,6 +414,7 @@ public class ReportIngestAsyncService {
         MultipartFile file = new StoredPdfMultipartFile(job.getOriginalFilename(), Path.of(job.getFilePath()));
         Long reportId = reportIngestService.ingestOcrStage(file, job.getReportTitleSnapshot(), job.getSource(), job.getInstitution(), job.getPublishDate(), job.getReportId());
         ingestJobMapper.bindReportId(job.getJobUid(), reportId, Instant.now());
+        job.setReportId(reportId);
         return 1;
     }
 
@@ -391,9 +430,11 @@ public class ReportIngestAsyncService {
      * @Date: 2026-05-19 23:40:00
      */
     private int runChunkStage(IngestJob job) {
+        // CHUNK 阶段强依赖 reportId（OCR 阶段创建主档后回填），缺失时直接失败防止脏数据。
         if (job.getReportId() == null) {
             throw new IllegalStateException("Missing reportId for chunk stage");
         }
+        // 进入核心切片服务：读取 paragraph atoms -> 语义切分 -> chunk/diagnostic 落库。
         return reportIngestService.ingestChunkStage(job.getReportId());
     }
 
@@ -435,6 +476,12 @@ public class ReportIngestAsyncService {
                                 String errorMessage,
                                 Instant startedAt,
                                 Integer outputSize) {
+        if (job.getReportId() == null) {
+            IngestJob latest = ingestJobMapper.selectByJobUid(job.getJobUid());
+            if (latest != null) {
+                job.setReportId(latest.getReportId());
+            }
+        }
         Instant finishedAt = Instant.now();
         ReportIngestStageEvent event = new ReportIngestStageEvent();
         event.setJobUid(job.getJobUid());
@@ -475,7 +522,7 @@ public class ReportIngestAsyncService {
                 event.getReportTitleSnapshot(),
                 event.getStage(),
                 safeInt(event.getAttempt()),
-                event.getStatus(),
+                statusLabel(event.getStatus()),
                 event.getModelName(),
                 event.getInputSize(),
                 event.getOutputSize(),
@@ -486,6 +533,18 @@ public class ReportIngestAsyncService {
                 event.getErrorMessageShort(),
                 event.getTraceId(),
                 event.getCreatedAt());
+    }
+
+    /**
+     * @Description: 将内部状态码转换为中文展示文案。
+     * @Logic: 通过统一状态枚举完成映射，未知状态保留原值以便排障。
+     * @Param: statusCode 内部状态码。
+     * @Return: 中文状态文案或原始状态码。
+     * @author: cx
+     * @Date: 2026-05-20 10:31:00
+     */
+    private String statusLabel(String statusCode) {
+        return IngestStageStatusEnum.toLabel(statusCode);
     }
 
     /**

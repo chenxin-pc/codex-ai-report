@@ -38,6 +38,10 @@ public class ReportQualityProperties {
         private int parentMaxTokens = 5200;
         private int overlapTokens = 120;
         private int minSliceTokenCount = 30;
+        private int llmMaxParagraphsPerBatch = 60;
+        private int llmMaxTokensPerBatch = 8000;
+        private int llmOverlapParagraphs = 10;
+        private int llmOverlapMaxTokens = 1200;
     }
 
     /**
