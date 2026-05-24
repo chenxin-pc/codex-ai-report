@@ -34,6 +34,14 @@ public class IngestJob {
     private String institution;
     /** 报告发布日期。 */
     private LocalDate publishDate;
+    /** 导入时显式指定的主题标签，逗号分隔。 */
+    private String themeTags;
+    /** 导入时显式指定的行业标签，逗号分隔。 */
+    private String industryTags;
+    /** 导入时显式指定的公司标签，逗号分隔。 */
+    private String companyTags;
+    /** 导入时显式指定的股票代码标签，逗号分隔。 */
+    private String tickerTags;
     /** 上传原始文件名。 */
     private String originalFilename;
     /** 上传文件落盘绝对路径。 */

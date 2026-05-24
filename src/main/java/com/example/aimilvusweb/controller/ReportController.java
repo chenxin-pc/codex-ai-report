@@ -81,9 +81,13 @@ public class ReportController {
             @RequestParam(value = "title", required = false) String title,
             @RequestParam(value = "source", required = false) String source,
             @RequestParam(value = "institution", required = false) String institution,
-            @RequestParam(value = "publishDate", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate publishDate
+            @RequestParam(value = "publishDate", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate publishDate,
+            @RequestParam(value = "themeTags", required = false) String themeTags,
+            @RequestParam(value = "industryTags", required = false) String industryTags,
+            @RequestParam(value = "companyTags", required = false) String companyTags,
+            @RequestParam(value = "tickerTags", required = false) String tickerTags
     ) {
-        return reportIngestAsyncService.submit(file, title, source, institution, publishDate);
+        return reportIngestAsyncService.submit(file, title, source, institution, publishDate, themeTags, industryTags, companyTags, tickerTags);
     }
 
     /**
@@ -178,14 +182,12 @@ public class ReportController {
      * @Logic: 从请求体提取query后直接委托推荐服务，同步返回JSON对象。
      * @Param: reqDTO 推荐请求对象，包含用户query。
      * @Return: 结构化推荐响应，包含分析、建议、风险与引用。
- * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
- * @Param: 详见方法签名；无入参时为无。
- * @Return: 详见返回类型；void 时为无（仅副作用）。
      * @author: cx
      * @Date: 2026-05-17 14:48:00
      */
     @PostMapping("/recommend")
     public RecommendRespDTO recommend(@Valid @RequestBody RecommendReqDTO reqDTO) {
+        // 从请求 DTO 中取出 query，并委托推荐服务执行输入判定、召回、降级和同步响应构建。
         return reportRecommendService.recommend(reqDTO.query());
     }
 
@@ -194,14 +196,12 @@ public class ReportController {
      * @Logic: 从请求体提取query后委托推荐服务输出SSE事件流，事件包含状态、证据、增量文本与结束标记。
      * @Param: reqDTO 推荐请求对象，包含用户query。
      * @Return: SSE事件流响应，按event字段区分status/evidence/delta/done/error。
- * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
- * @Param: 详见方法签名；无入参时为无。
- * @Return: 详见返回类型；void 时为无（仅副作用）。
      * @author: cx
      * @Date: 2026-05-17 14:48:00
      */
     @PostMapping(value = "/recommend/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public Flux<ServerSentEvent<RecommendStreamEventDTO>> recommendStream(@Valid @RequestBody RecommendReqDTO reqDTO) {
+        // 从请求 DTO 中取出 query，并委托推荐服务返回包含状态、证据、增量和完成事件的 SSE 流。
         return reportRecommendService.recommendStream(reqDTO.query());
     }
 }

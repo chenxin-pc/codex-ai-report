@@ -61,6 +61,13 @@ TBD - created by archiving change improve-theme-evidence-retrieval. Update Purpo
 - **THEN** 系统 MUST 写入 `report_document_tag`
 - **AND** 标签 MUST 包含 `report_id`、`tag_type=THEME`、`tag_code=STORAGE`、标签名称、置信度、来源和词库版本
 
+#### Scenario: 导入入口显式提交结构化标签
+
+- **GIVEN** 用户在导入页面或后端上传接口填写主题、行业、公司或代码标签
+- **WHEN** 系统创建异步导入任务并在 OCR 阶段绑定 reportId
+- **THEN** 系统 MUST 将这些显式标签写入 `report_document_tag`
+- **AND** 标签来源 MUST 标记为导入元数据，且 MUST 不被 chunk 聚合标签覆盖删除
+
 #### Scenario: 报告级父标签重算覆盖旧结果
 
 - **GIVEN** 某篇研报已有旧版本 `report_document_tag`
@@ -182,4 +189,3 @@ TBD - created by archiving change improve-theme-evidence-retrieval. Update Purpo
 - **WHEN** `report_chunk_tag` 或 `report_document_tag` 已经成功保存标签结果
 - **THEN** 系统 MUST NOT 回滚 MySQL 标签主数据
 - **AND** 系统 SHOULD 记录失败原因并允许后续重试
-

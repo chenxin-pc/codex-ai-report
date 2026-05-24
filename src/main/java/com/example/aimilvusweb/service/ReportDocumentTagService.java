@@ -9,9 +9,11 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -27,8 +29,16 @@ public class ReportDocumentTagService {
 
     /** 报告级父标签来源：chunk 标签聚合。 */
     private static final String SOURCE_CHUNK_AGGREGATION = "CHUNK_AGGREGATION";
+    /** 报告级父标签来源：导入表单元数据。 */
+    private static final String SOURCE_IMPORT_METADATA = "IMPORT_METADATA";
     /** 当前优先支持的报告级父标签类型。 */
     private static final String TAG_TYPE_THEME = "THEME";
+    /** 行业标签类型。 */
+    private static final String TAG_TYPE_INDUSTRY = "INDUSTRY";
+    /** 公司标签类型。 */
+    private static final String TAG_TYPE_COMPANY = "COMPANY";
+    /** 股票代码标签类型。 */
+    private static final String TAG_TYPE_TICKER = "TICKER";
 
     /** 报告级标签 Mapper。 */
     private final ReportDocumentTagMapper reportDocumentTagMapper;
@@ -56,8 +66,31 @@ public class ReportDocumentTagService {
     @Transactional
     public List<ReportDocumentTag> refreshFromChunkTags(Long reportId, String dictionaryVersion) {
         List<ReportDocumentTag> documentTags = aggregateThemeTags(reportId, dictionaryVersion);
-        replaceReportTags(reportId, dictionaryVersion, documentTags);
+        replaceReportTagsBySource(reportId, dictionaryVersion, SOURCE_CHUNK_AGGREGATION, documentTags);
         return documentTags;
+    }
+
+    /**
+     * @Description: 将导入表单显式填写的标签覆盖写入报告级标签表。
+     * @Logic: 仅覆盖 IMPORT_METADATA 来源，保留 chunk 聚合产生的报告级标签。
+     * @Param: reportId 研报 ID；dictionaryVersion 词库版本；themeTags 主题标签；industryTags 行业标签；companyTags 公司标签；tickerTags 代码标签。
+     * @Return: 写入的报告级标签列表。
+     */
+    @Transactional
+    public List<ReportDocumentTag> refreshFromImportMetadata(Long reportId,
+                                                             String dictionaryVersion,
+                                                             String themeTags,
+                                                             String industryTags,
+                                                             String companyTags,
+                                                             String tickerTags) {
+        List<ReportDocumentTag> tags = new ArrayList<>();
+        Instant now = Instant.now();
+        tags.addAll(parseImportTags(reportId, TAG_TYPE_THEME, themeTags, dictionaryVersion, now));
+        tags.addAll(parseImportTags(reportId, TAG_TYPE_INDUSTRY, industryTags, dictionaryVersion, now));
+        tags.addAll(parseImportTags(reportId, TAG_TYPE_COMPANY, companyTags, dictionaryVersion, now));
+        tags.addAll(parseImportTags(reportId, TAG_TYPE_TICKER, tickerTags, dictionaryVersion, now));
+        replaceReportTagsBySource(reportId, dictionaryVersion, SOURCE_IMPORT_METADATA, tags);
+        return tags;
     }
 
     /**
@@ -69,6 +102,25 @@ public class ReportDocumentTagService {
     @Transactional
     public List<ReportDocumentTag> replaceReportTags(Long reportId, String dictionaryVersion, List<ReportDocumentTag> tags) {
         reportDocumentTagMapper.deleteByReportIdAndVersion(reportId, dictionaryVersion);
+        List<ReportDocumentTag> normalizedTags = deduplicate(tags);
+        for (ReportDocumentTag tag : normalizedTags) {
+            reportDocumentTagMapper.insert(tag);
+        }
+        return normalizedTags;
+    }
+
+    /**
+     * @Description: 按来源覆盖写入指定报告和版本的报告级标签。
+     * @Logic: 导入元数据和 chunk 聚合各自覆盖自己的来源，避免互相删除。
+     * @Param: reportId 研报 ID；dictionaryVersion 词库版本；source 标签来源；tags 待写入标签。
+     * @Return: 写入后的标签列表。
+     */
+    @Transactional
+    public List<ReportDocumentTag> replaceReportTagsBySource(Long reportId,
+                                                             String dictionaryVersion,
+                                                             String source,
+                                                             List<ReportDocumentTag> tags) {
+        reportDocumentTagMapper.deleteByReportIdVersionAndSource(reportId, dictionaryVersion, source);
         List<ReportDocumentTag> normalizedTags = deduplicate(tags);
         for (ReportDocumentTag tag : normalizedTags) {
             reportDocumentTagMapper.insert(tag);
@@ -139,6 +191,67 @@ public class ReportDocumentTagService {
             deduplicated.putIfAbsent(key, tag);
         }
         return List.copyOf(deduplicated.values());
+    }
+
+    /**
+     * @Description: 解析导入表单中的标签文本。
+     * @Logic: 支持逗号、中文逗号、分号和换行分隔；单项可写为 code:name 或直接写 code/name。
+     * @Param: reportId 研报 ID；tagType 标签类型；rawTags 原始标签字符串；dictionaryVersion 词库版本；now 当前时间。
+     * @Return: 解析后的报告级标签列表。
+     */
+    private List<ReportDocumentTag> parseImportTags(Long reportId,
+                                                    String tagType,
+                                                    String rawTags,
+                                                    String dictionaryVersion,
+                                                    Instant now) {
+        if (rawTags == null || rawTags.isBlank()) {
+            return List.of();
+        }
+        List<ReportDocumentTag> tags = new ArrayList<>();
+        for (String token : rawTags.split("[,，;；\\n]+")) {
+            String normalizedToken = token == null ? "" : token.trim();
+            if (normalizedToken.isBlank()) {
+                continue;
+            }
+            tags.add(buildImportTag(reportId, tagType, normalizedToken, dictionaryVersion, now));
+        }
+        return tags;
+    }
+
+    /**
+     * @Description: 构建导入元数据来源的报告级标签。
+     * @Logic: code:name 或 code|name 显式拆分编码和名称；代码类标签统一转大写。
+     * @Param: reportId 研报 ID；tagType 标签类型；token 标签输入项；dictionaryVersion 词库版本；now 当前时间。
+     * @Return: 报告级标签实体。
+     */
+    private ReportDocumentTag buildImportTag(Long reportId, String tagType, String token, String dictionaryVersion, Instant now) {
+        String[] parts = token.split("[:：|]", 2);
+        String tagCode = normalizeTagCode(tagType, parts[0].trim());
+        String tagName = parts.length > 1 && !parts[1].isBlank() ? parts[1].trim() : parts[0].trim();
+        ReportDocumentTag tag = new ReportDocumentTag();
+        tag.setReportId(reportId);
+        tag.setTagType(tagType);
+        tag.setTagCode(tagCode);
+        tag.setTagName(tagName);
+        tag.setConfidence(BigDecimal.ONE);
+        tag.setSource(SOURCE_IMPORT_METADATA);
+        tag.setDictionaryVersion(dictionaryVersion);
+        tag.setCreatedAt(now);
+        tag.setUpdatedAt(now);
+        return tag;
+    }
+
+    /**
+     * @Description: 标准化标签编码。
+     * @Logic: 股票代码、主题和行业编码通常使用大写；公司名称保持用户输入。
+     * @Param: tagType 标签类型；tagCode 原始编码。
+     * @Return: 标准化后的编码。
+     */
+    private String normalizeTagCode(String tagType, String tagCode) {
+        if (TAG_TYPE_COMPANY.equals(tagType)) {
+            return tagCode;
+        }
+        return tagCode.toUpperCase(Locale.ROOT);
     }
 
     /**

@@ -50,9 +50,13 @@ public class ResearchQueryIntentService {
                                       ReportQualityProperties reportQualityProperties,
                                       QwenClient qwenClient,
                                       PromptTemplateService promptTemplateService) {
+        // 保存本地词典服务，规则分类需要读取拒绝词、动作词、主题词、行业词和代码正则。
         this.dictionaryService = dictionaryService;
+        // 保存质量配置，输入护栏开关和阈值均从该配置读取。
         this.reportQualityProperties = reportQualityProperties;
+        // 保存模型客户端，规则低置信时用于 LLM 兜底分类。
         this.qwenClient = qwenClient;
+        // 保存 Prompt 服务，LLM 分类前需要加载并渲染分类 Prompt。
         this.promptTemplateService = promptTemplateService;
     }
 
@@ -65,24 +69,38 @@ public class ResearchQueryIntentService {
      * @Date: 2026-05-24 00:45:00
      */
     public QueryIntentDecision classify(String query) {
+        // 护栏关闭时直接放行为完整分析，便于本地调试或灰度回滚。
         if (!reportQualityProperties.getQueryGuardrail().isEnabled()) {
+            // 返回规则来源的高置信 ANALYZE，并保留裁剪后的 query。
             return new QueryIntentDecision(QueryIntentEnum.ANALYZE, DIRECT_CONFIDENCE, "Query guardrail disabled", safeTrim(query), RULE_SOURCE);
         }
+        // 先执行本地规则分类，低成本处理明显的寒暄、代码、行业和主题输入。
         RuleDecision ruleDecision = classifyByRules(query);
+        // 读取规则高置信阈值，达到该阈值时无需调用 LLM。
         double highThreshold = reportQualityProperties.getQueryGuardrail().getRuleHighConfidenceThreshold();
+        // 规则结果足够可信时直接返回。
         if (ruleDecision.confidence() >= highThreshold) {
+            // 将内部规则结果转换为对外统一判定对象。
             return ruleDecision.toDecision();
         }
+        // 规则低置信且配置允许时，调用 LLM 做兜底分类。
         if (reportQualityProperties.getQueryGuardrail().isLlmFallbackEnabled()) {
+            // 请求 LLM 输出结构化 intent/confidence/reason/normalizedQuery。
             QueryIntentDecision llmDecision = classifyByLlm(query);
+            // LLM 置信度达到阈值且 intent 可解析时采纳模型结果。
             if (llmDecision.confidence() >= reportQualityProperties.getQueryGuardrail().getLlmConfidenceThreshold()
+                    // intent 非空表示模型输出映射到了合法枚举。
                     && llmDecision.intent() != null) {
+                // 返回 LLM 判定结果进入后续召回或拒绝分支。
                 return llmDecision;
             }
         }
+        // LLM 不可用或低置信时，如果规则超过低置信阈值，仍采用规则结果。
         if (ruleDecision.confidence() >= reportQualityProperties.getQueryGuardrail().getRuleLowConfidenceThreshold()) {
+            // 返回低置信但可接受的规则结果，避免过度拒绝投研短 query。
             return ruleDecision.toDecision();
         }
+        // 规则和 LLM 都不可信时保守拒绝，防止寒暄等输入触发召回和模型生成。
         return reject("输入缺少明确投研意图或模型分类低置信", query, FALLBACK_SOURCE);
     }
 
@@ -95,28 +113,45 @@ public class ResearchQueryIntentService {
      * @Date: 2026-05-24 00:45:00
      */
     private RuleDecision classifyByRules(String query) {
+        // 标准化 query，便于中文短语和英文大小写匹配。
         String normalized = normalize(query);
+        // 空输入直接拒绝。
         if (normalized.isBlank()) {
+            // 返回高置信 REJECT，后续链路会在召回前短路。
             return new RuleDecision(QueryIntentEnum.REJECT, DIRECT_CONFIDENCE, "空输入", "", RULE_SOURCE);
         }
+        // 寒暄、感谢、身份询问等短语不属于投研问题。
         if (matchesRejectPhrase(normalized)) {
+            // 返回高置信 REJECT，并保留原始 query 的裁剪文本。
             return new RuleDecision(QueryIntentEnum.REJECT, DIRECT_CONFIDENCE, "命中非投研寒暄词", safeTrim(query), RULE_SOURCE);
         }
+        // 股票代码是强标的锚点，命中后直接进入个股分析。
         if (matchesTicker(query)) {
+            // 返回高置信 ANALYZE，后续会使用该 query 召回证券研报。
             return new RuleDecision(QueryIntentEnum.ANALYZE, DIRECT_CONFIDENCE, "命中股票代码", safeTrim(query), RULE_SOURCE);
         }
+        // 判断 query 是否包含“分析、风险、估值”等投研动作词。
         boolean hasAction = containsAny(normalized, dictionaryService.researchActions());
+        // 判断 query 是否包含主题词，例如储能、AI、机器人等。
         boolean hasTheme = containsAny(normalized, dictionaryService.themeTerms());
+        // 判断 query 是否包含行业词，例如电力设备、港口、医药等。
         boolean hasIndustry = containsAny(normalized, dictionaryService.industryTerms());
+        // 同时命中主题/行业和动作词时，判为主题研究且置信度较高。
         if ((hasTheme || hasIndustry) && hasAction) {
+            // 返回主题研究，允许后续召回行业或主题相关公司候选。
             return new RuleDecision(QueryIntentEnum.THEME_RESEARCH, 0.92D, "命中主题/行业与投研动作", safeTrim(query), RULE_SOURCE);
         }
+        // 只命中主题或行业词时，也允许进入主题研究链路。
         if (hasTheme || hasIndustry) {
+            // 返回主题研究但置信度略低，保留 LLM 或低阈值兜底空间。
             return new RuleDecision(QueryIntentEnum.THEME_RESEARCH, 0.85D, "命中主题或行业词", safeTrim(query), RULE_SOURCE);
         }
+        // 只命中投研动作词时，可能是泛化分析问题，按直接分析低置信放行。
         if (hasAction) {
+            // 返回 ANALYZE，后续召回和证据护栏会继续判断证据是否足够。
             return new RuleDecision(QueryIntentEnum.ANALYZE, 0.82D, "命中投研动作词", safeTrim(query), RULE_SOURCE);
         }
+        // 未命中任何投研信号时，规则倾向拒绝。
         return new RuleDecision(QueryIntentEnum.REJECT, 0.2D, "规则未命中投研信号", safeTrim(query), RULE_SOURCE);
     }
 
@@ -129,23 +164,38 @@ public class ResearchQueryIntentService {
      * @Date: 2026-05-24 00:45:00
      */
     private QueryIntentDecision classifyByLlm(String query) {
+        // LLM 分类失败不应中断主链路，因此统一捕获运行时异常。
         try {
+            // 加载 query 意图分类 system Prompt。
             String systemPrompt = promptTemplateService.loadTemplate("prompts/query-intent-system-prompt.txt");
+            // 渲染 user Prompt，仅注入裁剪后的用户 query。
             String userPrompt = promptTemplateService.render("prompts/query-intent-user-prompt.txt", Map.of("query", safeTrim(query)));
+            // 请求模型返回结构化意图分类 DTO。
             LlmQueryIntentRespDTO response = qwenClient.chatForEntity(systemPrompt, userPrompt, LlmQueryIntentRespDTO.class);
+            // 模型未配置或无响应时，按低置信拒绝处理。
             if (response == null) {
+                // 返回 LLM 来源的拒绝结果，供上层判断置信度。
                 return reject("LLM分类不可用", query, LLM_SOURCE);
             }
+            // 将模型 intent 字符串解析为内部枚举。
             QueryIntentEnum intent = parseIntent(response.intent());
+            // 模型置信度为空时按 0 处理，避免误放行。
             double confidence = response.confidence() == null ? 0D : response.confidence();
+            // 模型未给 normalizedQuery 时使用原 query 裁剪文本。
             String normalizedQuery = response.normalizedQuery() == null || response.normalizedQuery().isBlank()
+                    // 原 query 兜底，保证召回输入非 null。
                     ? safeTrim(query)
+                    // 模型归一化 query 去除首尾空白后进入召回。
                     : response.normalizedQuery().trim();
+            // intent 解析失败时不能采纳模型结果。
             if (intent == null) {
+                // 返回未知分类拒绝，后续可能回退到规则低置信结果。
                 return reject("LLM返回未知分类", query, LLM_SOURCE);
             }
+            // 返回 LLM 分类结果，包含原因和规范化 query。
             return new QueryIntentDecision(intent, confidence, safeText(response.reason()), normalizedQuery, LLM_SOURCE);
         } catch (RuntimeException e) {
+            // 模型调用或解析异常时保守拒绝，避免异常输入进入召回。
             return reject("LLM分类失败", query, LLM_SOURCE);
         }
     }
@@ -159,6 +209,7 @@ public class ResearchQueryIntentService {
      * @Date: 2026-05-24 00:45:00
      */
     private QueryIntentDecision reject(String reason, String query, String source) {
+        // 构造统一 REJECT 判定对象，置信度固定为 0。
         return new QueryIntentDecision(QueryIntentEnum.REJECT, 0D, reason, safeTrim(query), source);
     }
 
@@ -171,12 +222,17 @@ public class ResearchQueryIntentService {
      * @Date: 2026-05-24 00:45:00
      */
     private QueryIntentEnum parseIntent(String value) {
+        // 空 intent 无法映射到枚举。
         if (value == null || value.isBlank()) {
+            // 返回 null 让调用方走拒绝或兜底分支。
             return null;
         }
+        // 尝试按大写枚举名解析模型输出。
         try {
+            // 去空白并转大写，兼容模型输出大小写差异。
             return QueryIntentEnum.valueOf(value.trim().toUpperCase(Locale.ROOT));
         } catch (IllegalArgumentException e) {
+            // 未知枚举值返回 null，不抛异常影响主链路。
             return null;
         }
     }
@@ -190,8 +246,11 @@ public class ResearchQueryIntentService {
      * @Date: 2026-05-24 00:45:00
      */
     private boolean matchesRejectPhrase(String normalized) {
+        // 遍历拒绝短语词典并做规范化匹配。
         return dictionaryService.rejectPhrases().stream()
+                // 词典项规范化，保证空白和大小写差异不影响匹配。
                 .map(this::normalize)
+                // 完全相等或短输入包含拒绝词时判定为不可分析。
                 .anyMatch(phrase -> normalized.equals(phrase) || (normalized.length() <= 12 && normalized.contains(phrase)));
     }
 
@@ -204,7 +263,9 @@ public class ResearchQueryIntentService {
      * @Date: 2026-05-24 00:45:00
      */
     private boolean matchesTicker(String query) {
+        // null query 统一按空字符串处理，避免正则匹配空指针。
         String safeQuery = query == null ? "" : query;
+        // 任一股票代码正则命中即可认为 query 有明确标的。
         return dictionaryService.tickerPatterns().stream().anyMatch(pattern -> pattern.matcher(safeQuery).find());
     }
 
@@ -217,9 +278,13 @@ public class ResearchQueryIntentService {
      * @Date: 2026-05-24 00:45:00
      */
     private boolean containsAny(String normalized, List<String> terms) {
+        // 将词典项逐个规范化后执行 contains 匹配。
         return terms.stream()
+                // 规范化词典项。
                 .map(this::normalize)
+                // 过滤空词条，避免空字符串导致任何输入都命中。
                 .filter(term -> !term.isBlank())
+                // 任一词典项出现在 normalized query 中即命中。
                 .anyMatch(normalized::contains);
     }
 
@@ -232,6 +297,7 @@ public class ResearchQueryIntentService {
      * @Date: 2026-05-24 00:45:00
      */
     private String normalize(String text) {
+        // null 转空字符串；非空文本去除所有空白并转小写。
         return text == null ? "" : text.replaceAll("\\s+", "").toLowerCase(Locale.ROOT);
     }
 
@@ -244,6 +310,7 @@ public class ResearchQueryIntentService {
      * @Date: 2026-05-24 00:45:00
      */
     private String safeTrim(String text) {
+        // null 转空字符串；非空文本去除首尾空白。
         return text == null ? "" : text.trim();
     }
 
@@ -256,6 +323,7 @@ public class ResearchQueryIntentService {
      * @Date: 2026-05-24 00:45:00
      */
     private String safeText(String text) {
+        // null 转空字符串；非空文本去除首尾空白。
         return text == null ? "" : text.trim();
     }
 
@@ -304,6 +372,7 @@ public class ResearchQueryIntentService {
          * @Date: 2026-05-24 00:45:00
          */
         private QueryIntentDecision toDecision() {
+            // 直接复制规则判定字段，输出统一 QueryIntentDecision。
             return new QueryIntentDecision(intent, confidence, reason, normalizedQuery, source);
         }
     }

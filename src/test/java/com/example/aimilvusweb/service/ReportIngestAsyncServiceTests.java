@@ -9,6 +9,7 @@ import com.example.aimilvusweb.repository.ReportDocumentMapper;
 import com.example.aimilvusweb.repository.ReportIngestStageEventMapper;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.mock.web.MockMultipartFile;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -31,6 +32,8 @@ class ReportIngestAsyncServiceTests {
         ReportIngestStageEventMapper stageEventMapper = mock(ReportIngestStageEventMapper.class);
         ReportDocumentMapper reportDocumentMapper = mock(ReportDocumentMapper.class);
         ReportIngestService reportIngestService = mock(ReportIngestService.class);
+        ReportDocumentTagService reportDocumentTagService = mock(ReportDocumentTagService.class);
+        ResearchTaxonomySnapshotService taxonomySnapshotService = mock(ResearchTaxonomySnapshotService.class);
         ReportIngestAsyncProperties properties = new ReportIngestAsyncProperties();
         properties.setSpoolDir("reports/test-ingest-spool");
         ReportIngestAsyncService service = new ReportIngestAsyncService(
@@ -38,6 +41,8 @@ class ReportIngestAsyncServiceTests {
                 stageEventMapper,
                 reportDocumentMapper,
                 reportIngestService,
+                reportDocumentTagService,
+                taxonomySnapshotService,
                 properties,
                 "qwen-vl-ocr-latest",
                 "qwen-plus-latest",
@@ -46,11 +51,17 @@ class ReportIngestAsyncServiceTests {
         MockMultipartFile file = new MockMultipartFile("file", "demo.pdf", "application/pdf", "demo".getBytes());
         when(ingestJobMapper.insert(any(IngestJob.class))).thenReturn(1);
 
-        ReportUploadRespDTO resp = service.submit(file, "测试标题", "source", "inst", null);
+        ReportUploadRespDTO resp = service.submit(file, "测试标题", "source", "inst", null, "STORAGE:储能", "POWER:电力", "宁德时代", "300750.SZ");
 
         Assertions.assertNotNull(resp.jobId());
         Assertions.assertFalse(resp.jobId().isBlank());
         Assertions.assertEquals("测试标题", resp.title());
+        ArgumentCaptor<IngestJob> captor = ArgumentCaptor.forClass(IngestJob.class);
+        org.mockito.Mockito.verify(ingestJobMapper).insert(captor.capture());
+        Assertions.assertEquals("STORAGE:储能", captor.getValue().getThemeTags());
+        Assertions.assertEquals("POWER:电力", captor.getValue().getIndustryTags());
+        Assertions.assertEquals("宁德时代", captor.getValue().getCompanyTags());
+        Assertions.assertEquals("300750.SZ", captor.getValue().getTickerTags());
     }
 
     @Test
@@ -59,12 +70,16 @@ class ReportIngestAsyncServiceTests {
         ReportIngestStageEventMapper stageEventMapper = mock(ReportIngestStageEventMapper.class);
         ReportDocumentMapper reportDocumentMapper = mock(ReportDocumentMapper.class);
         ReportIngestService reportIngestService = mock(ReportIngestService.class);
+        ReportDocumentTagService reportDocumentTagService = mock(ReportDocumentTagService.class);
+        ResearchTaxonomySnapshotService taxonomySnapshotService = mock(ResearchTaxonomySnapshotService.class);
         ReportIngestAsyncProperties properties = new ReportIngestAsyncProperties();
         ReportIngestAsyncService service = new ReportIngestAsyncService(
                 ingestJobMapper,
                 stageEventMapper,
                 reportDocumentMapper,
                 reportIngestService,
+                reportDocumentTagService,
+                taxonomySnapshotService,
                 properties,
                 "qwen-vl-ocr-latest",
                 "qwen-plus-latest",

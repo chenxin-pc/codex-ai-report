@@ -43,6 +43,7 @@ public class ResearchQueryAnchorService {
      * @Date: 2026-05-24 00:00:00
      */
     public ResearchQueryAnchorService(ResearchTaxonomySnapshotService taxonomySnapshotService) {
+        // 保存结构化词库快照服务，保证 query 锚点与标签抽取使用同一份词库。
         this.taxonomySnapshotService = taxonomySnapshotService;
     }
 
@@ -177,10 +178,15 @@ public class ResearchQueryAnchorService {
          * @Return: 存在结构化锚点时返回 true。
          */
         public boolean hasAnyAnchor() {
+            // 任一主题、行业、公司、代码或章节意图存在，都说明 query 有结构化检索信号。
             return !themeCodes.isEmpty()
+                    // 行业编码存在时可参与 metadata filter 或覆盖判断。
                     || !industryCodes.isEmpty()
+                    // 公司编码存在时可用于后续扩展公司级过滤。
                     || !companyCodes.isEmpty()
+                    // 股票代码存在时可用于精确标的过滤。
                     || !tickers.isEmpty()
+                    // 章节意图存在时可用于 sectionPath 过滤或重排。
                     || !sectionIntents.isEmpty();
         }
 
@@ -190,13 +196,21 @@ public class ResearchQueryAnchorService {
          * @Return: 锚点摘要列表。
          */
         public List<String> summary() {
+            // 初始化可展示锚点摘要列表。
             List<String> values = new ArrayList<>();
+            // 追加主题编码。
             values.addAll(themeCodes);
+            // 追加行业编码。
             values.addAll(industryCodes);
+            // 追加公司编码。
             values.addAll(companyCodes);
+            // 追加股票代码。
             values.addAll(tickers);
+            // 追加章节意图。
             values.addAll(sectionIntents);
+            // 追加原始命中词条。
             values.addAll(matchedTerms);
+            // 过滤空值并去重，返回稳定摘要。
             return values.stream().filter(value -> value != null && !value.isBlank()).distinct().toList();
         }
     }

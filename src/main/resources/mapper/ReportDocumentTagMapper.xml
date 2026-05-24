@@ -48,6 +48,13 @@
           AND dictionary_version = #{dictionaryVersion}
     </delete>
 
+    <delete id="deleteByReportIdVersionAndSource">
+        DELETE FROM report_document_tag
+        WHERE report_id = #{reportId}
+          AND dictionary_version = #{dictionaryVersion}
+          AND source = #{source}
+    </delete>
+
     <select id="selectByReportId" parameterType="long" resultMap="ReportDocumentTagResultMap">
         SELECT id,
                report_id,

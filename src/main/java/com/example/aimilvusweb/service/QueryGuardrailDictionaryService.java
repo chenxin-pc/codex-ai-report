@@ -47,7 +47,9 @@ public class QueryGuardrailDictionaryService {
      */
     public QueryGuardrailDictionaryService(ResourceLoader resourceLoader,
                                            ReportQualityProperties reportQualityProperties) {
+        // 保存资源加载器，用于从 classpath 读取词典文件。
         this.resourceLoader = resourceLoader;
+        // 保存质量配置，用于读取词典目录路径。
         this.reportQualityProperties = reportQualityProperties;
     }
 
@@ -60,6 +62,7 @@ public class QueryGuardrailDictionaryService {
      * @Date: 2026-05-24 00:45:00
      */
     public List<String> rejectPhrases() {
+        // 读取不可分析输入短语文件。
         return loadTerms(REJECT_PHRASES_FILE);
     }
 
@@ -72,6 +75,7 @@ public class QueryGuardrailDictionaryService {
      * @Date: 2026-05-24 00:45:00
      */
     public List<String> researchActions() {
+        // 读取投研动作词文件。
         return loadTerms(RESEARCH_ACTIONS_FILE);
     }
 
@@ -84,6 +88,7 @@ public class QueryGuardrailDictionaryService {
      * @Date: 2026-05-24 00:45:00
      */
     public List<String> themeTerms() {
+        // 读取主题研究词文件。
         return loadTerms(THEME_TERMS_FILE);
     }
 
@@ -96,6 +101,7 @@ public class QueryGuardrailDictionaryService {
      * @Date: 2026-05-24 00:45:00
      */
     public List<String> industryTerms() {
+        // 读取行业领域词文件。
         return loadTerms(INDUSTRY_TERMS_FILE);
     }
 
@@ -108,8 +114,11 @@ public class QueryGuardrailDictionaryService {
      * @Date: 2026-05-24 00:45:00
      */
     public List<Pattern> tickerPatterns() {
+        // 读取股票代码正则词条并编译为 Pattern。
         return loadTerms(TICKER_PATTERNS_FILE).stream()
+                // 每条正则使用大小写不敏感模式，兼容 sh/sz/bj 后缀大小写。
                 .map(pattern -> Pattern.compile(pattern, Pattern.CASE_INSENSITIVE))
+                // 收集为正则列表供输入判定使用。
                 .toList();
     }
 
@@ -122,6 +131,7 @@ public class QueryGuardrailDictionaryService {
      * @Date: 2026-05-24 00:45:00
      */
     public List<String> forbiddenRecommendationPhrases() {
+        // 读取降级输出禁用推荐短语文件。
         return loadTerms(FORBIDDEN_RECOMMENDATION_PHRASES_FILE);
     }
 
@@ -134,20 +144,33 @@ public class QueryGuardrailDictionaryService {
      * @Date: 2026-05-24 00:45:00
      */
     private List<String> loadTerms(String fileName) {
+        // 从配置读取词典目录，例如 query-guardrail/。
         String dictionaryPath = reportQualityProperties.getQueryGuardrail().getDictionaryPath();
+        // 保证目录以斜杠结尾，方便拼接文件名。
         String normalizedPath = dictionaryPath.endsWith("/") ? dictionaryPath : dictionaryPath + "/";
+        // 构造 classpath 资源路径。
         Resource resource = resourceLoader.getResource("classpath:" + normalizedPath + fileName);
+        // 资源不存在时返回空词典，避免应用启动或请求处理失败。
         if (!resource.exists()) {
+            // 空集合表示该类规则不参与匹配。
             return List.of();
         }
+        // 读取资源文件可能抛 IOException，因此在本方法内兜底。
         try {
+            // 以 UTF-8 读取完整词典文本。
             String text = new String(resource.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+            // 按行解析词典条目。
             return text.lines()
+                    // 去除每行首尾空白。
                     .map(String::trim)
+                    // 忽略空行。
                     .filter(line -> !line.isBlank())
+                    // 忽略注释行。
                     .filter(line -> !line.startsWith("#"))
+                    // 收集为不可变词条列表。
                     .toList();
         } catch (IOException e) {
+            // 词典读取失败时降级为空集合，避免护栏服务中断查询链路。
             return List.of();
         }
     }

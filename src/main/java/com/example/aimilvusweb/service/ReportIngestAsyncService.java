@@ -65,6 +65,10 @@ public class ReportIngestAsyncService {
     private final ReportDocumentMapper reportDocumentMapper;
     /** 导入执行服务。 */
     private final ReportIngestService reportIngestService;
+    /** 报告级标签服务，用于写入导入表单显式标签。 */
+    private final ReportDocumentTagService reportDocumentTagService;
+    /** 结构化词库快照服务，用于记录导入标签使用的词库版本。 */
+    private final ResearchTaxonomySnapshotService taxonomySnapshotService;
     /** 异步调度配置。 */
     private final ReportIngestAsyncProperties properties;
     /** OCR 模型名。 */
@@ -89,6 +93,8 @@ public class ReportIngestAsyncService {
                                     ReportIngestStageEventMapper stageEventMapper,
                                     ReportDocumentMapper reportDocumentMapper,
                                     ReportIngestService reportIngestService,
+                                    ReportDocumentTagService reportDocumentTagService,
+                                    ResearchTaxonomySnapshotService taxonomySnapshotService,
                                     ReportIngestAsyncProperties properties,
                                     @Value("${app.ocr.model:qwen-vl-ocr-latest}") String ocrModelName,
                                     @Value("${spring.ai.openai.chat.options.model:qwen-plus-latest}") String chunkModelName,
@@ -97,6 +103,8 @@ public class ReportIngestAsyncService {
         this.stageEventMapper = stageEventMapper;
         this.reportDocumentMapper = reportDocumentMapper;
         this.reportIngestService = reportIngestService;
+        this.reportDocumentTagService = reportDocumentTagService;
+        this.taxonomySnapshotService = taxonomySnapshotService;
         this.properties = properties;
         this.ocrModelName = ocrModelName;
         this.chunkModelName = chunkModelName;
@@ -115,7 +123,15 @@ public class ReportIngestAsyncService {
      * @Date: 2026-05-19 23:15:00
      */
     @Transactional
-    public ReportUploadRespDTO submit(MultipartFile file, String title, String source, String institution, LocalDate publishDate) {
+    public ReportUploadRespDTO submit(MultipartFile file,
+                                      String title,
+                                      String source,
+                                      String institution,
+                                      LocalDate publishDate,
+                                      String themeTags,
+                                      String industryTags,
+                                      String companyTags,
+                                      String tickerTags) {
         if (file == null || file.isEmpty()) {
             throw new IllegalArgumentException("Report file is required");
         }
@@ -132,6 +148,10 @@ public class ReportIngestAsyncService {
         job.setSource(source == null || source.isBlank() ? "uploaded" : source.trim());
         job.setInstitution(institution == null ? null : institution.trim());
         job.setPublishDate(publishDate);
+        job.setThemeTags(normalizeOptionalTags(themeTags));
+        job.setIndustryTags(normalizeOptionalTags(industryTags));
+        job.setCompanyTags(normalizeOptionalTags(companyTags));
+        job.setTickerTags(normalizeOptionalTags(tickerTags));
         job.setOriginalFilename(file.getOriginalFilename());
         job.setFilePath(spoolFile.toString());
         job.setOcrStatus(STATUS_PENDING);
@@ -414,8 +434,24 @@ public class ReportIngestAsyncService {
         MultipartFile file = new StoredPdfMultipartFile(job.getOriginalFilename(), Path.of(job.getFilePath()));
         Long reportId = reportIngestService.ingestOcrStage(file, job.getReportTitleSnapshot(), job.getSource(), job.getInstitution(), job.getPublishDate(), job.getReportId());
         ingestJobMapper.bindReportId(job.getJobUid(), reportId, Instant.now());
+        reportDocumentTagService.refreshFromImportMetadata(reportId,
+                taxonomySnapshotService.currentSnapshot().dictionaryVersion(),
+                job.getThemeTags(),
+                job.getIndustryTags(),
+                job.getCompanyTags(),
+                job.getTickerTags());
         job.setReportId(reportId);
         return 1;
+    }
+
+    /**
+     * @Description: 标准化可选标签输入。
+     * @Logic: 空白输入统一保存为 null，非空输入保留原始分隔结构供标签服务解析。
+     * @Param: value 原始标签输入。
+     * @Return: 标准化后的标签文本。
+     */
+    private String normalizeOptionalTags(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
     }
 
     /**

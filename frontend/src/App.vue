@@ -73,6 +73,22 @@
               <span>发布日期</span>
               <input v-model="uploadForm.publishDate" type="date" />
             </label>
+            <label>
+              <span>主题</span>
+              <input v-model.trim="uploadForm.themeTags" placeholder="例如：STORAGE:储能，AI_COMPUTE:AI算力" />
+            </label>
+            <label>
+              <span>行业</span>
+              <input v-model.trim="uploadForm.industryTags" placeholder="例如：POWER_EQUIPMENT:电力设备" />
+            </label>
+            <label>
+              <span>公司</span>
+              <input v-model.trim="uploadForm.companyTags" placeholder="例如：宁德时代，比亚迪" />
+            </label>
+            <label>
+              <span>代码</span>
+              <input v-model.trim="uploadForm.tickerTags" placeholder="例如：300750.SZ，002594.SZ" />
+            </label>
             <button class="primary-btn" :disabled="uploading" type="submit">
               {{ uploading ? '正在入库...' : '上传并入库' }}
             </button>
@@ -359,7 +375,16 @@ errorCode={{ item.errorCode || '-' }}  error={{ truncateText(item.errorMessageSh
 <script setup>
 import { computed, nextTick, onMounted, ref } from 'vue'
 
-const uploadForm = ref({ title: '', source: '', institution: '', publishDate: '' })
+const uploadForm = ref({
+  title: '',
+  source: '',
+  institution: '',
+  publishDate: '',
+  themeTags: '',
+  industryTags: '',
+  companyTags: '',
+  tickerTags: ''
+})
 const selectedFile = ref(null)
 const uploading = ref(false)
 const uploadMsg = ref('')
@@ -432,6 +457,10 @@ const uploadPdf = async () => {
     appendIfPresent(formData, 'source', uploadForm.value.source)
     appendIfPresent(formData, 'institution', uploadForm.value.institution)
     appendIfPresent(formData, 'publishDate', uploadForm.value.publishDate)
+    appendIfPresent(formData, 'themeTags', uploadForm.value.themeTags)
+    appendIfPresent(formData, 'industryTags', uploadForm.value.industryTags)
+    appendIfPresent(formData, 'companyTags', uploadForm.value.companyTags)
+    appendIfPresent(formData, 'tickerTags', uploadForm.value.tickerTags)
 
     const data = await requestJson('/api/reports/upload', { method: 'POST', body: formData })
     backendState.value = 'ok'

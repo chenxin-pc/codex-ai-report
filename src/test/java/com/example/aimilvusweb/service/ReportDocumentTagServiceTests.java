@@ -43,7 +43,7 @@ class ReportDocumentTagServiceTests {
         Assertions.assertEquals("THEME", tags.get(0).getTagType());
         Assertions.assertEquals("STORAGE", tags.get(0).getTagCode());
         Assertions.assertEquals(BigDecimal.valueOf(0.95D), tags.get(0).getConfidence());
-        verify(documentTagMapper).deleteByReportIdAndVersion(10L, "v1");
+        verify(documentTagMapper).deleteByReportIdVersionAndSource(10L, "v1", "CHUNK_AGGREGATION");
         verify(documentTagMapper).insert(any(ReportDocumentTag.class));
     }
 
@@ -72,8 +72,31 @@ class ReportDocumentTagServiceTests {
         List<ReportDocumentTag> tags = service.refreshFromChunkTags(10L, "v1");
 
         Assertions.assertTrue(tags.isEmpty());
-        verify(documentTagMapper).deleteByReportIdAndVersion(10L, "v1");
+        verify(documentTagMapper).deleteByReportIdVersionAndSource(10L, "v1", "CHUNK_AGGREGATION");
         verify(documentTagMapper, times(0)).insert(any(ReportDocumentTag.class));
+    }
+
+    @Test
+    void shouldPersistImportMetadataTagsBySource() {
+        ReportDocumentTagMapper documentTagMapper = mock(ReportDocumentTagMapper.class);
+        ReportChunkTagMapper chunkTagMapper = mock(ReportChunkTagMapper.class);
+        ReportDocumentTagService service = new ReportDocumentTagService(documentTagMapper, chunkTagMapper);
+
+        List<ReportDocumentTag> tags = service.refreshFromImportMetadata(
+                10L,
+                "v1",
+                "STORAGE:储能",
+                "POWER_EQUIPMENT:电力设备",
+                "宁德时代",
+                "300750.SZ"
+        );
+
+        Assertions.assertEquals(4, tags.size());
+        Assertions.assertEquals("STORAGE", tags.get(0).getTagCode());
+        Assertions.assertEquals("储能", tags.get(0).getTagName());
+        Assertions.assertEquals("宁德时代", tags.get(2).getTagCode());
+        verify(documentTagMapper).deleteByReportIdVersionAndSource(10L, "v1", "IMPORT_METADATA");
+        verify(documentTagMapper, times(4)).insert(any(ReportDocumentTag.class));
     }
 
     private ReportChunkTag chunkTag(String tagType, String tagCode, String tagName, String version, BigDecimal confidence) {

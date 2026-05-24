@@ -34,6 +34,16 @@ public interface ReportDocumentTagMapper {
     int deleteByReportIdAndVersion(@Param("reportId") Long reportId, @Param("dictionaryVersion") String dictionaryVersion);
 
     /**
+     * @Description: 删除指定报告、版本和来源的旧标签。
+     * @Logic: 支持导入元数据标签和 chunk 聚合标签分别覆盖，避免互相擦除。
+     * @Param: reportId 研报 ID；dictionaryVersion 词库版本；source 标签来源。
+     * @Return: 受影响行数。
+     */
+    int deleteByReportIdVersionAndSource(@Param("reportId") Long reportId,
+                                         @Param("dictionaryVersion") String dictionaryVersion,
+                                         @Param("source") String source);
+
+    /**
      * @Description: 查询指定报告的全部报告级标签。
      * @Logic: 用于构建向量 metadata 中的报告级父标签摘要。
      * @Param: reportId 研报 ID。
