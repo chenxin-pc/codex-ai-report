@@ -1,7 +1,10 @@
 package com.example.aimilvusweb.service;
 
 import com.example.aimilvusweb.entity.ReportChunkTag;
+import com.example.aimilvusweb.entity.ReportDocumentTag;
 import com.example.aimilvusweb.repository.ReportChunkTagMapper;
+import com.example.aimilvusweb.repository.ReportDocumentTagMapper;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.nio.charset.StandardCharsets;
@@ -35,6 +38,8 @@ public class ReportTagMetadataService {
 
     /** chunk 标签主数据 Mapper。 */
     private final ReportChunkTagMapper reportChunkTagMapper;
+    /** 报告级标签主数据 Mapper。 */
+    private final ReportDocumentTagMapper reportDocumentTagMapper;
 
     /**
      * @Description: 初始化标签 metadata 服务依赖。
@@ -44,8 +49,21 @@ public class ReportTagMetadataService {
      * @author: cx
      * @Date: 2026-05-24 00:00:00
      */
-    public ReportTagMetadataService(ReportChunkTagMapper reportChunkTagMapper) {
+    @Autowired
+    public ReportTagMetadataService(ReportChunkTagMapper reportChunkTagMapper,
+                                    ReportDocumentTagMapper reportDocumentTagMapper) {
         this.reportChunkTagMapper = reportChunkTagMapper;
+        this.reportDocumentTagMapper = reportDocumentTagMapper;
+    }
+
+    /**
+     * @Description: 兼容旧测试的标签 metadata 服务构造器。
+     * @Logic: 未提供报告级标签 Mapper 时仅使用 chunk 标签构建 metadata。
+     * @Param: reportChunkTagMapper chunk 标签 Mapper。
+     * @Return: 无（仅初始化对象状态）。
+     */
+    public ReportTagMetadataService(ReportChunkTagMapper reportChunkTagMapper) {
+        this(reportChunkTagMapper, null);
     }
 
     /**
@@ -61,6 +79,19 @@ public class ReportTagMetadataService {
     }
 
     /**
+     * @Description: 按 reportId 和 chunkUid 读取标签并构建 metadata 摘要。
+     * @Logic: 同时聚合报告级父标签和 chunk 级证据标签，供 Milvus metadata 同步使用。
+     * @Param: reportId 研报 ID；chunkUid 切片唯一标识。
+     * @Return: 标签 metadata 摘要。
+     * @author: cx
+     * @Date: 2026-05-24 00:00:00
+     */
+    public TagMetadata metadataForReportAndChunk(Long reportId, String chunkUid) {
+        List<ReportDocumentTag> documentTags = reportDocumentTagMapper == null ? List.of() : reportDocumentTagMapper.selectByReportId(reportId);
+        return toMetadata(documentTags, reportChunkTagMapper.selectByChunkUid(chunkUid));
+    }
+
+    /**
      * @Description: 把标签列表转换为 metadata 摘要。
      * @Logic: 按标签类型分桶，列表字段用于解释，primary 字段用于 Milvus scalar filter。
      * @Param: tags 标签列表。
@@ -69,25 +100,49 @@ public class ReportTagMetadataService {
      * @Date: 2026-05-24 00:00:00
      */
     public TagMetadata toMetadata(List<ReportChunkTag> tags) {
+        return toMetadata(List.of(), tags);
+    }
+
+    /**
+     * @Description: 把报告级标签和 chunk 标签转换为 metadata 摘要。
+     * @Logic: 报告级标签用于报告集合过滤，chunk 标签用于证据过滤和展示。
+     * @Param: documentTags 报告级标签列表；chunkTags chunk 级标签列表。
+     * @Return: 标签 metadata 摘要。
+     * @author: cx
+     * @Date: 2026-05-24 00:00:00
+     */
+    public TagMetadata toMetadata(List<ReportDocumentTag> documentTags, List<ReportChunkTag> chunkTags) {
         // 标签为空时返回空摘要，调用方仍会写入空字符串标量字段。
-        if (tags == null || tags.isEmpty()) {
+        if ((documentTags == null || documentTags.isEmpty()) && (chunkTags == null || chunkTags.isEmpty())) {
             return TagMetadata.empty();
         }
         // 按 tagType 聚合并按置信度排序，确保 primary 字段稳定。
-        Map<String, List<ReportChunkTag>> grouped = new LinkedHashMap<>();
-        for (ReportChunkTag tag : tags) {
-            grouped.computeIfAbsent(tag.getTagType(), ignored -> new ArrayList<>()).add(tag);
+        Map<String, List<ReportChunkTag>> groupedChunkTags = new LinkedHashMap<>();
+        if (chunkTags != null) {
+            for (ReportChunkTag tag : chunkTags) {
+                groupedChunkTags.computeIfAbsent(tag.getTagType(), ignored -> new ArrayList<>()).add(tag);
+            }
         }
         // 每个类型按置信度和编码排序，保证 metadata 和 hash 可复现。
-        grouped.values().forEach(values -> values.sort(Comparator
+        groupedChunkTags.values().forEach(values -> values.sort(Comparator
                 .comparing((ReportChunkTag tag) -> tag.getConfidence() == null ? java.math.BigDecimal.ZERO : tag.getConfidence()).reversed()
                 .thenComparing(ReportChunkTag::getTagCode)));
+        Map<String, List<ReportDocumentTag>> groupedDocumentTags = new LinkedHashMap<>();
+        if (documentTags != null) {
+            for (ReportDocumentTag tag : documentTags) {
+                groupedDocumentTags.computeIfAbsent(tag.getTagType(), ignored -> new ArrayList<>()).add(tag);
+            }
+        }
+        groupedDocumentTags.values().forEach(values -> values.sort(Comparator
+                .comparing((ReportDocumentTag tag) -> tag.getConfidence() == null ? java.math.BigDecimal.ZERO : tag.getConfidence()).reversed()
+                .thenComparing(ReportDocumentTag::getTagCode)));
         return new TagMetadata(
-                codes(grouped.get(TAG_TYPE_THEME)),
-                codes(grouped.get(TAG_TYPE_INDUSTRY)),
-                names(grouped.get(TAG_TYPE_COMPANY)),
-                codes(grouped.get(TAG_TYPE_COMPANY)),
-                codes(grouped.get(TAG_TYPE_TICKER))
+                documentCodes(groupedDocumentTags.get(TAG_TYPE_THEME)),
+                codes(groupedChunkTags.get(TAG_TYPE_THEME)),
+                codes(groupedChunkTags.get(TAG_TYPE_INDUSTRY)),
+                names(groupedChunkTags.get(TAG_TYPE_COMPANY)),
+                codes(groupedChunkTags.get(TAG_TYPE_COMPANY)),
+                codes(groupedChunkTags.get(TAG_TYPE_TICKER))
         );
     }
 
@@ -102,6 +157,7 @@ public class ReportTagMetadataService {
     public String snapshotHash(TagMetadata metadata) {
         // 将所有标签字段按固定顺序拼接，避免 Map 顺序影响 hash。
         String raw = String.join("|",
+                String.join(",", metadata.reportThemeCodes()),
                 String.join(",", metadata.themeCodes()),
                 String.join(",", metadata.industryCodes()),
                 String.join(",", metadata.companyNames()),
@@ -153,11 +209,26 @@ public class ReportTagMetadataService {
     }
 
     /**
+     * @Description: 提取报告级标签编码列表。
+     * @Logic: 空列表返回空集合；非空时保持排序后的 tagCode 顺序并去重。
+     * @Param: tags 标签列表。
+     * @Return: 标签编码列表。
+     */
+    private List<String> documentCodes(List<ReportDocumentTag> tags) {
+        if (tags == null) {
+            return List.of();
+        }
+        return tags.stream().map(ReportDocumentTag::getTagCode).filter(value -> value != null && !value.isBlank()).distinct().toList();
+    }
+
+    /**
      * @Description: 标签 metadata 摘要值对象。
      * @Logic: 列表字段用于解释和展示，primary 方法用于 Milvus scalar filter 的稳定单值字段。
      * @Param: themeCodes 主题编码；industryCodes 行业编码；companyNames 公司名称；companyCodes 公司编码；tickers 股票代码。
      */
     public record TagMetadata(
+            /** 报告级主题父标签编码列表。 */
+            List<String> reportThemeCodes,
             /** 主题标签编码列表。 */
             List<String> themeCodes,
             /** 行业标签编码列表。 */
@@ -175,7 +246,16 @@ public class ReportTagMetadataService {
          * @Return: 空 metadata 摘要。
          */
         private static TagMetadata empty() {
-            return new TagMetadata(List.of(), List.of(), List.of(), List.of(), List.of());
+            return new TagMetadata(List.of(), List.of(), List.of(), List.of(), List.of(), List.of());
+        }
+
+        /**
+         * @Description: 获取主报告级主题编码。
+         * @Logic: 取报告级主题列表第一个值作为 Milvus scalar filter 的单值字段。
+         * @Return: 主报告级主题编码；无主题时为空字符串。
+         */
+        public String primaryReportThemeCode() {
+            return reportThemeCodes.isEmpty() ? "" : reportThemeCodes.get(0);
         }
 
         /**

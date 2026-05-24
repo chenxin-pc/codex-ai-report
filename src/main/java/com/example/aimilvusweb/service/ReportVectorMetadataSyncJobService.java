@@ -83,7 +83,7 @@ public class ReportVectorMetadataSyncJobService {
     @Transactional
     public ReportVectorMetadataSyncJob enqueue(Long reportId, String chunkUid) {
         // 读取当前标签摘要作为同步任务的幂等依据。
-        TagMetadata metadata = reportTagMetadataService.metadataForChunk(chunkUid);
+        TagMetadata metadata = reportTagMetadataService.metadataForReportAndChunk(reportId, chunkUid);
         String tagSnapshotHash = reportTagMetadataService.snapshotHash(metadata);
         // 如果同一快照已经排队或完成，则复用已有任务。
         ReportVectorMetadataSyncJob existing = syncJobMapper.selectByChunkUidAndHash(chunkUid, tagSnapshotHash);
@@ -106,6 +106,24 @@ public class ReportVectorMetadataSyncJobService {
         job.setUpdatedAt(now);
         syncJobMapper.insert(job);
         return job;
+    }
+
+    /**
+     * @Description: 为指定报告下所有子切片创建 metadata 同步 job。
+     * @Logic: 报告级父标签变化会影响整篇报告下的 CHILD chunk metadata，因此按报告批量排队。
+     * @Param: reportId 研报 ID。
+     * @Return: 创建或复用的 job 数量。
+     * @author: cx
+     * @Date: 2026-05-24 00:00:00
+     */
+    public int enqueueReport(Long reportId) {
+        List<ReportChunk> chunks = reportChunkMapper.selectByReportId(reportId).stream()
+                .filter(chunk -> "CHILD".equals(chunk.getChunkType()))
+                .toList();
+        for (ReportChunk chunk : chunks) {
+            enqueue(reportId, chunk.getChunkUid());
+        }
+        return chunks.size();
     }
 
     /**
@@ -177,7 +195,7 @@ public class ReportVectorMetadataSyncJobService {
      */
     public Document buildVectorDocument(ReportDocument report, ReportChunk chunk) {
         Map<String, Object> metadata = new HashMap<>();
-        TagMetadata tagMetadata = reportTagMetadataService.metadataForChunk(chunk.getChunkUid());
+        TagMetadata tagMetadata = reportTagMetadataService.metadataForReportAndChunk(report.getId(), chunk.getChunkUid());
         metadata.put("reportId", report.getId());
         metadata.put("chunkId", chunk.getId());
         metadata.put("chunkUid", chunk.getChunkUid());
@@ -194,6 +212,8 @@ public class ReportVectorMetadataSyncJobService {
         metadata.put("source", report.getSource());
         metadata.put("institution", report.getInstitution() == null ? "" : report.getInstitution());
         metadata.put("publishDate", report.getPublishDate() == null ? "" : report.getPublishDate().toString());
+        metadata.put("reportThemeCode", tagMetadata.primaryReportThemeCode());
+        metadata.put("reportThemeCodes", tagMetadata.reportThemeCodes());
         metadata.put("themeCode", tagMetadata.primaryThemeCode());
         metadata.put("industryCode", tagMetadata.primaryIndustryCode());
         metadata.put("companyName", tagMetadata.primaryCompanyName());

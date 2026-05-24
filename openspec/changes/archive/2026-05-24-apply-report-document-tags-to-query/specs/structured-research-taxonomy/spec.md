@@ -1,33 +1,4 @@
-# structured-research-taxonomy Specification
-
-## Purpose
-TBD - created by archiving change improve-theme-evidence-retrieval. Update Purpose after archive.
-## Requirements
-### Requirement: 投研结构化词库 MUST 落库并支持版本化
-
-系统 MUST 使用数据库保存主题、行业、公司、股票代码和主题词关系。主题词库 MUST 区分主题概念、词条和词条关系，并支持版本、状态和审计字段。YAML 或文本文件 MAY 作为初始化 seed 或测试数据，但 MUST NOT 作为正式运行时主存储。
-
-#### Scenario: 保存主题词关系
-
-- **GIVEN** 管理员维护主题 `STORAGE`
-- **AND** 维护词条“新型储能”“电化学储能”“储能PCS”
-- **WHEN** 系统保存词库
-- **THEN** 系统 MUST 分别保存主题概念、词条和主题词条关系
-- **AND** 系统 MUST 记录关系类型，例如 `REQUIRED`、`ALIAS` 或 `EXCLUDE`
-
-#### Scenario: 词库版本生效
-
-- **GIVEN** 系统存在多个词库版本
-- **WHEN** 推荐检索或入库标签抽取运行
-- **THEN** 系统 MUST 使用当前 ACTIVE 版本词库
-- **AND** 系统 MUST 能记录标签产生时使用的词库版本
-
-#### Scenario: YAML 仅作为 seed
-
-- **GIVEN** 项目包含主题 seed 文件
-- **WHEN** 系统启动或执行初始化脚本
-- **THEN** 系统 MAY 将 seed 导入数据库
-- **AND** 运行时 MUST 以数据库 ACTIVE 词库为准
+## MODIFIED Requirements
 
 ### Requirement: 系统 MUST 将结构化标签结果落库
 
@@ -67,57 +38,6 @@ TBD - created by archiving change improve-theme-evidence-retrieval. Update Purpo
 - **WHEN** 系统基于新词库版本或导入元数据重新确定父标签
 - **THEN** 系统 MUST 按报告和词库版本覆盖或更新报告级标签结果
 - **AND** 系统 MUST 保留可追溯的词库版本和更新时间
-
-### Requirement: 标签抽取 MUST 采用 job 化执行
-
-系统 MUST 使用 `report_chunk_tag_job` 管理 chunk 级标签抽取。`report_chunk_tag_job` MUST 支持新入库打标、失败重试、历史重打标和词库版本升级后的重算。标签抽取 job MUST 记录处理对象、词库版本、执行状态、重试次数、错误信息和执行时间。
-
-#### Scenario: 新入库 chunk 创建标签抽取 job
-
-- **GIVEN** 研报切片已经完成并写入 chunk 表
-- **WHEN** 系统需要为该 chunk 生成结构化标签
-- **THEN** 系统 MUST 创建或调度 `report_chunk_tag_job`
-- **AND** job MUST 记录 `chunk_uid`、`report_id`、`dictionary_version` 和初始状态
-
-#### Scenario: 标签抽取 job 成功写入标签主数据
-
-- **GIVEN** `report_chunk_tag_job` 处于 `PROCESSING`
-- **WHEN** 标签抽取成功完成
-- **THEN** 系统 MUST 将抽取结果写入 `report_chunk_tag`
-- **AND** 系统 MUST 将 job 状态更新为 `SUCCEEDED`
-- **AND** 标签结果 MUST 保留本次 job 使用的词库版本
-
-#### Scenario: 标签抽取 job 失败后可重试
-
-- **GIVEN** `report_chunk_tag_job` 执行失败
-- **WHEN** 失败次数未超过系统配置的最大重试次数
-- **THEN** 系统 MUST 记录失败原因
-- **AND** 系统 MUST 允许后续重新调度该 job
-
-#### Scenario: 历史数据和词库版本升级触发重打标
-
-- **GIVEN** 系统存在历史 chunk 或 ACTIVE 词库版本发生变化
-- **WHEN** 管理员或定时任务触发重打标
-- **THEN** 系统 MUST 批量创建或更新 `report_chunk_tag_job`
-- **AND** 新 job MUST 使用目标词库版本重新生成标签
-
-### Requirement: 词库匹配 MUST 支持大规模词条
-
-系统 MUST 支持几十万词条规模的词库匹配。运行时 MUST NOT 对每次 query 或每个 chunk 执行逐词 `contains` 全量循环。系统 MUST 使用 ACTIVE 词库快照、缓存或自动机类结构进行高效匹配。
-
-#### Scenario: 加载 ACTIVE 词库快照
-
-- **GIVEN** 数据库中存在 ACTIVE 词库版本
-- **WHEN** 应用启动或词库刷新
-- **THEN** 系统 MUST 加载 ACTIVE 词库快照
-- **AND** 系统 MUST 构建可复用的匹配结构供 query 抽取和 chunk 打标签使用
-
-#### Scenario: 词库刷新失败
-
-- **GIVEN** 系统已有可用词库快照
-- **WHEN** 新版本词库加载失败
-- **THEN** 系统 MUST 保留上一份可用快照
-- **AND** 系统 MUST 记录刷新失败原因
 
 ### Requirement: Milvus metadata MUST 同步结构化标签摘要
 
@@ -182,4 +102,3 @@ TBD - created by archiving change improve-theme-evidence-retrieval. Update Purpo
 - **WHEN** `report_chunk_tag` 或 `report_document_tag` 已经成功保存标签结果
 - **THEN** 系统 MUST NOT 回滚 MySQL 标签主数据
 - **AND** 系统 SHOULD 记录失败原因并允许后续重试
-

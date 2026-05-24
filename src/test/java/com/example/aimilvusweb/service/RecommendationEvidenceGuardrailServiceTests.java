@@ -120,6 +120,24 @@ class RecommendationEvidenceGuardrailServiceTests {
         Assertions.assertTrue(decision.quality().themeCovered());
     }
 
+    @Test
+    void shouldNotAllowThemeCoverageByReportThemeOnly() {
+        ResearchQueryAnchorService anchorService = mock(ResearchQueryAnchorService.class);
+        RecommendationEvidenceGuardrailService service = buildService(anchorService);
+        when(anchorService.extract("储能板块")).thenReturn(new ResearchQueryAnchorService.QueryAnchors(
+                List.of("STORAGE"), List.of(), List.of(), List.of(), List.of(), List.of("储能")
+        ));
+
+        RecommendationEvidenceGuardrailService.EvidenceDecision decision = service.evaluate(
+                "储能板块",
+                QueryIntentEnum.THEME_RESEARCH,
+                List.of(chunkWithMetadata("储能行业深度", "这段证据只说明泛新能源观点", Map.of("reportThemeCode", "STORAGE", "reportThemeCodes", List.of("STORAGE"))))
+        );
+
+        Assertions.assertEquals(RecommendationOutputLevelEnum.L1_INSUFFICIENT_OR_POLLUTED, decision.outputLevel());
+        Assertions.assertFalse(decision.quality().themeCovered());
+    }
+
     private RecommendationEvidenceGuardrailService buildService() {
         ReportQualityProperties properties = new ReportQualityProperties();
         QueryGuardrailDictionaryService dictionaryService = new QueryGuardrailDictionaryService(new DefaultResourceLoader(), properties);

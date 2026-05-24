@@ -58,6 +58,16 @@ public interface ReportChunkTagMapper {
     List<ReportChunkTag> selectByChunkUids(@Param("chunkUids") List<String> chunkUids);
 
     /**
+     * @Description: 查询指定报告的全部 chunk 标签。
+     * @Logic: 用于将 chunk 标签聚合为报告级父标签。
+     * @Param: reportId 研报 ID。
+     * @Return: 标签列表。
+     * @author: cx
+     * @Date: 2026-05-24 00:00:00
+     */
+    List<ReportChunkTag> selectByReportId(Long reportId);
+
+    /**
      * @Description: 判断指定类型和编码的标签是否存在。
      * @Logic: Milvus metadata 无结果时用于诊断 MySQL 标签主数据是否已有相关主题。
      * @Param: tagType 标签类型；tagCodes 标签编码列表。

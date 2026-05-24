@@ -2,12 +2,11 @@
 <!DOCTYPE mapper
         PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
-<mapper namespace="com.example.aimilvusweb.repository.ReportChunkTagMapper">
+<mapper namespace="com.example.aimilvusweb.repository.ReportDocumentTagMapper">
 
-    <resultMap id="ReportChunkTagResultMap" type="com.example.aimilvusweb.entity.ReportChunkTag">
+    <resultMap id="ReportDocumentTagResultMap" type="com.example.aimilvusweb.entity.ReportDocumentTag">
         <id property="id" column="id"/>
         <result property="reportId" column="report_id"/>
-        <result property="chunkUid" column="chunk_uid"/>
         <result property="tagType" column="tag_type"/>
         <result property="tagCode" column="tag_code"/>
         <result property="tagName" column="tag_name"/>
@@ -18,10 +17,9 @@
         <result property="updatedAt" column="updated_at"/>
     </resultMap>
 
-    <insert id="insert" parameterType="com.example.aimilvusweb.entity.ReportChunkTag" useGeneratedKeys="true" keyProperty="id">
-        INSERT INTO report_chunk_tag(
+    <insert id="insert" parameterType="com.example.aimilvusweb.entity.ReportDocumentTag" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO report_document_tag(
             report_id,
-            chunk_uid,
             tag_type,
             tag_code,
             tag_name,
@@ -33,7 +31,6 @@
         )
         VALUES(
             #{reportId},
-            #{chunkUid},
             #{tagType},
             #{tagCode},
             #{tagName},
@@ -45,16 +42,15 @@
         )
     </insert>
 
-    <delete id="deleteByChunkUidAndVersion">
-        DELETE FROM report_chunk_tag
-        WHERE chunk_uid = #{chunkUid}
+    <delete id="deleteByReportIdAndVersion">
+        DELETE FROM report_document_tag
+        WHERE report_id = #{reportId}
           AND dictionary_version = #{dictionaryVersion}
     </delete>
 
-    <select id="selectByChunkUid" parameterType="string" resultMap="ReportChunkTagResultMap">
+    <select id="selectByReportId" parameterType="long" resultMap="ReportDocumentTagResultMap">
         SELECT id,
                report_id,
-               chunk_uid,
                tag_type,
                tag_code,
                tag_name,
@@ -63,51 +59,14 @@
                dictionary_version,
                created_at,
                updated_at
-        FROM report_chunk_tag
-        WHERE chunk_uid = #{chunkUid}
-        ORDER BY tag_type ASC, confidence DESC, tag_code ASC
-    </select>
-
-    <select id="selectByChunkUids" resultMap="ReportChunkTagResultMap">
-        SELECT id,
-               report_id,
-               chunk_uid,
-               tag_type,
-               tag_code,
-               tag_name,
-               confidence,
-               source,
-               dictionary_version,
-               created_at,
-               updated_at
-        FROM report_chunk_tag
-        WHERE chunk_uid IN
-        <foreach collection="chunkUids" item="chunkUid" open="(" separator="," close=")">
-            #{chunkUid}
-        </foreach>
-        ORDER BY chunk_uid ASC, tag_type ASC, confidence DESC, tag_code ASC
-    </select>
-
-    <select id="selectByReportId" parameterType="long" resultMap="ReportChunkTagResultMap">
-        SELECT id,
-               report_id,
-               chunk_uid,
-               tag_type,
-               tag_code,
-               tag_name,
-               confidence,
-               source,
-               dictionary_version,
-               created_at,
-               updated_at
-        FROM report_chunk_tag
+        FROM report_document_tag
         WHERE report_id = #{reportId}
         ORDER BY tag_type ASC, confidence DESC, tag_code ASC
     </select>
 
     <select id="countByTagCodes" resultType="int">
         SELECT COUNT(1)
-        FROM report_chunk_tag
+        FROM report_document_tag
         WHERE tag_type = #{tagType}
           AND tag_code IN
         <foreach collection="tagCodes" item="tagCode" open="(" separator="," close=")">

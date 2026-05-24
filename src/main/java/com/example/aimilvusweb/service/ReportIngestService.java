@@ -567,6 +567,8 @@ public class ReportIngestService {
             metadata.put("source", report.getSource());
             metadata.put("institution", report.getInstitution() == null ? "" : report.getInstitution());
             metadata.put("publishDate", report.getPublishDate() == null ? "" : report.getPublishDate().toString());
+            metadata.put("reportThemeCode", "");
+            metadata.put("reportThemeCodes", List.of());
             metadata.put("themeCode", "");
             metadata.put("industryCode", "");
             metadata.put("companyName", "");

@@ -41,6 +41,8 @@ public class ReportChunkTagJobService {
     private final ResearchTaxonomySnapshotService taxonomySnapshotService;
     /** 标签抽取服务，用于真正生成并落库 report_chunk_tag。 */
     private final ReportChunkTagExtractionService tagExtractionService;
+    /** 报告级标签服务，用于将 chunk 标签聚合为报告父标签。 */
+    private final ReportDocumentTagService reportDocumentTagService;
     /** metadata sync job 服务，用于标签成功后触发 Milvus metadata 同步。 */
     private final ReportVectorMetadataSyncJobService metadataSyncJobService;
 
@@ -56,11 +58,13 @@ public class ReportChunkTagJobService {
                                     ReportChunkMapper reportChunkMapper,
                                     ResearchTaxonomySnapshotService taxonomySnapshotService,
                                     ReportChunkTagExtractionService tagExtractionService,
+                                    ReportDocumentTagService reportDocumentTagService,
                                     ReportVectorMetadataSyncJobService metadataSyncJobService) {
         this.tagJobMapper = tagJobMapper;
         this.reportChunkMapper = reportChunkMapper;
         this.taxonomySnapshotService = taxonomySnapshotService;
         this.tagExtractionService = tagExtractionService;
+        this.reportDocumentTagService = reportDocumentTagService;
         this.metadataSyncJobService = metadataSyncJobService;
     }
 
@@ -180,8 +184,9 @@ public class ReportChunkTagJobService {
             ReportChunk chunk = requireChunk(job.getChunkUid());
             // 执行标签覆盖写入，结果以 MySQL report_chunk_tag 为主数据。
             tagExtractionService.extractAndPersist(chunk, job.getDictionaryVersion());
-            // 标签成功后触发可选的 Milvus metadata 同步任务。
-            metadataSyncJobService.enqueue(chunk.getReportId(), chunk.getChunkUid());
+            // chunk 标签变化后重算报告级父标签，再同步整篇报告下的向量 metadata。
+            reportDocumentTagService.refreshFromChunkTags(chunk.getReportId(), job.getDictionaryVersion());
+            metadataSyncJobService.enqueueReport(chunk.getReportId());
             // 最后标记标签 job 成功。
             tagJobMapper.markSucceeded(job.getId(), Instant.now());
         } catch (RuntimeException e) {
