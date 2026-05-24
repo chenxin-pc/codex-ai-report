@@ -19,6 +19,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -150,8 +151,8 @@ public class ReportRetrievalService {
             candidates.add(new RetrievedChunk(doc, relevanceScore, chunkText, expandContext(doc, chunkText)));
         }
 
-        // 按 chunkUid 去重，避免同一个子切片因向量库重复返回而放大证据权重。
-        List<RetrievedChunk> deduplicated = deduplicateByChunkUid(candidates);
+        // 按身份和展示正文双重去重，避免同一切片或完全相同文本被重复返回。
+        List<RetrievedChunk> deduplicated = deduplicateRetrievedChunks(candidates);
         // 当配置启用重排时，使用 query 与子切片字符重合度对候选重新排序。
         if (reportQualityProperties.getRetrieval().isRerankEnabled()) {
             // 用轻量重排结果替换原始向量相似度排序。
@@ -355,27 +356,102 @@ public class ReportRetrievalService {
     }
 
     /**
-     * @Description: 按 chunkUid 去重召回候选。
-     * @Logic: 优先使用 metadata.chunkUid 作为唯一键；缺失时使用顺序键保留该候选，避免误删无法定位的证据。
+     * @Description: 对召回候选做稳定去重。
+     * @Logic: 优先使用 metadata.chunkUid 或 Document id 去重；再用标题、来源、章节和切片正文去重，兜住重复入库或 metadata 缺失场景。
      * @Param: candidates 分数过滤后的候选列表。
      * @Return: 去重后的候选列表。
      * @author: cx
      * @Date: 2026-05-24 18:40:00
      */
-    private List<RetrievedChunk> deduplicateByChunkUid(List<RetrievedChunk> candidates) {
-        // 使用 LinkedHashMap 保持首次出现顺序，并按 key 去重。
-        Map<String, RetrievedChunk> deduplicated = new LinkedHashMap<>();
-        // 遍历所有候选，逐条计算去重键。
+    private List<RetrievedChunk> deduplicateRetrievedChunks(List<RetrievedChunk> candidates) {
+        // 身份 key 处理同一向量记录重复返回，内容 key 处理重复入库后 UID 不同但文本完全相同的候选。
+        Map<String, RetrievedChunk> identityKeys = new LinkedHashMap<>();
+        Map<String, RetrievedChunk> contentKeys = new LinkedHashMap<>();
+        List<RetrievedChunk> deduplicated = new ArrayList<>();
         for (RetrievedChunk candidate : candidates) {
-            // 从 metadata 读取 chunkUid，缺失时转为空字符串。
-            String chunkUid = String.valueOf(candidate.document().getMetadata().getOrDefault("chunkUid", ""));
-            // chunkUid 缺失时使用 doc-序号兜底，避免不同无 uid 候选互相覆盖。
-            String key = chunkUid.isBlank() ? "doc-" + deduplicated.size() : chunkUid;
-            // 只保留首次出现的同 uid 候选，稳定保留原始排序优势。
-            deduplicated.putIfAbsent(key, candidate);
+            String identityKey = identityDedupKey(candidate);
+            String contentKey = contentDedupKey(candidate);
+            if ((!identityKey.isBlank() && identityKeys.containsKey(identityKey))
+                    || (!contentKey.isBlank() && contentKeys.containsKey(contentKey))) {
+                continue;
+            }
+            deduplicated.add(candidate);
+            if (!identityKey.isBlank()) {
+                identityKeys.put(identityKey, candidate);
+            }
+            if (!contentKey.isBlank()) {
+                contentKeys.put(contentKey, candidate);
+            }
         }
-        // 将去重 Map 的值转换回列表返回。
-        return new ArrayList<>(deduplicated.values());
+        return deduplicated;
+    }
+
+    /**
+     * @Description: 构造召回候选身份去重键。
+     * @Logic: 优先使用业务 chunkUid；Milvus 未返回该 metadata 时退回 Spring AI Document id。
+     * @Param: candidate 召回候选。
+     * @Return: 身份去重键；无法定位时返回空字符串。
+     * @author: cx
+     * @Date: 2026-05-24 18:40:00
+     */
+    private String identityDedupKey(RetrievedChunk candidate) {
+        String chunkUid = metadataText(candidate.document(), "chunkUid");
+        if (!chunkUid.isBlank()) {
+            return "chunkUid:" + chunkUid;
+        }
+        String documentId = candidate.document().getId() == null ? "" : candidate.document().getId().trim();
+        if (!documentId.isBlank()) {
+            return "documentId:" + documentId;
+        }
+        return "";
+    }
+
+    /**
+     * @Description: 构造召回候选展示内容去重键。
+     * @Logic: 标题、来源、章节和切片正文都一致时视为重复展示项，避免 TopK 出现多条完全相同的切片数据。
+     * @Param: candidate 召回候选。
+     * @Return: 内容去重键；正文为空时返回空字符串。
+     * @author: cx
+     * @Date: 2026-05-24 18:40:00
+     */
+    private String contentDedupKey(RetrievedChunk candidate) {
+        String chunkText = normalizeForDedup(candidate.chunkText());
+        if (chunkText.isBlank()) {
+            return "";
+        }
+        return "content:"
+                + normalizeForDedup(metadataText(candidate.document(), "title")) + "|"
+                + normalizeForDedup(metadataText(candidate.document(), "source")) + "|"
+                + normalizeForDedup(metadataText(candidate.document(), "sectionPath")) + "|"
+                + chunkText;
+    }
+
+    /**
+     * @Description: 读取 metadata 字符串值。
+     * @Logic: 缺失或空值统一返回空字符串，供去重键构造复用。
+     * @Param: document 召回文档；key metadata 字段名。
+     * @Return: metadata 字符串。
+     * @author: cx
+     * @Date: 2026-05-24 18:40:00
+     */
+    private String metadataText(Document document, String key) {
+        Object value = document.getMetadata().get(key);
+        return value == null ? "" : String.valueOf(value).trim();
+    }
+
+    /**
+     * @Description: 规范化用于去重比较的文本。
+     * @Logic: null 转空字符串，折叠空白并转小写，降低换行或空格差异造成的重复漏判。
+     * @Param: text 原始文本。
+     * @Return: 规范化文本。
+     * @author: cx
+     * @Date: 2026-05-24 18:40:00
+     */
+    private String normalizeForDedup(String text) {
+        if (text == null) {
+            return "";
+        }
+        return text.replaceAll("\\s+", " ").trim().toLowerCase(Locale.ROOT);
     }
 
     /**

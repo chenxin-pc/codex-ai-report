@@ -1,0 +1,14 @@
+{
+  "mysql_db": "ai_report",
+  "milvus_requested_db": "ai_report_rag",
+  "milvus_actual_db": "default",
+  "milvus_collections": [
+    "meeting_summary_test",
+    "report_chunks"
+  ],
+  "milvus_collection_used": "report_chunks",
+  "mysql_report_id_count": 0,
+  "milvus_report_id_count": 33,
+  "missing_in_milvus_count": 0,
+  "missing_report_ids": []
+}

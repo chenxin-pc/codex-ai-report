@@ -59,6 +59,33 @@ class ReportRetrievalServiceTests {
     }
 
     @Test
+    void shouldDeduplicateSameSliceTextWhenChunkUidIsMissing() {
+        VectorStore vectorStore = mock(VectorStore.class);
+        ObjectProvider<VectorStore> vectorStoreProvider = mock(ObjectProvider.class);
+        ReportChunkMapper reportChunkMapper = mock(ReportChunkMapper.class);
+        ReportQualityProperties properties = new ReportQualityProperties();
+        properties.getRetrieval().setInitialTopK(10);
+        properties.getRetrieval().setFinalTopK(5);
+        ReportRetrievalService service = new ReportRetrievalService(vectorStoreProvider, reportChunkMapper, properties);
+
+        when(vectorStoreProvider.getIfAvailable()).thenReturn(vectorStore);
+        when(vectorStore.similaritySearch(any(SearchRequest.class))).thenReturn(List.of(
+                new Document("Q1业绩：收入同比增长，利润率改善。", Map.of(
+                        "title", "公司财报点评", "source", "券商研报", "sectionPath", "Q1业绩", "score", 0.92D)),
+                new Document("Q1业绩：收入同比增长，利润率改善。", Map.of(
+                        "title", "公司财报点评", "source", "券商研报", "sectionPath", "Q1业绩", "score", 0.91D)),
+                new Document("Q1业绩：经营现金流同步改善。", Map.of(
+                        "title", "公司财报点评", "source", "券商研报", "sectionPath", "Q1业绩", "score", 0.86D))
+        ));
+
+        List<ReportRetrievalService.RetrievedChunk> chunks = service.retrieve("Q1业绩");
+
+        Assertions.assertEquals(2, chunks.size());
+        Assertions.assertEquals("Q1业绩：收入同比增长，利润率改善。", chunks.get(0).chunkText());
+        Assertions.assertEquals("Q1业绩：经营现金流同步改善。", chunks.get(1).chunkText());
+    }
+
+    @Test
     void shouldFailWhenVectorStoreIsMissing() {
         ObjectProvider<VectorStore> vectorStoreProvider = mock(ObjectProvider.class);
         ReportChunkMapper reportChunkMapper = mock(ReportChunkMapper.class);
