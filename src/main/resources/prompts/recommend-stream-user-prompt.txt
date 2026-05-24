@@ -3,6 +3,9 @@
 用户问题：
 {query}
 
+输出护栏：
+{guardrail}
+
 证据片段：
 {evidence}
 

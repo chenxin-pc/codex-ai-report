@@ -92,6 +92,10 @@ class QueryResult:
     recommendation: str = ""
     risks: list[str] = field(default_factory=list)
     citations: list[str] = field(default_factory=list)
+    input_intent: str = ""
+    output_level: str = ""
+    degradation_reasons: list[str] = field(default_factory=list)
+    evidence_quality: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -822,6 +826,10 @@ def evaluate_queries(config: dict[str, Any], state: RunState) -> list[QueryResul
             result.recommendation = payload.get("recommendation", "")
             result.risks = payload.get("risks", []) or []
             result.citations = payload.get("citations", []) or []
+            result.input_intent = payload.get("inputIntent", "")
+            result.output_level = payload.get("outputLevel", "")
+            result.degradation_reasons = payload.get("degradationReasons", []) or []
+            result.evidence_quality = payload.get("evidenceQuality", {}) or {}
         except (OSError, urllib.error.URLError, RuntimeError, json.JSONDecodeError) as exc:
             result.status = "failed"
             result.error_summary = short_error(exc)
@@ -853,6 +861,9 @@ def build_search_workbook(config: dict[str, Any], state: RunState) -> Path:
             "finishedAt": query_result.finished_at,
             "status": query_result.status,
             "errorSummary": query_result.error_summary,
+            "inputIntent": query_result.input_intent,
+            "outputLevel": query_result.output_level,
+            "degradationReasons": json.dumps(query_result.degradation_reasons, ensure_ascii=False),
         })
         recommendation_rows.append({
             "query": query_result.query,
@@ -860,6 +871,7 @@ def build_search_workbook(config: dict[str, Any], state: RunState) -> Path:
             "recommendation": limit_text(query_result.recommendation, max_text_length),
             "risks": limit_text(json.dumps(query_result.risks, ensure_ascii=False), max_text_length),
             "citations": limit_text(json.dumps(query_result.citations, ensure_ascii=False), max_text_length),
+            "evidenceQuality": limit_text(json.dumps(query_result.evidence_quality, ensure_ascii=False), max_text_length),
         })
         for rank, item in enumerate(query_result.top_results, start=1):
             top_row = {
@@ -887,9 +899,9 @@ def build_search_workbook(config: dict[str, Any], state: RunState) -> Path:
 
     output_path = run_dir(config, state.run_id) / f"search-evaluation-{state.run_id}.xlsx"
     write_xlsx(output_path, [
-        ("queries", rows_for_sheet(query_rows, ["query", "startedAt", "finishedAt", "status", "errorSummary"])),
+        ("queries", rows_for_sheet(query_rows, ["query", "startedAt", "finishedAt", "status", "errorSummary", "inputIntent", "outputLevel", "degradationReasons"])),
         ("top_results", rows_for_sheet(top_rows, ["query", "rank", "score", "reportTitle", "source", "sectionPath", "chunkUid", "parentChunkUid", "chunkText", "parentContext"])),
-        ("recommendations", rows_for_sheet(recommendation_rows, ["query", "analysis", "recommendation", "risks", "citations"])),
+        ("recommendations", rows_for_sheet(recommendation_rows, ["query", "analysis", "recommendation", "risks", "citations", "evidenceQuality"])),
         ("manual_review", rows_for_sheet(manual_rows, ["query", "rank", "chunkUid", "isRelevant", "relevanceLevel", "issueNotes", "suggestedAction"])),
     ])
     state.output_files["search_evaluation"] = str(output_path)

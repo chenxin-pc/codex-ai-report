@@ -16,7 +16,8 @@ public final class SemanticChunkUtils {
 
     private static final Pattern NUMBERED_HEADING = Pattern.compile("^([一二三四五六七八九十]+[、.]|\\d+(\\.\\d+)*[、.)]?)\\s*\\S+");
     private static final Pattern REPORT_HEADING_KEYWORD = Pattern.compile(".*(摘要|要点|观点|评级|行业|公司|财务|盈利|估值|风险|提示|结论|投资|供给|需求|库存|价格|成本|政策).*");
-    private static final ChunkingOptions DEFAULT_REPORT_OPTIONS = new ChunkingOptions(1200, 1800, 3500, 6000, 200);
+    // 默认参数将 CHILD 控制在更小粒度，确保父子层级能明显拉开。
+    private static final ChunkingOptions DEFAULT_REPORT_OPTIONS = new ChunkingOptions(500, 600, 2200, 4200, 120);
 
     /**
      * @Description: 初始化SemanticChunkUtils依赖与运行所需组件。

@@ -93,4 +93,27 @@ class SemanticChunkerTests {
         Assertions.assertEquals("INVESTMENT_VIEW", chunks.children().get(0).segmentType());
         Assertions.assertFalse(chunks.children().get(0).text().contains("[Page"));
     }
+
+    @Test
+    void shouldMakeParentLargerThanChildrenWhenSectionHasEnoughContent() {
+        String text = """
+                行业供需逻辑
+
+                我们认为行业景气仍处在上行周期，龙头公司订单质量和现金流表现稳定。我们认为行业景气仍处在上行周期，龙头公司订单质量和现金流表现稳定。我们认为行业景气仍处在上行周期，龙头公司订单质量和现金流表现稳定。
+
+                从供给端看，新增产能投放节奏偏慢，库存处于低位，价格中枢具备支撑。从供给端看，新增产能投放节奏偏慢，库存处于低位，价格中枢具备支撑。从供给端看，新增产能投放节奏偏慢，库存处于低位，价格中枢具备支撑。
+
+                从需求端看，下游订单恢复好于预期，渠道补库意愿增强，结构升级趋势延续。从需求端看，下游订单恢复好于预期，渠道补库意愿增强，结构升级趋势延续。从需求端看，下游订单恢复好于预期，渠道补库意愿增强，结构升级趋势延续。
+                """;
+
+        ReportSemanticChunks chunks = SemanticChunkUtils.chunkReport(
+                text,
+                new ChunkingOptions(120, 180, 2200, 4200, 120)
+        );
+
+        Assertions.assertFalse(chunks.parents().isEmpty());
+        Assertions.assertTrue(chunks.children().size() > 1);
+        String parentText = chunks.parents().get(0).text();
+        Assertions.assertTrue(chunks.children().stream().allMatch(child -> !parentText.equals(child.text())));
+    }
 }

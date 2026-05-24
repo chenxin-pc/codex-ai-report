@@ -3,6 +3,9 @@ package com.example.aimilvusweb.service;
 import com.example.aimilvusweb.common.llm.QwenClient;
 import com.example.aimilvusweb.common.prompt.PromptTemplateService;
 import com.example.aimilvusweb.dto.RecommendStreamEventDTO;
+import com.example.aimilvusweb.dto.RecommendRespDTO;
+import com.example.aimilvusweb.enums.QueryIntentEnum;
+import com.example.aimilvusweb.enums.RecommendationOutputLevelEnum;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.document.Document;
@@ -36,9 +39,13 @@ class ReportRecommendServiceTests {
         QwenClient qwenClient = mock(QwenClient.class);
         PromptTemplateService promptTemplateService = mock(PromptTemplateService.class);
         ReportRetrievalService reportRetrievalService = mock(ReportRetrievalService.class);
-        ReportRecommendService service = buildService(qwenClient, promptTemplateService, reportRetrievalService);
+        ResearchQueryIntentService intentService = mock(ResearchQueryIntentService.class);
+        RecommendationEvidenceGuardrailService guardrailService = mock(RecommendationEvidenceGuardrailService.class);
+        ReportRecommendService service = buildService(qwenClient, promptTemplateService, reportRetrievalService, intentService, guardrailService);
 
+        when(intentService.classify("储能")).thenReturn(themeDecision("储能"));
         when(reportRetrievalService.retrieve("储能")).thenReturn(List.of(retrievedChunk()));
+        when(guardrailService.evaluate(eq("储能"), eq(QueryIntentEnum.THEME_RESEARCH), any(List.class))).thenReturn(themeEvidence());
         when(promptTemplateService.loadTemplate("prompts/recommend-stream-system-prompt.txt")).thenReturn("system");
         when(promptTemplateService.render(eq("prompts/recommend-stream-user-prompt.txt"), any(Map.class))).thenReturn("user");
         when(qwenClient.chatStream("system", "user")).thenReturn(Flux.just("分析", "正文"));
@@ -58,9 +65,13 @@ class ReportRecommendServiceTests {
         QwenClient qwenClient = mock(QwenClient.class);
         PromptTemplateService promptTemplateService = mock(PromptTemplateService.class);
         ReportRetrievalService reportRetrievalService = mock(ReportRetrievalService.class);
-        ReportRecommendService service = buildService(qwenClient, promptTemplateService, reportRetrievalService);
+        ResearchQueryIntentService intentService = mock(ResearchQueryIntentService.class);
+        RecommendationEvidenceGuardrailService guardrailService = mock(RecommendationEvidenceGuardrailService.class);
+        ReportRecommendService service = buildService(qwenClient, promptTemplateService, reportRetrievalService, intentService, guardrailService);
 
+        when(intentService.classify("储能")).thenReturn(themeDecision("储能"));
         when(reportRetrievalService.retrieve("储能")).thenReturn(List.of(retrievedChunk()));
+        when(guardrailService.evaluate(eq("储能"), eq(QueryIntentEnum.THEME_RESEARCH), any(List.class))).thenReturn(themeEvidence());
         when(promptTemplateService.loadTemplate("prompts/recommend-stream-system-prompt.txt")).thenReturn("system");
         when(promptTemplateService.render(eq("prompts/recommend-stream-user-prompt.txt"), any(Map.class))).thenReturn("user");
         when(qwenClient.chatStream("system", "user")).thenReturn(Flux.empty());
@@ -79,9 +90,13 @@ class ReportRecommendServiceTests {
         QwenClient qwenClient = mock(QwenClient.class);
         PromptTemplateService promptTemplateService = mock(PromptTemplateService.class);
         ReportRetrievalService reportRetrievalService = mock(ReportRetrievalService.class);
-        ReportRecommendService service = buildService(qwenClient, promptTemplateService, reportRetrievalService);
+        ResearchQueryIntentService intentService = mock(ResearchQueryIntentService.class);
+        RecommendationEvidenceGuardrailService guardrailService = mock(RecommendationEvidenceGuardrailService.class);
+        ReportRecommendService service = buildService(qwenClient, promptTemplateService, reportRetrievalService, intentService, guardrailService);
 
+        when(intentService.classify("储能")).thenReturn(themeDecision("储能"));
         when(reportRetrievalService.retrieve("储能")).thenReturn(List.of());
+        when(guardrailService.evaluate(eq("储能"), eq(QueryIntentEnum.THEME_RESEARCH), any(List.class))).thenReturn(missingEvidence());
 
         List<ServerSentEvent<RecommendStreamEventDTO>> events = service.recommendStream("储能").collectList().block();
 
@@ -98,9 +113,13 @@ class ReportRecommendServiceTests {
         QwenClient qwenClient = mock(QwenClient.class);
         PromptTemplateService promptTemplateService = mock(PromptTemplateService.class);
         ReportRetrievalService reportRetrievalService = mock(ReportRetrievalService.class);
-        ReportRecommendService service = buildService(qwenClient, promptTemplateService, reportRetrievalService);
+        ResearchQueryIntentService intentService = mock(ResearchQueryIntentService.class);
+        RecommendationEvidenceGuardrailService guardrailService = mock(RecommendationEvidenceGuardrailService.class);
+        ReportRecommendService service = buildService(qwenClient, promptTemplateService, reportRetrievalService, intentService, guardrailService);
 
+        when(intentService.classify("储能")).thenReturn(themeDecision("储能"));
         when(reportRetrievalService.retrieve("储能")).thenReturn(List.of(retrievedChunk()));
+        when(guardrailService.evaluate(eq("储能"), eq(QueryIntentEnum.THEME_RESEARCH), any(List.class))).thenReturn(themeEvidence());
         when(promptTemplateService.loadTemplate("prompts/recommend-stream-system-prompt.txt")).thenReturn("system");
         when(promptTemplateService.render(eq("prompts/recommend-stream-user-prompt.txt"), any(Map.class))).thenReturn("user");
         when(qwenClient.chatStream("system", "user")).thenReturn(Flux.error(new IllegalStateException("model failed")));
@@ -111,6 +130,51 @@ class ReportRecommendServiceTests {
         Assertions.assertTrue(events.stream().anyMatch(event -> "error".equals(event.event())
                 && event.data().message().contains("model failed")));
         Assertions.assertEquals("done", events.get(events.size() - 1).event());
+    }
+
+    @Test
+    void shouldShortCircuitGreetingWithoutRetrieval() {
+        QwenClient qwenClient = mock(QwenClient.class);
+        PromptTemplateService promptTemplateService = mock(PromptTemplateService.class);
+        ReportRetrievalService reportRetrievalService = mock(ReportRetrievalService.class);
+        ResearchQueryIntentService intentService = mock(ResearchQueryIntentService.class);
+        RecommendationEvidenceGuardrailService guardrailService = mock(RecommendationEvidenceGuardrailService.class);
+        ReportRecommendService service = buildService(qwenClient, promptTemplateService, reportRetrievalService, intentService, guardrailService);
+
+        when(intentService.classify("你好")).thenReturn(new ResearchQueryIntentService.QueryIntentDecision(
+                QueryIntentEnum.REJECT, 1.0D, "命中非投研寒暄词", "你好", "RULE"
+        ));
+
+        RecommendRespDTO response = service.recommend("你好");
+
+        Assertions.assertEquals("REJECT", response.inputIntent());
+        Assertions.assertEquals("L0_REJECT", response.outputLevel());
+        Assertions.assertTrue(response.recommendation().contains("投研分析模式"));
+        verify(reportRetrievalService, never()).retrieve(any());
+        verify(qwenClient, never()).chatForEntity(any(), any(), any());
+    }
+
+    @Test
+    void shouldStreamGuidanceForRejectedInput() {
+        QwenClient qwenClient = mock(QwenClient.class);
+        PromptTemplateService promptTemplateService = mock(PromptTemplateService.class);
+        ReportRetrievalService reportRetrievalService = mock(ReportRetrievalService.class);
+        ResearchQueryIntentService intentService = mock(ResearchQueryIntentService.class);
+        RecommendationEvidenceGuardrailService guardrailService = mock(RecommendationEvidenceGuardrailService.class);
+        ReportRecommendService service = buildService(qwenClient, promptTemplateService, reportRetrievalService, intentService, guardrailService);
+
+        when(intentService.classify("你好")).thenReturn(new ResearchQueryIntentService.QueryIntentDecision(
+                QueryIntentEnum.REJECT, 1.0D, "命中非投研寒暄词", "你好", "RULE"
+        ));
+
+        List<ServerSentEvent<RecommendStreamEventDTO>> events = service.recommendStream("你好").collectList().block();
+
+        Assertions.assertNotNull(events);
+        Assertions.assertEquals(List.of("status", "evidence", "delta", "done"), events.stream().map(ServerSentEvent::event).toList());
+        Assertions.assertTrue(events.stream().anyMatch(event -> "delta".equals(event.event())
+                && event.data().text().contains("投研分析模式")));
+        verify(reportRetrievalService, never()).retrieve(any());
+        verify(qwenClient, never()).chatStream(any(), any());
     }
 
     /**
@@ -126,10 +190,12 @@ class ReportRecommendServiceTests {
      */
     private ReportRecommendService buildService(QwenClient qwenClient,
                                                 PromptTemplateService promptTemplateService,
-                                                ReportRetrievalService reportRetrievalService) {
+                                                ReportRetrievalService reportRetrievalService,
+                                                ResearchQueryIntentService intentService,
+                                                RecommendationEvidenceGuardrailService guardrailService) {
         ObjectProvider<StringRedisTemplate> redisTemplateProvider = mock(ObjectProvider.class);
         when(redisTemplateProvider.getIfAvailable()).thenReturn(null);
-        return new ReportRecommendService(redisTemplateProvider, qwenClient, promptTemplateService, reportRetrievalService);
+        return new ReportRecommendService(redisTemplateProvider, qwenClient, promptTemplateService, reportRetrievalService, intentService, guardrailService);
     }
 
     /**
@@ -150,5 +216,27 @@ class ReportRecommendServiceTests {
                 "sectionPath", "投资要点"
         ));
         return new ReportRetrievalService.RetrievedChunk(document, 0.9D, "child evidence", "parent evidence");
+    }
+
+    private ResearchQueryIntentService.QueryIntentDecision themeDecision(String query) {
+        return new ResearchQueryIntentService.QueryIntentDecision(QueryIntentEnum.THEME_RESEARCH, 0.9D, "命中主题词", query, "RULE");
+    }
+
+    private RecommendationEvidenceGuardrailService.EvidenceDecision themeEvidence() {
+        return new RecommendationEvidenceGuardrailService.EvidenceDecision(
+                RecommendationOutputLevelEnum.L2_THEME_RESEARCH,
+                new RecommendRespDTO.EvidenceQualityRespDTO(true, true, true, true, true, List.of()),
+                List.of(),
+                java.util.Set.of("储能")
+        );
+    }
+
+    private RecommendationEvidenceGuardrailService.EvidenceDecision missingEvidence() {
+        return new RecommendationEvidenceGuardrailService.EvidenceDecision(
+                RecommendationOutputLevelEnum.L1_INSUFFICIENT_OR_POLLUTED,
+                new RecommendRespDTO.EvidenceQualityRespDTO(false, false, false, false, false, List.of("EVIDENCE_MISSING")),
+                List.of("EVIDENCE_MISSING"),
+                java.util.Set.of()
+        );
     }
 }

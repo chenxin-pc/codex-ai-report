@@ -132,6 +132,12 @@
           <article class="analysis-panel">
             <div class="panel-block">
               <span>{{ result.streamStatus || 'Streaming Analysis' }}</span>
+              <small>
+                intent={{ result.inputIntent || '-' }} / level={{ result.outputLevel || '-' }}
+              </small>
+              <small v-if="result.degradationReasons?.length">
+                reasons={{ result.degradationReasons.join(', ') }}
+              </small>
               <p class="stream-text">{{ result.analysis || '等待模型输出...' }}</p>
             </div>
           </article>
@@ -526,7 +532,11 @@ const runRecommend = async () => {
     query: currentQuery,
     top5: [],
     analysis: '',
-    streamStatus: '准备分析'
+    streamStatus: '准备分析',
+    inputIntent: '',
+    outputLevel: '',
+    degradationReasons: [],
+    evidenceQuality: null
   }
 
   try {
@@ -625,6 +635,7 @@ const consumeSseFrame = (frame, requestId) => {
 
 const applyStreamEvent = (eventName, data, requestId) => {
   if (requestId !== streamRequestId || !result.value) return
+  applyGuardrailMetadata(data)
   if (eventName === 'status') {
     result.value.streamStatus = data.message || data.stage || '分析中'
     return
@@ -650,6 +661,14 @@ const applyStreamEvent = (eventName, data, requestId) => {
     result.value.streamStatus = '分析完成'
     loading.value = false
   }
+}
+
+const applyGuardrailMetadata = (data) => {
+  if (!data || !result.value) return
+  if (data.inputIntent) result.value.inputIntent = data.inputIntent
+  if (data.outputLevel) result.value.outputLevel = data.outputLevel
+  if (Array.isArray(data.degradationReasons)) result.value.degradationReasons = data.degradationReasons
+  if (data.evidenceQuality) result.value.evidenceQuality = data.evidenceQuality
 }
 
 const requestJson = async (url, options) => {

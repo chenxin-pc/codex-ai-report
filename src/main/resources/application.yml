@@ -87,6 +87,14 @@ app:
       min-similarity-score: ${REPORT_RETRIEVAL_MIN_SIMILARITY_SCORE:0.0}
       rerank-enabled: ${REPORT_RETRIEVAL_RERANK_ENABLED:false}
       max-parent-context-tokens: ${REPORT_RETRIEVAL_MAX_PARENT_CONTEXT_TOKENS:4500}
+    query-guardrail:
+      enabled: ${REPORT_QUERY_GUARDRAIL_ENABLED:true}
+      dictionary-path: ${REPORT_QUERY_GUARDRAIL_DICTIONARY_PATH:query-guardrail/}
+      rule-high-confidence-threshold: ${REPORT_QUERY_GUARDRAIL_RULE_HIGH_CONFIDENCE:0.8}
+      rule-low-confidence-threshold: ${REPORT_QUERY_GUARDRAIL_RULE_LOW_CONFIDENCE:0.6}
+      llm-fallback-enabled: ${REPORT_QUERY_GUARDRAIL_LLM_FALLBACK_ENABLED:true}
+      llm-confidence-threshold: ${REPORT_QUERY_GUARDRAIL_LLM_CONFIDENCE:0.7}
+      min-query-overlap-score: ${REPORT_QUERY_GUARDRAIL_MIN_QUERY_OVERLAP_SCORE:1}
   report-ingest-async:
     fixed-delay-ms: ${REPORT_INGEST_ASYNC_FIXED_DELAY_MS:3000}
     batch-size: ${REPORT_INGEST_ASYNC_BATCH_SIZE:5}
