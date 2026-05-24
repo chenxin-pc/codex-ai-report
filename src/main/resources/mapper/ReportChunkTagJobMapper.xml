@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.aimilvusweb.repository.ReportChunkTagJobMapper">
+
+    <resultMap id="ReportChunkTagJobResultMap" type="com.example.aimilvusweb.entity.ReportChunkTagJob">
+        <id property="id" column="id"/>
+        <result property="jobUid" column="job_uid"/>
+        <result property="reportId" column="report_id"/>
+        <result property="chunkUid" column="chunk_uid"/>
+        <result property="dictionaryVersion" column="dictionary_version"/>
+        <result property="status" column="status"/>
+        <result property="attemptCount" column="attempt_count"/>
+        <result property="maxAttempts" column="max_attempts"/>
+        <result property="lastError" column="last_error"/>
+        <result property="nextRunAt" column="next_run_at"/>
+        <result property="startedAt" column="started_at"/>
+        <result property="finishedAt" column="finished_at"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="updatedAt" column="updated_at"/>
+    </resultMap>
+
+    <insert id="insert" parameterType="com.example.aimilvusweb.entity.ReportChunkTagJob" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO report_chunk_tag_job(
+            job_uid,
+            report_id,
+            chunk_uid,
+            dictionary_version,
+            status,
+            attempt_count,
+            max_attempts,
+            last_error,
+            next_run_at,
+            started_at,
+            finished_at,
+            created_at,
+            updated_at
+        )
+        VALUES(
+            #{jobUid},
+            #{reportId},
+            #{chunkUid},
+            #{dictionaryVersion},
+            #{status},
+            #{attemptCount},
+            #{maxAttempts},
+            #{lastError},
+            #{nextRunAt},
+            #{startedAt},
+            #{finishedAt},
+            #{createdAt},
+            #{updatedAt}
+        )
+    </insert>
+
+    <select id="selectByChunkUidAndVersion" resultMap="ReportChunkTagJobResultMap">
+        SELECT id,
+               job_uid,
+               report_id,
+               chunk_uid,
+               dictionary_version,
+               status,
+               attempt_count,
+               max_attempts,
+               last_error,
+               next_run_at,
+               started_at,
+               finished_at,
+               created_at,
+               updated_at
+        FROM report_chunk_tag_job
+        WHERE chunk_uid = #{chunkUid}
+          AND dictionary_version = #{dictionaryVersion}
+    </select>
+
+    <select id="selectRunnableJobs" resultMap="ReportChunkTagJobResultMap">
+        SELECT id,
+               job_uid,
+               report_id,
+               chunk_uid,
+               dictionary_version,
+               status,
+               attempt_count,
+               max_attempts,
+               last_error,
+               next_run_at,
+               started_at,
+               finished_at,
+               created_at,
+               updated_at
+        FROM report_chunk_tag_job
+        WHERE status IN ('PENDING', 'FAILED')
+          AND next_run_at &lt;= #{now}
+          AND attempt_count &lt; max_attempts
+        ORDER BY next_run_at ASC, id ASC
+        LIMIT #{limit}
+    </select>
+
+    <update id="markProcessing">
+        UPDATE report_chunk_tag_job
+        SET status = 'PROCESSING',
+            attempt_count = attempt_count + 1,
+            started_at = #{now},
+            updated_at = #{now},
+            last_error = NULL
+        WHERE id = #{id}
+    </update>
+
+    <update id="markSucceeded">
+        UPDATE report_chunk_tag_job
+        SET status = 'SUCCEEDED',
+            finished_at = #{now},
+            updated_at = #{now},
+            last_error = NULL
+        WHERE id = #{id}
+    </update>
+
+    <update id="markFailed">
+        UPDATE report_chunk_tag_job
+        SET status = 'FAILED',
+            last_error = #{lastError},
+            next_run_at = #{nextRunAt},
+            finished_at = #{now},
+            updated_at = #{now}
+        WHERE id = #{id}
+    </update>
+
+</mapper>

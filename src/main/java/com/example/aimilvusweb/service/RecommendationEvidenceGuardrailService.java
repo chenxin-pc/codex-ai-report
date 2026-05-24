@@ -4,6 +4,8 @@ import com.example.aimilvusweb.config.ReportQualityProperties;
 import com.example.aimilvusweb.dto.RecommendRespDTO;
 import com.example.aimilvusweb.enums.QueryIntentEnum;
 import com.example.aimilvusweb.enums.RecommendationOutputLevelEnum;
+import com.example.aimilvusweb.service.ResearchQueryAnchorService.QueryAnchors;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.ai.document.Document;
 import org.springframework.stereotype.Service;
 
@@ -35,6 +37,8 @@ public class RecommendationEvidenceGuardrailService {
     private final QueryGuardrailDictionaryService dictionaryService;
     /** 研报质量配置，提供query相关性阈值等护栏参数。 */
     private final ReportQualityProperties reportQualityProperties;
+    /** query 锚点抽取服务，用于判断主题类问题是否被召回证据覆盖。 */
+    private final ResearchQueryAnchorService researchQueryAnchorService;
 
     /**
      * @Description: 初始化证据质量护栏依赖。
@@ -44,10 +48,26 @@ public class RecommendationEvidenceGuardrailService {
      * @author: cx
      * @Date: 2026-05-24 00:45:00
      */
+    @Autowired
     public RecommendationEvidenceGuardrailService(QueryGuardrailDictionaryService dictionaryService,
-                                                  ReportQualityProperties reportQualityProperties) {
+                                                  ReportQualityProperties reportQualityProperties,
+                                                  ResearchQueryAnchorService researchQueryAnchorService) {
         this.dictionaryService = dictionaryService;
         this.reportQualityProperties = reportQualityProperties;
+        this.researchQueryAnchorService = researchQueryAnchorService;
+    }
+
+    /**
+     * @Description: 兼容旧测试的证据护栏构造器。
+     * @Logic: 未注入 query 锚点服务时保留原有相关性和主体一致性判断，主题覆盖使用文本词典兜底。
+     * @Param: dictionaryService 本地词典服务；reportQualityProperties 研报质量配置。
+     * @Return: 无（仅初始化对象状态）。
+     * @author: cx
+     * @Date: 2026-05-24 00:00:00
+     */
+    public RecommendationEvidenceGuardrailService(QueryGuardrailDictionaryService dictionaryService,
+                                                  ReportQualityProperties reportQualityProperties) {
+        this(dictionaryService, reportQualityProperties, null);
     }
 
     /**
@@ -68,6 +88,8 @@ public class RecommendationEvidenceGuardrailService {
         boolean entityConsistent = isEntityConsistent(intent, entitySignals);
         boolean dataConsistent = isDataConsistent(intent, entitySignals, retrievedChunks);
         boolean citationComplete = evidencePresent && entityConsistent;
+        QueryAnchors anchors = extractAnchors(query);
+        boolean themeCovered = isThemeCovered(intent, anchors, retrievedChunks);
 
         if (!evidencePresent) {
             issues.add("EVIDENCE_MISSING");
@@ -84,14 +106,19 @@ public class RecommendationEvidenceGuardrailService {
         if (!citationComplete) {
             issues.add("CITATION_INCOMPLETE");
         }
+        if (!themeCovered) {
+            issues.add("LOW_THEME_COVERAGE");
+        }
 
-        RecommendationOutputLevelEnum outputLevel = resolveOutputLevel(intent, evidencePresent, queryRelevant, entityConsistent, dataConsistent, citationComplete);
+        RecommendationOutputLevelEnum outputLevel = resolveOutputLevel(intent, evidencePresent, queryRelevant, entityConsistent, dataConsistent, citationComplete, themeCovered);
         RecommendRespDTO.EvidenceQualityRespDTO quality = new RecommendRespDTO.EvidenceQualityRespDTO(
                 evidencePresent,
                 queryRelevant,
                 entityConsistent,
                 dataConsistent,
                 citationComplete,
+                themeCovered,
+                anchors.summary(),
                 List.copyOf(issues)
         );
         return new EvidenceDecision(outputLevel, quality, List.copyOf(issues), entitySignals.relatedTerms());
@@ -126,8 +153,9 @@ public class RecommendationEvidenceGuardrailService {
                                                              boolean queryRelevant,
                                                              boolean entityConsistent,
                                                              boolean dataConsistent,
-                                                             boolean citationComplete) {
-        if (!evidencePresent || !entityConsistent || !citationComplete) {
+                                                             boolean citationComplete,
+                                                             boolean themeCovered) {
+        if (!evidencePresent || !entityConsistent || !citationComplete || !themeCovered) {
             return RecommendationOutputLevelEnum.L1_INSUFFICIENT_OR_POLLUTED;
         }
         if (QueryIntentEnum.THEME_RESEARCH.equals(intent)) {
@@ -137,6 +165,94 @@ public class RecommendationEvidenceGuardrailService {
             return RecommendationOutputLevelEnum.L1_INSUFFICIENT_OR_POLLUTED;
         }
         return RecommendationOutputLevelEnum.L3_FULL_ANALYSIS;
+    }
+
+    /**
+     * @Description: 抽取 query 结构化锚点。
+     * @Logic: 优先使用结构化词库服务；服务未注入时返回空锚点，保持旧链路兼容。
+     * @Param: query 用户输入。
+     * @Return: query 锚点对象。
+     * @author: cx
+     * @Date: 2026-05-24 00:00:00
+     */
+    private QueryAnchors extractAnchors(String query) {
+        if (researchQueryAnchorService == null) {
+            return new QueryAnchors(List.of(), List.of(), List.of(), List.of(), List.of(), List.of());
+        }
+        return researchQueryAnchorService.extract(query);
+    }
+
+    /**
+     * @Description: 判断主题类 query 是否被召回证据覆盖。
+     * @Logic: 非主题研究不启用主题硬闸门；主题锚点存在时要求召回 metadata 覆盖对应主题或强相关行业/代码。
+     * @Param: intent 输入意图；anchors query 锚点；chunks 召回结果。
+     * @Return: 主题覆盖通过时返回 true。
+     * @author: cx
+     * @Date: 2026-05-24 00:00:00
+     */
+    private boolean isThemeCovered(QueryIntentEnum intent,
+                                   QueryAnchors anchors,
+                                   List<ReportRetrievalService.RetrievedChunk> chunks) {
+        if (!QueryIntentEnum.THEME_RESEARCH.equals(intent)) {
+            return true;
+        }
+        if (anchors.themeCodes().isEmpty() && anchors.industryCodes().isEmpty()) {
+            return true;
+        }
+        if (chunks == null || chunks.isEmpty()) {
+            return false;
+        }
+        for (ReportRetrievalService.RetrievedChunk chunk : chunks) {
+            if (metadataIntersects(chunk.document(), "themeCode", "themeCodes", anchors.themeCodes())) {
+                return true;
+            }
+            if (metadataIntersects(chunk.document(), "industryCode", "industryCodes", anchors.industryCodes())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * @Description: 判断文档 metadata 是否覆盖 query 锚点。
+     * @Logic: 同时兼容主标量字段和列表摘要字段；任一值相等即认为覆盖。
+     * @Param: document 召回文档；primaryKey 主标量字段；listKey 列表字段；expectedValues query 锚点值。
+     * @Return: metadata 覆盖锚点时返回 true。
+     * @author: cx
+     * @Date: 2026-05-24 00:00:00
+     */
+    private boolean metadataIntersects(Document document, String primaryKey, String listKey, List<String> expectedValues) {
+        if (expectedValues == null || expectedValues.isEmpty()) {
+            return false;
+        }
+        Set<String> actualValues = new LinkedHashSet<>();
+        actualValues.addAll(metadataValues(document.getMetadata().get(primaryKey)));
+        actualValues.addAll(metadataValues(document.getMetadata().get(listKey)));
+        return expectedValues.stream().anyMatch(actualValues::contains);
+    }
+
+    /**
+     * @Description: 从 metadata 值中抽取字符串集合。
+     * @Logic: 兼容 String、Iterable 和其他对象类型，统一转为字符串用于锚点比较。
+     * @Param: value metadata 原始值。
+     * @Return: 字符串值集合。
+     * @author: cx
+     * @Date: 2026-05-24 00:00:00
+     */
+    private Set<String> metadataValues(Object value) {
+        Set<String> values = new LinkedHashSet<>();
+        if (value instanceof Iterable<?> iterable) {
+            for (Object item : iterable) {
+                if (item != null && !String.valueOf(item).isBlank()) {
+                    values.add(String.valueOf(item));
+                }
+            }
+            return values;
+        }
+        if (value != null && !String.valueOf(value).isBlank()) {
+            values.add(String.valueOf(value));
+        }
+        return values;
     }
 
     /**

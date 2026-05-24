@@ -14,6 +14,8 @@ import java.util.List;
 import java.util.Map;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentCaptor.forClass;
+import org.mockito.ArgumentCaptor;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -64,5 +66,31 @@ class ReportRetrievalServiceTests {
 
         IllegalStateException exception = Assertions.assertThrows(IllegalStateException.class, () -> service.retrieve("query"));
         Assertions.assertTrue(exception.getMessage().contains("VectorStore is not configured"));
+    }
+
+    @Test
+    void shouldBuildMetadataFilterAndNormalizeDistanceScore() {
+        VectorStore vectorStore = mock(VectorStore.class);
+        ObjectProvider<VectorStore> vectorStoreProvider = mock(ObjectProvider.class);
+        ReportChunkMapper reportChunkMapper = mock(ReportChunkMapper.class);
+        ReportQualityProperties properties = new ReportQualityProperties();
+        ResearchQueryAnchorService anchorService = mock(ResearchQueryAnchorService.class);
+        com.example.aimilvusweb.repository.ReportChunkTagMapper tagMapper = mock(com.example.aimilvusweb.repository.ReportChunkTagMapper.class);
+        ReportRetrievalService service = new ReportRetrievalService(vectorStoreProvider, reportChunkMapper, properties, anchorService, tagMapper);
+
+        when(vectorStoreProvider.getIfAvailable()).thenReturn(vectorStore);
+        when(anchorService.extract("储能")).thenReturn(new ResearchQueryAnchorService.QueryAnchors(
+                List.of("STORAGE"), List.of(), List.of(), List.of(), List.of(), List.of("储能")
+        ));
+        when(vectorStore.similaritySearch(any(SearchRequest.class))).thenReturn(List.of(
+                new Document("storage evidence", Map.of("chunkUid", "c1", "parentChunkUid", "", "distance", 1.0D))
+        ));
+
+        List<ReportRetrievalService.RetrievedChunk> chunks = service.retrieve("储能");
+
+        ArgumentCaptor<SearchRequest> captor = forClass(SearchRequest.class);
+        org.mockito.Mockito.verify(vectorStore).similaritySearch(captor.capture());
+        Assertions.assertTrue(captor.getValue().hasFilterExpression());
+        Assertions.assertEquals(0.5D, chunks.get(0).score());
     }
 }

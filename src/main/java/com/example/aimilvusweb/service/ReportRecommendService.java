@@ -217,6 +217,10 @@ public class ReportRecommendService {
         List<TopResultRespDTO> topResults = new ArrayList<>();
         StringBuilder evidenceBuilder = new StringBuilder();
 
+        if (evidenceDecision.degradationReasons().contains("LOW_THEME_COVERAGE")) {
+            return new RecommendationContext(intentDecision, evidenceDecision, List.of(), "");
+        }
+
         for (int i = 0; i < retrievedChunks.size(); i++) {
             ReportRetrievalService.RetrievedChunk retrievedChunk = retrievedChunks.get(i);
             Document doc = retrievedChunk.document();
@@ -226,7 +230,9 @@ public class ReportRecommendService {
             String chunkUid = String.valueOf(doc.getMetadata().getOrDefault("chunkUid", ""));
             String parentChunkUid = String.valueOf(doc.getMetadata().getOrDefault("parentChunkUid", ""));
             topResults.add(new TopResultRespDTO(retrievedChunk.score(), title, retrievedChunk.chunkText(), source,
-                    sectionPath, chunkUid, parentChunkUid, retrievedChunk.evidenceText()));
+                    sectionPath, chunkUid, parentChunkUid, retrievedChunk.evidenceText(),
+                    metadataList(doc, "themeCodes"), metadataList(doc, "industryCodes"),
+                    metadataList(doc, "companyNames"), metadataList(doc, "tickers"), false));
             evidenceBuilder.append("[Chunk ").append(i + 1).append("] ")
                     .append("title=").append(title)
                     .append(", source=").append(source)
@@ -308,6 +314,9 @@ public class ReportRecommendService {
     private String buildL1Recommendation(RecommendationContext context) {
         if (context.degradationReasons().contains("EVIDENCE_MISSING")) {
             return EVIDENCE_MISSING_MESSAGE;
+        }
+        if (context.degradationReasons().contains("LOW_THEME_COVERAGE")) {
+            return "未检索到与当前主题锚点匹配的研报证据，无法基于现有召回结果生成可靠主题研究结论。请补充更明确的行业、公司或股票代码后重新分析。";
         }
         return "当前召回证据不足或存在污染，无法支撑完整投研结论。降级原因："
                 + String.join("、", context.degradationReasons())
@@ -512,6 +521,31 @@ public class ReportRecommendService {
      */
     private List<String> safeList(List<String> values) {
         return values == null ? List.of() : values;
+    }
+
+    /**
+     * @Description: 从文档 metadata 中读取字符串列表。
+     * @Logic: 兼容 List、数组和单值字符串；空值返回空列表，供 TopResult 展示标签摘要。
+     * @Param: document 召回文档；key metadata 字段名。
+     * @Return: 字符串列表。
+     * @author: cx
+     * @Date: 2026-05-24 00:00:00
+     */
+    private List<String> metadataList(Document document, String key) {
+        Object value = document.getMetadata().get(key);
+        if (value instanceof Iterable<?> iterable) {
+            List<String> values = new ArrayList<>();
+            for (Object item : iterable) {
+                if (item != null && !String.valueOf(item).isBlank()) {
+                    values.add(String.valueOf(item));
+                }
+            }
+            return values;
+        }
+        if (value != null && !String.valueOf(value).isBlank()) {
+            return List.of(String.valueOf(value));
+        }
+        return List.of();
     }
 
     /**

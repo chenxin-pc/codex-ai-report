@@ -20,6 +20,7 @@ import com.example.aimilvusweb.service.ReportOcrParseService.ReportOcrParseResul
 import com.example.aimilvusweb.service.ReportOcrParseService.OcrPageResult;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.VectorStore;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -93,6 +94,10 @@ public class ReportIngestService {
     private final ReportSemanticChunkService reportSemanticChunkService;
     private final ReportIngestFailureService reportIngestFailureService;
     private final ReportQualityProperties reportQualityProperties;
+    /** chunk 标签抽取 job 服务提供器，用于 chunk 落库后异步创建结构化标签任务。 */
+    private final ObjectProvider<ReportChunkTagJobService> reportChunkTagJobServiceProvider;
+    /** 向量 metadata 服务提供器，用于构建带结构化标签摘要的 Milvus Document。 */
+    private final ObjectProvider<ReportVectorMetadataSyncJobService> metadataSyncJobServiceProvider;
 
     /**
      * @Description: 初始化ReportIngestService依赖与运行所需组件。
@@ -101,6 +106,41 @@ public class ReportIngestService {
  * @Return: 详见返回类型；void 时为无（仅副作用）。
      * @author: cx
      * @Date: 2026-05-17 10:24:01
+     */
+    @Autowired
+    public ReportIngestService(ReportDocumentMapper reportDocumentMapper,
+                               ReportChunkMapper reportChunkMapper,
+                               ReportOcrPageMapper reportOcrPageMapper,
+                               ReportParagraphAtomMapper reportParagraphAtomMapper,
+                               ReportChunkDiagnosticMapper reportChunkDiagnosticMapper,
+                               ObjectProvider<VectorStore> vectorStoreProvider,
+                               ReportOcrParseService reportOcrParseService,
+                               ReportSemanticChunkService reportSemanticChunkService,
+                               ReportIngestFailureService reportIngestFailureService,
+                               ReportQualityProperties reportQualityProperties,
+                               ObjectProvider<ReportChunkTagJobService> reportChunkTagJobServiceProvider,
+                               ObjectProvider<ReportVectorMetadataSyncJobService> metadataSyncJobServiceProvider) {
+        this.reportDocumentMapper = reportDocumentMapper;
+        this.reportChunkMapper = reportChunkMapper;
+        this.reportOcrPageMapper = reportOcrPageMapper;
+        this.reportParagraphAtomMapper = reportParagraphAtomMapper;
+        this.reportChunkDiagnosticMapper = reportChunkDiagnosticMapper;
+        this.vectorStoreProvider = vectorStoreProvider;
+        this.reportOcrParseService = reportOcrParseService;
+        this.reportSemanticChunkService = reportSemanticChunkService;
+        this.reportIngestFailureService = reportIngestFailureService;
+        this.reportQualityProperties = reportQualityProperties;
+        this.reportChunkTagJobServiceProvider = reportChunkTagJobServiceProvider;
+        this.metadataSyncJobServiceProvider = metadataSyncJobServiceProvider;
+    }
+
+    /**
+     * @Description: 兼容旧测试的导入服务构造器。
+     * @Logic: 未提供标签 job 和 metadata sync 服务时，导入链路退化为原有 OCR/切片/向量流程。
+     * @Param: reportDocumentMapper 主档 Mapper；reportChunkMapper 切片 Mapper；reportOcrPageMapper OCR 页 Mapper；reportParagraphAtomMapper 段落 Mapper；reportChunkDiagnosticMapper 诊断 Mapper；vectorStoreProvider 向量库提供器；reportOcrParseService OCR 服务；reportSemanticChunkService 切片服务；reportIngestFailureService 失败记录服务；reportQualityProperties 质量配置。
+     * @Return: 无（仅初始化对象状态）。
+     * @author: cx
+     * @Date: 2026-05-24 00:00:00
      */
     public ReportIngestService(ReportDocumentMapper reportDocumentMapper,
                                ReportChunkMapper reportChunkMapper,
@@ -112,16 +152,9 @@ public class ReportIngestService {
                                ReportSemanticChunkService reportSemanticChunkService,
                                ReportIngestFailureService reportIngestFailureService,
                                ReportQualityProperties reportQualityProperties) {
-        this.reportDocumentMapper = reportDocumentMapper;
-        this.reportChunkMapper = reportChunkMapper;
-        this.reportOcrPageMapper = reportOcrPageMapper;
-        this.reportParagraphAtomMapper = reportParagraphAtomMapper;
-        this.reportChunkDiagnosticMapper = reportChunkDiagnosticMapper;
-        this.vectorStoreProvider = vectorStoreProvider;
-        this.reportOcrParseService = reportOcrParseService;
-        this.reportSemanticChunkService = reportSemanticChunkService;
-        this.reportIngestFailureService = reportIngestFailureService;
-        this.reportQualityProperties = reportQualityProperties;
+        this(reportDocumentMapper, reportChunkMapper, reportOcrPageMapper, reportParagraphAtomMapper,
+                reportChunkDiagnosticMapper, vectorStoreProvider, reportOcrParseService, reportSemanticChunkService,
+                reportIngestFailureService, reportQualityProperties, null, null);
     }
 
     /**
@@ -406,6 +439,7 @@ public class ReportIngestService {
             childChunk.setChunkIndex(i);
             reportChunkMapper.insert(childChunk);
             persistChunkDiagnostic(report, childSlice, childChunk.getChunkUid(), parentChunkUid, true, null);
+            enqueueChunkTagJob(childChunk);
             persistedChildChunks.add(childChunk);
         }
         for (ReportChunkSlice childSlice : chunks.children()) {
@@ -509,8 +543,13 @@ public class ReportIngestService {
      * @Date: 2026-05-17 10:24:01
      */
     private List<Document> buildVectorDocuments(ReportDocument report, List<ReportChunk> chunks) {
+        ReportVectorMetadataSyncJobService metadataService = metadataSyncJobServiceProvider == null ? null : metadataSyncJobServiceProvider.getIfAvailable();
         List<Document> vectorDocuments = new ArrayList<>();
         for (ReportChunk chunk : chunks) {
+            if (metadataService != null) {
+                vectorDocuments.add(metadataService.buildVectorDocument(report, chunk));
+                continue;
+            }
             Map<String, Object> metadata = new HashMap<>();
             metadata.put("reportId", report.getId());
             metadata.put("chunkId", chunk.getId());
@@ -528,9 +567,33 @@ public class ReportIngestService {
             metadata.put("source", report.getSource());
             metadata.put("institution", report.getInstitution() == null ? "" : report.getInstitution());
             metadata.put("publishDate", report.getPublishDate() == null ? "" : report.getPublishDate().toString());
-            vectorDocuments.add(new Document(chunk.getChunkText(), metadata));
+            metadata.put("themeCode", "");
+            metadata.put("industryCode", "");
+            metadata.put("companyName", "");
+            metadata.put("ticker", "");
+            metadata.put("themeCodes", List.of());
+            metadata.put("industryCodes", List.of());
+            metadata.put("companyNames", List.of());
+            metadata.put("tickers", List.of());
+            vectorDocuments.add(new Document(chunk.getChunkUid(), chunk.getChunkText(), metadata));
         }
         return vectorDocuments;
+    }
+
+    /**
+     * @Description: 为新落库的子切片创建结构化标签抽取 job。
+     * @Logic: 标签 job 服务存在时异步排队；服务不可用时跳过，避免影响 OCR/切片/向量主链路。
+     * @Param: chunk 新落库子切片。
+     * @Return: 无（仅创建标签抽取 job 副作用）。
+     * @author: cx
+     * @Date: 2026-05-24 00:00:00
+     */
+    private void enqueueChunkTagJob(ReportChunk chunk) {
+        // 通过 ObjectProvider 降级，避免测试或局部环境未装配标签服务时阻断导入主流程。
+        ReportChunkTagJobService tagJobService = reportChunkTagJobServiceProvider == null ? null : reportChunkTagJobServiceProvider.getIfAvailable();
+        if (tagJobService != null) {
+            tagJobService.enqueue(chunk);
+        }
     }
 
     /**

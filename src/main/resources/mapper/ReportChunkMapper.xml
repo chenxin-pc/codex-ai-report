@@ -138,6 +138,31 @@
         ORDER BY chunk_index ASC
     </select>
 
+    <select id="selectAllChildren" resultMap="ReportChunkResultMap">
+        SELECT id,
+               report_id,
+               chunk_index,
+               chunk_uid,
+               parent_chunk_uid,
+               chunk_type,
+               section_path,
+               chunk_text,
+               token_count,
+               page_number,
+               start_paragraph_id,
+               end_paragraph_id,
+               start_page_number,
+               end_page_number,
+               filter_reason,
+               diagnostics,
+               vector_stored,
+               created_at
+        FROM report_chunk
+        WHERE chunk_type = 'CHILD'
+        ORDER BY id ASC
+        LIMIT #{limit}
+    </select>
+
     <update id="updateVectorStoredByChunkUid">
         UPDATE report_chunk
         SET vector_stored = #{vectorStored}

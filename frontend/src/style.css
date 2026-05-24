@@ -500,6 +500,30 @@ textarea:focus {
   font-size: 13px;
 }
 
+.quality-grid {
+  display: grid;
+  gap: 8px;
+  margin: 12px 0 14px;
+}
+
+.quality-grid span {
+  padding: 8px 10px;
+  color: #27624f;
+  background: #e9f3ea;
+  border-radius: 6px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.quality-grid span.danger {
+  color: #9b352a;
+  background: #f8e6e1;
+}
+
+.compact-tags {
+  margin: 8px 0 10px;
+}
+
 .citation-line {
   font-size: 13px;
   line-height: 1.6;

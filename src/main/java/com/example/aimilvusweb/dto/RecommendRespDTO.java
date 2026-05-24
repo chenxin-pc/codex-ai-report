@@ -50,7 +50,7 @@ public record RecommendRespDTO(
     /**
      * @Description: 证据质量响应对象，描述召回证据是否足以支撑当前投研输出。
      * @Logic: 输出前降级服务填充这些布尔指标和问题码，前端与Prompt据此展示或约束回答强度。
-     * @Param: evidencePresent 是否存在证据；queryRelevant 是否与问题相关；entityConsistent 标的是否一致；dataConsistent 数据是否一致；citationComplete 引用是否完整；issues 质量问题码。
+     * @Param: evidencePresent 是否存在证据；queryRelevant 是否与问题相关；entityConsistent 标的是否一致；dataConsistent 数据是否一致；citationComplete 引用是否完整；themeCovered 主题覆盖是否通过；structuredAnchors 结构化锚点摘要；issues 质量问题码。
      */
     public record EvidenceQualityRespDTO(
             /** 是否存在可用证据文本。 */
@@ -63,8 +63,26 @@ public record RecommendRespDTO(
             boolean dataConsistent,
             /** 证据是否具备完整引用和主体锚定。 */
             boolean citationComplete,
+            /** 主题类 query 的召回证据是否覆盖对应主题锚点。 */
+            boolean themeCovered,
+            /** query 抽取出的结构化锚点摘要，用于前端解释和排障。 */
+            List<String> structuredAnchors,
             /** 证据质量问题码列表。 */
             List<String> issues
     ) {
+        /**
+         * @Description: 兼容旧调用方的证据质量构造器。
+         * @Logic: 旧链路不提供主题覆盖和结构化锚点时，默认主题覆盖通过且锚点为空，避免破坏既有测试。
+         * @Param: evidencePresent 是否存在证据；queryRelevant 是否相关；entityConsistent 主体是否一致；dataConsistent 数据是否一致；citationComplete 引用是否完整；issues 问题码。
+         * @Return: 无（record构造器）。
+         */
+        public EvidenceQualityRespDTO(boolean evidencePresent,
+                                      boolean queryRelevant,
+                                      boolean entityConsistent,
+                                      boolean dataConsistent,
+                                      boolean citationComplete,
+                                      List<String> issues) {
+            this(evidencePresent, queryRelevant, entityConsistent, dataConsistent, citationComplete, true, List.of(), issues);
+        }
     }
 }

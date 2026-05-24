@@ -138,6 +138,17 @@
               <small v-if="result.degradationReasons?.length">
                 reasons={{ result.degradationReasons.join(', ') }}
               </small>
+              <div v-if="result.evidenceQuality" class="quality-grid">
+                <span :class="{ danger: !result.evidenceQuality.themeCovered }">
+                  主题覆盖：{{ result.evidenceQuality.themeCovered ? '通过' : '未覆盖' }}
+                </span>
+                <span :class="{ danger: !result.evidenceQuality.queryRelevant }">
+                  相关性：{{ result.evidenceQuality.queryRelevant ? '通过' : '偏低' }}
+                </span>
+                <span v-if="result.evidenceQuality.structuredAnchors?.length">
+                  锚点：{{ result.evidenceQuality.structuredAnchors.join(' / ') }}
+                </span>
+              </div>
               <p class="stream-text">{{ result.analysis || '等待模型输出...' }}</p>
             </div>
           </article>
@@ -149,6 +160,10 @@
                 <span>{{ formatScore(item.score) }}</span>
               </header>
               <small>{{ item.source || 'unknown' }}</small>
+              <div v-if="hasEvidenceTags(item)" class="tag-group compact-tags">
+                <span v-for="tag in evidenceTags(item)" :key="tag">{{ tag }}</span>
+              </div>
+              <p v-if="item.diagnosticOnly" class="feedback danger">该候选仅用于检索诊断，不作为推荐证据。</p>
               <pre>{{ item.chunkText }}</pre>
             </article>
           </div>
@@ -670,6 +685,15 @@ const applyGuardrailMetadata = (data) => {
   if (Array.isArray(data.degradationReasons)) result.value.degradationReasons = data.degradationReasons
   if (data.evidenceQuality) result.value.evidenceQuality = data.evidenceQuality
 }
+
+const hasEvidenceTags = (item) => evidenceTags(item).length > 0
+
+const evidenceTags = (item) => [
+  ...(item.themeCodes || []).map((value) => `主题:${value}`),
+  ...(item.industryCodes || []).map((value) => `行业:${value}`),
+  ...(item.companyNames || []).map((value) => `公司:${value}`),
+  ...(item.tickers || []).map((value) => `代码:${value}`)
+]
 
 const requestJson = async (url, options) => {
   const response = await fetch(url, options)

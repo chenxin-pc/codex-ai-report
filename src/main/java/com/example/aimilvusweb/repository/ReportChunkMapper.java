@@ -48,6 +48,16 @@ public interface ReportChunkMapper {
     List<ReportChunk> selectByReportId(Long reportId);
 
     /**
+     * @Description: 查询全量子切片列表，供历史打标任务批量补偿使用。
+     * @Logic: 仅返回 CHILD chunk，并按 id 升序限制数量，避免单次任务过大。
+     * @Param: limit 返回数量上限。
+     * @Return: 子切片列表。
+     * @author: cx
+     * @Date: 2026-05-24 00:00:00
+     */
+    List<ReportChunk> selectAllChildren(@Param("limit") int limit);
+
+    /**
      * @Description: 执行selectChildrenByParentChunkUid相关业务处理。
  * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
  * @Param: 详见方法签名；无入参时为无。
