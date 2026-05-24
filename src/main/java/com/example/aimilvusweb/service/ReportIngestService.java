@@ -435,7 +435,8 @@ public class ReportIngestService {
         for (int i = 0; i < filteredChildren.size(); i++) {
             ReportChunkSlice childSlice = filteredChildren.get(i);
             String parentChunkUid = parentUidByIndex.get(childSlice.parentIndex());
-            ReportChunk childChunk = buildReportChunk(report, childSlice, newChunkUid(), parentChunkUid, true, null);
+            // CHILD 初次落库时必须标记为未向量化；仅在 ingestVectorStage 成功写入 Milvus 后再置为 true。
+            ReportChunk childChunk = buildReportChunk(report, childSlice, newChunkUid(), parentChunkUid, false, null);
             childChunk.setChunkIndex(i);
             reportChunkMapper.insert(childChunk);
             persistChunkDiagnostic(report, childSlice, childChunk.getChunkUid(), parentChunkUid, true, null);
