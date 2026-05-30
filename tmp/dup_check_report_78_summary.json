@@ -1,0 +1,9 @@
+{
+  "report_id": 78,
+  "mysql_child_total": 5,
+  "mysql_duplicate_text_group_count": 0,
+  "mysql_duplicate_rows": 0,
+  "milvus_total": 5,
+  "milvus_duplicate_text_group_count": 0,
+  "milvus_duplicate_rows": 0
+}

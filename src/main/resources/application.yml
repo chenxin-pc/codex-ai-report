@@ -1,6 +1,8 @@
 spring:
   application:
     name: codex-ai-report
+  config:
+    import: optional:file:.env[.properties]
   datasource:
     url: ${MYSQL_URL:jdbc:mysql://localhost:3306/ai_report_rag?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai}
     username: ${MYSQL_USERNAME:root}

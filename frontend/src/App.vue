@@ -5,33 +5,34 @@
         <span class="brand-mark">CR</span>
         <div>
           <strong>Codex Research</strong>
-          <small>研报语义分析台</small>
+          <small>投研分析台</small>
         </div>
       </div>
 
       <nav class="nav-list">
         <button class="nav-item" :class="{ active: activeMainTab === 'upload' }" type="button" @click="activeMainTab = 'upload'">
-          入库
+          研报入库
         </button>
         <button class="nav-item" :class="{ active: activeMainTab === 'query' }" type="button" @click="activeMainTab = 'query'">
-          检索
+          投研分析
         </button>
         <button class="nav-item" :class="{ active: activeMainTab === 'observation' }" type="button" @click="activeMainTab = 'observation'">
-          研报观测
+          研报库
         </button>
       </nav>
 
       <div class="runtime-panel">
         <span>运行状态</span>
         <strong>{{ runtimeText }}</strong>
+        <small>{{ runtimeHint }}</small>
       </div>
     </aside>
 
     <section class="workspace">
       <header class="workspace-header">
         <div>
-          <p class="eyebrow">Spring AI + Milvus + Qwen</p>
-          <h1>研报上传、语义切片与推荐分析</h1>
+          <p class="eyebrow">Research Workspace</p>
+          <h1>投研研报分析台</h1>
         </div>
         <div class="status-pill" :class="backendState">
           <span class="dot"></span>
@@ -39,76 +40,100 @@
         </div>
       </header>
 
-      <section v-if="activeMainTab === 'upload'" id="upload" class="band upload-band">
+      <section v-if="activeMainTab === 'upload'" class="band">
         <div class="section-heading">
           <span>01</span>
           <div>
-            <h2>上传研报</h2>
-            <p>PDF 会进入后端解析、语义切片、MySQL 元数据落库和 Milvus 向量入库流程。</p>
+            <h2>研报入库</h2>
+            <p>上传 PDF，补充基础信息与投研标签，提交后可查看任务状态。</p>
           </div>
         </div>
 
         <div class="upload-layout">
-          <label class="file-drop" :class="{ selected: selectedFile }">
-            <input type="file" accept="application/pdf" @change="onFileChange" />
-            <span class="file-icon">PDF</span>
-            <strong>{{ selectedFile ? selectedFile.name : '选择研报 PDF' }}</strong>
-            <small>{{ selectedFile ? formatBytes(selectedFile.size) : '支持券商研报、行业报告、公司深度 PDF' }}</small>
-          </label>
+          <article class="question-box">
+            <h3>文件</h3>
+            <label class="file-drop" :class="{ selected: selectedFile }">
+              <input type="file" accept="application/pdf" @change="onFileChange" />
+              <span class="file-icon">PDF</span>
+              <strong>{{ selectedFile ? selectedFile.name : '选择研报 PDF' }}</strong>
+              <small>{{ selectedFile ? formatBytes(selectedFile.size) : '支持券商研报、行业报告、公司深度 PDF' }}</small>
+            </label>
+          </article>
 
-          <form class="form-grid" @submit.prevent="uploadPdf">
-            <label>
-              <span>标题</span>
-              <input v-model.trim="uploadForm.title" placeholder="例如：新能源行业2026年度策略" />
-            </label>
-            <label>
-              <span>来源</span>
-              <input v-model.trim="uploadForm.source" placeholder="例如：券商研报" />
-            </label>
-            <label>
-              <span>机构</span>
-              <input v-model.trim="uploadForm.institution" placeholder="例如：中信证券" />
-            </label>
-            <label>
-              <span>发布日期</span>
-              <input v-model="uploadForm.publishDate" type="date" />
-            </label>
-            <label>
-              <span>主题</span>
-              <input v-model.trim="uploadForm.themeTags" placeholder="例如：STORAGE:储能，AI_COMPUTE:AI算力" />
-            </label>
-            <label>
-              <span>行业</span>
-              <input v-model.trim="uploadForm.industryTags" placeholder="例如：POWER_EQUIPMENT:电力设备" />
-            </label>
-            <label>
-              <span>公司</span>
-              <input v-model.trim="uploadForm.companyTags" placeholder="例如：宁德时代，比亚迪" />
-            </label>
-            <label>
-              <span>代码</span>
-              <input v-model.trim="uploadForm.tickerTags" placeholder="例如：300750.SZ，002594.SZ" />
-            </label>
-            <button class="primary-btn" :disabled="uploading" type="submit">
-              {{ uploading ? '正在入库...' : '上传并入库' }}
-            </button>
+          <form class="upload-form-stack" @submit.prevent="uploadPdf">
+            <article class="question-box">
+              <h3>基础信息</h3>
+              <div class="form-grid">
+                <label>
+                  <span>标题</span>
+                  <input v-model.trim="uploadForm.title" placeholder="例如：新能源行业2026年度策略" />
+                </label>
+                <label>
+                  <span>来源</span>
+                  <input v-model.trim="uploadForm.source" placeholder="例如：券商研报" />
+                </label>
+                <label>
+                  <span>机构</span>
+                  <input v-model.trim="uploadForm.institution" placeholder="例如：中信证券" />
+                </label>
+                <label>
+                  <span>发布日期</span>
+                  <input v-model="uploadForm.publishDate" type="date" />
+                </label>
+              </div>
+            </article>
+
+            <article class="question-box">
+              <h3>投研标签</h3>
+              <div class="form-grid">
+                <label>
+                  <span>主题</span>
+                  <input v-model.trim="uploadForm.themeTags" placeholder="例如：STORAGE:储能，AI_COMPUTE:AI算力" />
+                </label>
+                <label>
+                  <span>行业</span>
+                  <input v-model.trim="uploadForm.industryTags" placeholder="例如：POWER_EQUIPMENT:电力设备" />
+                </label>
+                <label>
+                  <span>公司</span>
+                  <input v-model.trim="uploadForm.companyTags" placeholder="例如：宁德时代，比亚迪" />
+                </label>
+                <label>
+                  <span>代码</span>
+                  <input v-model.trim="uploadForm.tickerTags" placeholder="例如：300750.SZ，002594.SZ" />
+                </label>
+              </div>
+              <div class="query-actions">
+                <button class="primary-btn" :disabled="uploading" type="submit">
+                  {{ uploading ? '正在入库...' : '上传并入库' }}
+                </button>
+              </div>
+            </article>
+
+            <article class="question-box">
+              <h3>入库任务状态</h3>
+              <div class="status-badge-row">
+                <span class="state-badge">{{ formatStageBadge('OCR', ingestJobStatus?.ocrStatus) }}</span>
+                <span class="state-badge">{{ formatStageBadge('切片', ingestJobStatus?.chunkStatus) }}</span>
+                <span class="state-badge">{{ formatStageBadge('向量', ingestJobStatus?.vectorStatus) }}</span>
+              </div>
+              <small class="panel-note">jobId：{{ latestJobId || '-' }}{{ ingestJobStatus?.reportId ? ` / reportId：${ingestJobStatus.reportId}` : '' }}</small>
+              <div class="query-actions">
+                <button class="ghost-btn" type="button" :disabled="!latestJobId" @click="checkLatestJob">查询最新任务状态</button>
+              </div>
+            </article>
           </form>
         </div>
 
         <p v-if="uploadMsg" class="feedback" :class="uploadTone">{{ uploadMsg }}</p>
-        <div class="query-actions">
-          <button class="ghost-btn" type="button" :disabled="!latestJobId" @click="checkLatestJob">
-            查询最新任务状态
-          </button>
-        </div>
       </section>
 
-      <section v-if="activeMainTab === 'query'" id="query" class="band query-band">
+      <section v-if="activeMainTab === 'query'" class="band">
         <div class="section-heading">
           <span>02</span>
           <div>
-            <h2>投研问题</h2>
-            <p>问题会先走 Milvus ANN 召回，再由 Qwen 基于证据流式输出分析。</p>
+            <h2>投研分析</h2>
+            <p>输入问题后，系统将召回相关证据并生成分析结论。</p>
           </div>
         </div>
 
@@ -116,26 +141,26 @@
           <div class="question-box">
             <textarea v-model.trim="query" rows="6" placeholder="输入你想分析的问题，例如：哪些研报看好储能板块，核心逻辑和风险是什么？"></textarea>
             <div class="query-actions">
-              <button class="primary-btn" :disabled="loading" @click="runRecommend">
-                {{ loading ? '分析中...' : '开始分析' }}
-              </button>
+              <button class="primary-btn" :disabled="loading" @click="runRecommend">{{ loading ? '分析中...' : '开始分析' }}</button>
               <button class="ghost-btn" @click="clearResult">清空</button>
             </div>
           </div>
 
-          <div class="template-list">
-            <button v-for="item in queryTemplates" :key="item" type="button" @click="query = item">
-              {{ item }}
-            </button>
+          <div class="template-list grouped">
+            <article v-for="group in queryTemplateGroups" :key="group.title" class="template-group">
+              <h3>{{ group.title }}</h3>
+              <button v-for="item in group.items" :key="item" type="button" @click="query = item">{{ item }}</button>
+            </article>
           </div>
         </div>
 
         <p v-if="errMsg" class="feedback danger">{{ errMsg }}</p>
+
         <div class="section-heading">
           <span>03</span>
           <div>
-            <h2>推荐结论</h2>
-            <p>左侧是模型结论，右侧是 Milvus 召回的 Top5 证据片段。</p>
+            <h2>分析结果</h2>
+            <p>结论、证据质量和证据片段分层展示，方便快速扫描与复核。</p>
           </div>
         </div>
 
@@ -147,25 +172,29 @@
         <div v-else class="result-layout">
           <article class="analysis-panel">
             <div class="panel-block">
-              <span>{{ result.streamStatus || 'Streaming Analysis' }}</span>
-              <small>
-                intent={{ result.inputIntent || '-' }} / level={{ result.outputLevel || '-' }}
-              </small>
-              <small v-if="result.degradationReasons?.length">
-                reasons={{ result.degradationReasons.join(', ') }}
-              </small>
-              <div v-if="result.evidenceQuality" class="quality-grid">
-                <span :class="{ danger: !result.evidenceQuality.themeCovered }">
-                  主题覆盖：{{ result.evidenceQuality.themeCovered ? '通过' : '未覆盖' }}
-                </span>
-                <span :class="{ danger: !result.evidenceQuality.queryRelevant }">
-                  相关性：{{ result.evidenceQuality.queryRelevant ? '通过' : '偏低' }}
-                </span>
-                <span v-if="result.evidenceQuality.structuredAnchors?.length">
-                  锚点：{{ result.evidenceQuality.structuredAnchors.join(' / ') }}
-                </span>
+              <span>分析状态：{{ analysisStatusText }}</span>
+              <small>{{ analysisMetaText }}</small>
+              <small v-if="analysisWarningText">{{ analysisWarningText }}</small>
+              <div class="query-actions compact">
+                <button class="ghost-btn small-btn" type="button" @click="copyAnalysis">复制结论</button>
               </div>
+            </div>
+
+            <div class="panel-block">
+              <h3>分析结论</h3>
               <p class="stream-text">{{ result.analysis || '等待模型输出...' }}</p>
+            </div>
+
+            <div class="panel-block">
+              <h3>证据质量</h3>
+              <div class="quality-grid">
+                <span>{{ qualityText.intent }}</span>
+                <span>{{ qualityText.level }}</span>
+                <span :class="{ danger: qualityText.themeDanger }">{{ qualityText.theme }}</span>
+                <span :class="{ danger: qualityText.relevanceDanger }">{{ qualityText.relevance }}</span>
+                <span v-if="qualityText.anchors">{{ qualityText.anchors }}</span>
+                <span v-if="qualityText.warning" class="danger">{{ qualityText.warning }}</span>
+              </div>
             </div>
           </article>
 
@@ -180,21 +209,26 @@
                 <span v-for="tag in evidenceTags(item)" :key="tag">{{ tag }}</span>
               </div>
               <p v-if="item.diagnosticOnly" class="feedback danger">该候选仅用于检索诊断，不作为推荐证据。</p>
-              <pre>{{ item.chunkText }}</pre>
+              <pre :class="{ collapsed: !expandedEvidence[idx] }">{{ item.chunkText || '-' }}</pre>
+              <div class="query-actions compact">
+                <button class="ghost-btn small-btn" type="button" @click="toggleEvidence(idx)">
+                  {{ expandedEvidence[idx] ? '收起证据' : '展开证据' }}
+                </button>
+              </div>
             </article>
           </div>
         </div>
-        <p v-if="errMsg" class="feedback danger">{{ errMsg }}</p>
       </section>
 
-      <section v-if="activeMainTab === 'observation'" id="observations" class="band result-band">
+      <section v-if="activeMainTab === 'observation'" class="band">
         <div class="section-heading">
           <span>04</span>
           <div>
-            <h2>全部研报</h2>
-            <p>查看已入库研报和最新导入状态，可一键跳转到处理链路观测。</p>
+            <h2>研报库</h2>
+            <p>默认查看研报列表，按需展开处理链路和切片对照。</p>
           </div>
         </div>
+
         <div class="observation-layout">
           <div class="question-box">
             <div class="form-grid">
@@ -213,24 +247,11 @@
               </button>
             </div>
             <div class="tab-group">
-              <button
-                type="button"
-                class="tab-btn"
-                :class="{ active: observationView === 'table' }"
-                @click="observationView = 'table'"
-              >
-                行列表
-              </button>
-              <button
-                type="button"
-                class="tab-btn"
-                :class="{ active: observationView === 'card' }"
-                @click="observationView = 'card'"
-              >
-                卡片
-              </button>
+              <button class="tab-btn" :class="{ active: observationView === 'table' }" type="button" @click="observationView = 'table'">行列表</button>
+              <button class="tab-btn" :class="{ active: observationView === 'card' }" type="button" @click="observationView = 'card'">卡片</button>
             </div>
           </div>
+
           <div class="observation-pane">
             <div v-if="observationView === 'table'" class="observation-table-wrap">
               <table class="observation-table">
@@ -238,7 +259,7 @@
                   <tr>
                     <th>ID</th>
                     <th>标题</th>
-                    <th>状态</th>
+                    <th>阶段状态</th>
                     <th>来源/机构</th>
                     <th>发布日期</th>
                     <th>错误</th>
@@ -249,43 +270,69 @@
                   <tr v-for="item in reportObservations" :key="item.reportId">
                     <td>#{{ item.reportId }}</td>
                     <td :title="item.title || '未命名研报'" class="nowrap-ellipsis">{{ item.title || '未命名研报' }}</td>
-                    <td>{{ item.ocrStatus || '-' }} / {{ item.chunkStatus || '-' }} / {{ item.vectorStatus || '-' }}</td>
+                    <td>
+                      <div class="status-badge-row">
+                        <span class="state-badge">{{ formatStageBadge('OCR', item.ocrStatus) }}</span>
+                        <span class="state-badge">{{ formatStageBadge('切片', item.chunkStatus) }}</span>
+                        <span class="state-badge">{{ formatStageBadge('向量', item.vectorStatus) }}</span>
+                      </div>
+                    </td>
                     <td>{{ item.source || '-' }} / {{ item.institution || '-' }}</td>
                     <td>{{ item.publishDate || '-' }}</td>
                     <td :title="item.lastErrorCode || '-'">{{ item.lastErrorCode || '-' }}</td>
                     <td>
-                      <button class="ghost-btn small-btn" type="button" @click="observeReport(item)">观测链路</button>
-                      <button class="ghost-btn small-btn" type="button" @click="observeChunks(item)">查询切片</button>
+                      <button class="ghost-btn small-btn" type="button" @click="selectReport(item)">查看摘要</button>
                     </td>
                   </tr>
                 </tbody>
               </table>
             </div>
+
             <div v-else class="evidence-list">
               <article v-for="item in reportObservations" :key="item.reportId" class="evidence-item">
                 <header>
                   <strong>#{{ item.reportId }} {{ truncateText(item.title || '未命名研报', 26) }}</strong>
-                  <span>{{ item.ocrStatus || '-' }} / {{ item.chunkStatus || '-' }} / {{ item.vectorStatus || '-' }}</span>
                 </header>
                 <small>{{ item.source || '-' }} / {{ item.institution || '-' }} / {{ item.publishDate || '-' }}</small>
-                <pre>error={{ item.lastErrorCode || '-' }}</pre>
-                <div class="query-actions">
-                  <button class="ghost-btn" type="button" @click="observeReport(item)">观测链路</button>
-                  <button class="ghost-btn" type="button" @click="observeChunks(item)">查询切片</button>
+                <div class="status-badge-row">
+                  <span class="state-badge">{{ formatStageBadge('OCR', item.ocrStatus) }}</span>
+                  <span class="state-badge">{{ formatStageBadge('切片', item.chunkStatus) }}</span>
+                  <span class="state-badge">{{ formatStageBadge('向量', item.vectorStatus) }}</span>
+                </div>
+                <p class="panel-note">错误：{{ item.lastErrorCode || '-' }}</p>
+                <div class="query-actions compact">
+                  <button class="ghost-btn small-btn" type="button" @click="selectReport(item)">查看摘要</button>
                 </div>
               </article>
             </div>
+
             <p v-if="!reportObservations.length && !observationLoading" class="feedback">暂无研报记录</p>
           </div>
         </div>
+
+        <article v-if="selectedReportSummary" class="question-box report-summary-card">
+          <h3>选中研报摘要</h3>
+          <strong>#{{ selectedReportSummary.reportId }} {{ selectedReportSummary.title || '未命名研报' }}</strong>
+          <small>{{ selectedReportSummary.source || '-' }} / {{ selectedReportSummary.institution || '-' }} / {{ selectedReportSummary.publishDate || '-' }}</small>
+          <p class="panel-note">错误：{{ selectedReportSummary.lastErrorCode || '-' }}</p>
+          <div class="status-badge-row">
+            <span class="state-badge">{{ formatStageBadge('OCR', selectedReportSummary.ocrStatus) }}</span>
+            <span class="state-badge">{{ formatStageBadge('切片', selectedReportSummary.chunkStatus) }}</span>
+            <span class="state-badge">{{ formatStageBadge('向量', selectedReportSummary.vectorStatus) }}</span>
+          </div>
+          <div class="query-actions">
+            <button class="ghost-btn" type="button" @click="observeReport(selectedReportSummary)">查看处理链路</button>
+            <button class="ghost-btn" type="button" @click="observeChunks(selectedReportSummary)">查看切片对照</button>
+          </div>
+        </article>
       </section>
 
-      <section v-if="activeMainTab === 'observation'" ref="timelineSectionRef" class="band result-band">
+      <section v-if="activeMainTab === 'observation' && showTimelinePanel" ref="timelineSectionRef" class="band">
         <div class="section-heading">
           <span>05</span>
           <div>
-            <h2>导入链路解释</h2>
-            <p>按阶段解释这篇研报经历了什么操作、数据状态如何变化、对后续有什么影响。</p>
+            <h2>处理链路</h2>
+            <p>优先展示导入链路解释卡，保留原始事件明细。</p>
           </div>
         </div>
         <div class="observation-layout">
@@ -301,11 +348,10 @@
               </label>
             </div>
             <div class="query-actions">
-              <button class="primary-btn" type="button" :disabled="timelineLoading" @click="loadTimeline">
-                {{ timelineLoading ? '查询中...' : '查询链路' }}
-              </button>
+              <button class="primary-btn" type="button" :disabled="timelineLoading" @click="loadTimeline">{{ timelineLoading ? '查询中...' : '查询链路' }}</button>
             </div>
           </div>
+
           <div class="chain-pane">
             <div v-if="chainObservation" class="chain-detail">
               <section class="report-summary">
@@ -453,29 +499,32 @@ diagnostics={{ item.diagnosticsPreview || '-' }}</pre>
 
               <details class="raw-events" v-if="stageEvents.length">
                 <summary>原始阶段事件（{{ stageEvents.length }}）</summary>
-                <article v-for="(item, idx) in stageEvents" :key="idx" class="mini-row">
-                  <strong>{{ item.stage }} / {{ item.status }} / {{ item.durationMs || 0 }}ms</strong>
-                  <pre>traceId={{ item.traceId || '-' }}  attempt={{ item.attempt }}  createdAt={{ formatDateTime(item.createdAt) }}
-errorCode={{ item.errorCode || '-' }}  error={{ truncateText(item.errorMessageShort, 80) }}</pre>
+                <article v-for="(item, idx) in stageEvents" :key="idx" class="evidence-item mini-row">
+                  <header>
+                    <strong>{{ item.stage }} / {{ item.status }}</strong>
+                    <span>{{ item.durationMs || 0 }}ms</span>
+                  </header>
+                  <p class="panel-note">traceId={{ item.traceId || '-' }} / attempt={{ item.attempt }} / error={{ item.errorCode || '-' }}</p>
                   <button class="ghost-btn small-btn" type="button" @click="openStageEventDetail(item)">查看全部</button>
                 </article>
               </details>
             </div>
+
             <div v-else class="empty-state">
               <strong>{{ chainLoading ? '正在加载链路解释' : '选择一篇研报' }}</strong>
-              <span>从上方列表点击“观测链路”，或输入 reportId 查询。</span>
+              <span>从上方列表点击“查看处理链路”，或输入 reportId 查询。</span>
             </div>
           </div>
         </div>
         <p v-if="observationMsg" class="feedback">{{ observationMsg }}</p>
       </section>
 
-      <section v-if="activeMainTab === 'observation'" ref="chunkObservationSectionRef" class="band result-band">
+      <section v-if="activeMainTab === 'observation' && showChunkPanel" ref="chunkObservationSectionRef" class="band">
         <div class="section-heading">
           <span>06</span>
           <div>
             <h2>切片前后对照</h2>
-            <p>展示每次切片前的原文（段落拼接）和切片后的文本，便于快速核查切片质量。</p>
+            <p>摘要优先展示，长文本可按需展开查看完整内容。</p>
           </div>
         </div>
         <p v-if="chunkObservationMsg" class="feedback">{{ chunkObservationMsg }}</p>
@@ -485,12 +534,7 @@ errorCode={{ item.errorCode || '-' }}  error={{ truncateText(item.errorMessageSh
               <strong>#{{ idx + 1 }} {{ item.chunkType || '-' }} / chunkIndex={{ item.chunkIndex ?? '-' }}</strong>
               <span>{{ item.tokenCount ?? '-' }} tokens</span>
             </header>
-            <small>
-              chunkUid={{ item.chunkUid || '-' }} / 段落={{ item.startParagraphId ?? '-' }}-{{ item.endParagraphId ?? '-' }} / 页码={{ item.startPageNumber ?? '-' }}-{{ item.endPageNumber ?? '-' }}
-            </small>
-            <small>
-              sectionPath={{ item.sectionPath || '-' }} / filterReason={{ item.filterReason || '-' }}
-            </small>
+            <small>chunkUid={{ item.chunkUid || '-' }} / 页码={{ item.startPageNumber ?? '-' }}-{{ item.endPageNumber ?? '-' }} / section={{ item.sectionPath || '-' }}</small>
             <p class="feedback" :class="item.sameContent ? 'success' : 'info'">{{ item.differenceSummary || '-' }}</p>
             <pre>切片前原文：
 {{ item.sourceParagraphText || '-' }}</pre>
@@ -514,7 +558,7 @@ errorCode={{ item.errorCode || '-' }}  error={{ truncateText(item.errorMessageSh
 </template>
 
 <script setup>
-import { computed, nextTick, onMounted, ref } from 'vue'
+import { computed, nextTick, onMounted, reactive, ref } from 'vue'
 
 const uploadForm = ref({
   title: '',
@@ -531,6 +575,8 @@ const uploading = ref(false)
 const uploadMsg = ref('')
 const uploadTone = ref('info')
 const latestJobId = ref('')
+const ingestJobStatus = ref(null)
+
 const stageEvents = ref([])
 const timelineQuery = ref({ reportId: '', titleKeyword: '' })
 const timelineSectionRef = ref(null)
@@ -549,6 +595,9 @@ const chainObservation = ref(null)
 const chainLoading = ref(false)
 const selectedIngestStage = ref('')
 const chunkTreeFilter = ref('all')
+const selectedReportSummary = ref(null)
+const showTimelinePanel = ref(false)
+const showChunkPanel = ref(false)
 
 const query = ref('')
 const loading = ref(false)
@@ -559,11 +608,20 @@ const streamController = ref(null)
 const activeMainTab = ref('upload')
 let streamRequestId = 0
 
-const queryTemplates = [
-  '哪些研报看好储能板块，核心逻辑和风险是什么？',
-  '请比较近期研报中对AI算力产业链的投资观点。',
-  '哪些公司盈利预测上调，主要驱动因素是什么？',
-  '请找出风险提示中反复出现的宏观或政策风险。'
+const expandedEvidence = reactive({})
+const queryTemplateGroups = [
+  {
+    title: '行业观点',
+    items: ['哪些研报看好储能板块，核心逻辑和风险是什么？', '请比较近期研报中对AI算力产业链的投资观点。']
+  },
+  {
+    title: '公司研究',
+    items: ['哪些公司盈利预测上调，主要驱动因素是什么？', '请比较宁德时代和比亚迪在储能产业链中的投资逻辑差异。']
+  },
+  {
+    title: '风险追踪',
+    items: ['请找出风险提示中反复出现的宏观或政策风险。', '哪些研报对估值与业绩错配给出了预警？']
+  }
 ]
 
 const statusText = computed(() => {
@@ -578,6 +636,33 @@ const runtimeText = computed(() => {
   if (loading.value && result.value?.streamStatus) return result.value.streamStatus
   if (selectedFile.value) return selectedFile.value.name
   return '前端代理 /api -> 8080'
+})
+
+const runtimeHint = computed(() => '检索与分析接口通过 /api 代理访问后端')
+
+const analysisStatusText = computed(() => result.value?.streamStatus || '等待分析')
+const analysisMetaText = computed(() => {
+  if (!result.value) return '尚未获得分析元数据'
+  return `查询意图：${mapIntent(result.value.inputIntent)} / 输出等级：${mapOutputLevel(result.value.outputLevel)}`
+})
+const analysisWarningText = computed(() => {
+  if (!result.value?.degradationReasons?.length) return ''
+  return `提醒：${result.value.degradationReasons.map(mapDegradationReason).join('；')}`
+})
+
+const qualityText = computed(() => {
+  const quality = result.value?.evidenceQuality || {}
+  const anchors = Array.isArray(quality.structuredAnchors) && quality.structuredAnchors.length ? `结构化锚点：${quality.structuredAnchors.join(' / ')}` : ''
+  return {
+    intent: `查询意图：${mapIntent(result.value?.inputIntent)}`,
+    level: `结论等级：${mapOutputLevel(result.value?.outputLevel)}`,
+    theme: `主题覆盖：${quality.themeCovered ? '充分' : '不足'}`,
+    relevance: `查询相关性：${quality.queryRelevant ? '较高' : '偏低'}`,
+    themeDanger: quality.themeCovered === false,
+    relevanceDanger: quality.queryRelevant === false,
+    anchors,
+    warning: analysisWarningText.value
+  }
 })
 
 const selectedIngestStageData = computed(() => {
@@ -607,6 +692,7 @@ const uploadPdf = async () => {
   uploading.value = true
   backendState.value = 'idle'
   setUploadMessage('', 'info')
+  ingestJobStatus.value = null
 
   try {
     const formData = new FormData()
@@ -623,7 +709,7 @@ const uploadPdf = async () => {
     const data = await requestJson('/api/reports/upload', { method: 'POST', body: formData })
     backendState.value = 'ok'
     latestJobId.value = data.jobId || ''
-    setUploadMessage('任务已提交', 'success')
+    setUploadMessage('任务已提交，可继续查询三阶段状态。', 'success')
   } catch (error) {
     backendState.value = 'error'
     setUploadMessage(`入库失败：${error.message}`, 'danger')
@@ -636,9 +722,9 @@ const checkLatestJob = async () => {
   if (!latestJobId.value) return
   try {
     const data = await requestJson(`/api/reports/ingest-jobs/${latestJobId.value}`)
+    ingestJobStatus.value = data
     setUploadMessage(
-      `任务状态：OCR=${data.ocrStatus} / CHUNK=${data.chunkStatus} / VECTOR=${data.vectorStatus}` +
-        (data.reportId ? `，reportId=${data.reportId}` : ''),
+      `已更新任务状态：${formatStageBadge('OCR', data.ocrStatus)} / ${formatStageBadge('切片', data.chunkStatus)} / ${formatStageBadge('向量', data.vectorStatus)}`,
       'info'
     )
   } catch (error) {
@@ -652,44 +738,19 @@ const loadTimeline = async () => {
   try {
     const reportId = timelineQuery.value.reportId
     const titleKeyword = timelineQuery.value.titleKeyword
-    const queryString = reportId
-      ? `reportId=${encodeURIComponent(reportId)}`
-      : `titleKeyword=${encodeURIComponent(titleKeyword)}&limit=50`
+    const queryString = reportId ? `reportId=${encodeURIComponent(reportId)}` : `titleKeyword=${encodeURIComponent(titleKeyword)}&limit=50`
     stageEvents.value = await requestJson(`/api/reports/ingest-stage-events?${queryString}`)
     if (reportId) {
       await loadIngestChainObservation(reportId)
+    } else {
+      chainObservation.value = null
     }
-    observationMsg.value = stageEvents.value.length
-      ? `已加载 ${stageEvents.value.length} 条链路事件`
-      : '未查询到链路事件'
+    observationMsg.value = stageEvents.value.length ? `已加载 ${stageEvents.value.length} 条链路事件` : '未查询到链路事件'
   } catch (error) {
     errMsg.value = `链路查询失败：${toUiErrorMessage(error, '后端服务可能未启动，请先启动 8080 后端')}`
   } finally {
     timelineLoading.value = false
   }
-}
-
-const loadObservations = async () => {
-  observationLoading.value = true
-  try {
-    const query = new URLSearchParams()
-    query.set('titleKeyword', observationQuery.value.titleKeyword || '')
-    query.set('limit', String(normalizeLimit(observationQuery.value.limit)))
-    reportObservations.value = await requestJson(`/api/reports/observations?${query.toString()}`)
-  } catch (error) {
-    errMsg.value = `研报列表加载失败：${toUiErrorMessage(error, '后端服务可能未启动，请先启动 8080 后端')}`
-  } finally {
-    observationLoading.value = false
-  }
-}
-
-const observeReport = async (item) => {
-  timelineQuery.value.reportId = String(item.reportId || '')
-  timelineQuery.value.titleKeyword = ''
-  observationMsg.value = `已选择 reportId=${timelineQuery.value.reportId}，正在查询链路...`
-  await loadTimeline()
-  await nextTick()
-  timelineSectionRef.value?.scrollIntoView({ behavior: 'smooth', block: 'start' })
 }
 
 const loadIngestChainObservation = async (reportId) => {
@@ -708,6 +769,37 @@ const loadIngestChainObservation = async (reportId) => {
   }
 }
 
+const loadObservations = async () => {
+  observationLoading.value = true
+  try {
+    const queryParam = new URLSearchParams()
+    queryParam.set('titleKeyword', observationQuery.value.titleKeyword || '')
+    queryParam.set('limit', String(normalizeLimit(observationQuery.value.limit)))
+    reportObservations.value = await requestJson(`/api/reports/observations?${queryParam.toString()}`)
+  } catch (error) {
+    errMsg.value = `研报列表加载失败：${toUiErrorMessage(error, '后端服务可能未启动，请先启动 8080 后端')}`
+  } finally {
+    observationLoading.value = false
+  }
+}
+
+const selectReport = (item) => {
+  selectedReportSummary.value = item
+  showTimelinePanel.value = false
+  showChunkPanel.value = false
+}
+
+const observeReport = async (item) => {
+  if (!item?.reportId) return
+  timelineQuery.value.reportId = String(item.reportId || '')
+  timelineQuery.value.titleKeyword = ''
+  showTimelinePanel.value = true
+  observationMsg.value = `已选择 reportId=${timelineQuery.value.reportId}，正在查询链路...`
+  await loadTimeline()
+  await nextTick()
+  timelineSectionRef.value?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+}
+
 const selectIngestStage = (stage) => {
   selectedIngestStage.value = stage
   if (stage !== 'CHUNK') {
@@ -722,15 +814,11 @@ const jumpToChunkCandidates = (filter) => {
 
 const visibleChildren = (parent) => {
   const children = parent?.children || []
-  if (chunkTreeFilter.value === 'pendingVector') {
-    return children.filter((child) => !child.vectorStored)
-  }
+  if (chunkTreeFilter.value === 'pendingVector') return children.filter((child) => !child.vectorStored)
   return children
 }
 
-const isStageFailed = (stage) => {
-  return String(stage?.status || '').includes('FAILED') || Boolean(stage?.errorCode)
-}
+const isStageFailed = (stage) => String(stage?.status || '').includes('FAILED') || Boolean(stage?.errorCode)
 
 const observeChunks = async (item) => {
   if (!item?.reportId) {
@@ -740,12 +828,11 @@ const observeChunks = async (item) => {
   chunkObservationLoading.value = true
   chunkObservationData.value = null
   chunkObservationMsg.value = `已选择 reportId=${item.reportId}，正在查询切片前后数据...`
+  showChunkPanel.value = true
   try {
     const data = await requestJson(`/api/reports/${encodeURIComponent(item.reportId)}/chunk-observation`)
     chunkObservationData.value = data
-    chunkObservationMsg.value = data?.chunkPairs?.length
-      ? `已加载 ${data.chunkPairs.length} 条切片对照数据`
-      : '暂无切片数据'
+    chunkObservationMsg.value = data?.chunkPairs?.length ? `已加载 ${data.chunkPairs.length} 条切片对照数据` : '暂无切片数据'
     await nextTick()
     chunkObservationSectionRef.value?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   } catch (error) {
@@ -783,6 +870,8 @@ const runRecommend = async () => {
     degradationReasons: [],
     evidenceQuality: null
   }
+
+  Object.keys(expandedEvidence).forEach((key) => delete expandedEvidence[key])
 
   try {
     await requestRecommendStream(currentQuery, controller.signal, requestId)
@@ -916,6 +1005,20 @@ const applyGuardrailMetadata = (data) => {
   if (data.evidenceQuality) result.value.evidenceQuality = data.evidenceQuality
 }
 
+const toggleEvidence = (index) => {
+  expandedEvidence[index] = !expandedEvidence[index]
+}
+
+const copyAnalysis = async () => {
+  if (!result.value?.analysis?.trim()) return
+  try {
+    await navigator.clipboard.writeText(result.value.analysis)
+    errMsg.value = ''
+  } catch {
+    errMsg.value = '复制失败：当前浏览器不支持剪贴板写入，请手动复制结论。'
+  }
+}
+
 const hasEvidenceTags = (item) => evidenceTags(item).length > 0
 
 const evidenceTags = (item) => [
@@ -961,6 +1064,49 @@ const normalizeLimit = (value) => {
   return Math.max(1, Math.min(200, Math.floor(parsed)))
 }
 
+const mapIntent = (value) => {
+  const mapping = {
+    INDUSTRY: '行业观点',
+    COMPANY: '公司研究',
+    RISK: '风险追踪',
+    COMPARISON: '对比分析'
+  }
+  return mapping[value] || value || '未识别'
+}
+
+const mapOutputLevel = (value) => {
+  const mapping = {
+    HIGH: '高可信结论',
+    MEDIUM: '中等可信结论',
+    LOW: '低可信结论',
+    SAFE: '保守输出'
+  }
+  return mapping[value] || value || '未标注'
+}
+
+const mapDegradationReason = (value) => {
+  const mapping = {
+    INSUFFICIENT_EVIDENCE: '有效证据不足',
+    LOW_RELEVANCE: '证据相关性偏低',
+    GUARDRAIL_TRIGGERED: '触发输出护栏'
+  }
+  return mapping[value] || value || '存在降级信息'
+}
+
+const formatStageBadge = (name, status) => {
+  return `${name}：${mapStageStatus(status)}`
+}
+
+const mapStageStatus = (status) => {
+  const normalized = String(status || '').toUpperCase()
+  if (!normalized) return '未开始'
+  if (normalized.includes('SUCCESS')) return '成功'
+  if (normalized.includes('FAILED') || normalized.includes('ERROR')) return '失败'
+  if (normalized.includes('RUNNING') || normalized.includes('PROCESS')) return '进行中'
+  if (normalized.includes('PENDING') || normalized.includes('WAIT')) return '等待中'
+  return status
+}
+
 onMounted(() => {
   loadObservations()
 })
@@ -975,8 +1121,8 @@ const formatDateTime = (value) => {
   return new Date(value).toLocaleString('zh-CN', { hour12: false })
 }
 
-const formatEventDetail = (item) => {
-  return [
+const formatEventDetail = (item) =>
+  [
     `traceId: ${item.traceId || '-'}`,
     `reportId: ${item.reportId || '-'}`,
     `reportTitle: ${item.reportTitle || '-'}`,
@@ -991,8 +1137,8 @@ const formatEventDetail = (item) => {
     `finishedAt: ${formatDateTime(item.finishedAt)}`,
     `createdAt: ${formatDateTime(item.createdAt)}`,
     `errorCode: ${item.errorCode || '-'}`,
-    `errorMessage: ${item.errorMessageShort || '-'}`].join('\n')
-}
+    `errorMessage: ${item.errorMessageShort || '-'}`
+  ].join('\n')
 
 const toUiErrorMessage = (error, fallbackMessage) => {
   const message = error?.message || ''
