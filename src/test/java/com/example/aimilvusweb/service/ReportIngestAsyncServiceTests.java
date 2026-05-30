@@ -7,6 +7,7 @@ import com.example.aimilvusweb.entity.IngestJob;
 import com.example.aimilvusweb.repository.IngestJobMapper;
 import com.example.aimilvusweb.repository.ReportDocumentMapper;
 import com.example.aimilvusweb.repository.ReportIngestStageEventMapper;
+import com.example.aimilvusweb.service.ingest.IngestStageExecutor;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -31,18 +32,14 @@ class ReportIngestAsyncServiceTests {
         IngestJobMapper ingestJobMapper = mock(IngestJobMapper.class);
         ReportIngestStageEventMapper stageEventMapper = mock(ReportIngestStageEventMapper.class);
         ReportDocumentMapper reportDocumentMapper = mock(ReportDocumentMapper.class);
-        ReportIngestService reportIngestService = mock(ReportIngestService.class);
-        ReportDocumentTagService reportDocumentTagService = mock(ReportDocumentTagService.class);
-        ResearchTaxonomySnapshotService taxonomySnapshotService = mock(ResearchTaxonomySnapshotService.class);
+        IngestStageExecutor ingestStageExecutor = mock(IngestStageExecutor.class);
         ReportIngestAsyncProperties properties = new ReportIngestAsyncProperties();
         properties.setSpoolDir("reports/test-ingest-spool");
         ReportIngestAsyncService service = new ReportIngestAsyncService(
                 ingestJobMapper,
                 stageEventMapper,
                 reportDocumentMapper,
-                reportIngestService,
-                reportDocumentTagService,
-                taxonomySnapshotService,
+                ingestStageExecutor,
                 properties,
                 "qwen-vl-ocr-latest",
                 "qwen-plus-latest",
@@ -69,17 +66,13 @@ class ReportIngestAsyncServiceTests {
         IngestJobMapper ingestJobMapper = mock(IngestJobMapper.class);
         ReportIngestStageEventMapper stageEventMapper = mock(ReportIngestStageEventMapper.class);
         ReportDocumentMapper reportDocumentMapper = mock(ReportDocumentMapper.class);
-        ReportIngestService reportIngestService = mock(ReportIngestService.class);
-        ReportDocumentTagService reportDocumentTagService = mock(ReportDocumentTagService.class);
-        ResearchTaxonomySnapshotService taxonomySnapshotService = mock(ResearchTaxonomySnapshotService.class);
+        IngestStageExecutor ingestStageExecutor = mock(IngestStageExecutor.class);
         ReportIngestAsyncProperties properties = new ReportIngestAsyncProperties();
         ReportIngestAsyncService service = new ReportIngestAsyncService(
                 ingestJobMapper,
                 stageEventMapper,
                 reportDocumentMapper,
-                reportIngestService,
-                reportDocumentTagService,
-                taxonomySnapshotService,
+                ingestStageExecutor,
                 properties,
                 "qwen-vl-ocr-latest",
                 "qwen-plus-latest",

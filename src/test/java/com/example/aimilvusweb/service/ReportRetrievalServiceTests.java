@@ -279,6 +279,80 @@ class ReportRetrievalServiceTests {
         Assertions.assertEquals(1, chunks.get(0).hitCount());
     }
 
+    @Test
+    void shouldUseChildExpansionWhenParentAggregationIsDisabled() {
+        VectorStore vectorStore = mock(VectorStore.class);
+        ObjectProvider<VectorStore> vectorStoreProvider = mock(ObjectProvider.class);
+        ReportChunkMapper reportChunkMapper = mock(ReportChunkMapper.class);
+        ReportQualityProperties properties = new ReportQualityProperties();
+        properties.getRetrieval().setParentAggregationEnabled(false);
+        properties.getRetrieval().setFinalTopK(2);
+        ReportRetrievalService service = new ReportRetrievalService(vectorStoreProvider, reportChunkMapper, properties);
+
+        when(vectorStoreProvider.getIfAvailable()).thenReturn(vectorStore);
+        when(vectorStore.similaritySearch(any(SearchRequest.class))).thenReturn(List.of(
+                new Document("first child", Map.of("chunkUid", "c1", "parentChunkUid", "p1", "score", 0.91D)),
+                new Document("second child", Map.of("chunkUid", "c2", "parentChunkUid", "p2", "score", 0.90D))
+        ));
+        when(reportChunkMapper.selectByChunkUid("p1")).thenReturn(chunk("p1", "parent one", 0));
+        when(reportChunkMapper.selectByChunkUid("p2")).thenReturn(chunk("p2", "parent two", 0));
+
+        List<ReportRetrievalService.RetrievedChunk> chunks = service.retrieve("逐条扩展");
+
+        Assertions.assertEquals(2, chunks.size());
+        Assertions.assertEquals("parent one", chunks.get(0).evidenceText());
+        Assertions.assertEquals("parent two", chunks.get(1).evidenceText());
+        Assertions.assertEquals(ReportRetrievalService.EvidenceContextType.TRUNCATED_PARENT, chunks.get(0).contextType());
+    }
+
+    @Test
+    void shouldRerankBeforeChildExpansionWhenRerankEnabled() {
+        VectorStore vectorStore = mock(VectorStore.class);
+        ObjectProvider<VectorStore> vectorStoreProvider = mock(ObjectProvider.class);
+        ReportChunkMapper reportChunkMapper = mock(ReportChunkMapper.class);
+        ReportQualityProperties properties = new ReportQualityProperties();
+        properties.getRetrieval().setParentAggregationEnabled(false);
+        properties.getRetrieval().setRerankEnabled(true);
+        ReportRetrievalService service = new ReportRetrievalService(vectorStoreProvider, reportChunkMapper, properties);
+
+        when(vectorStoreProvider.getIfAvailable()).thenReturn(vectorStore);
+        when(vectorStore.similaritySearch(any(SearchRequest.class))).thenReturn(List.of(
+                new Document("港口吞吐量改善", Map.of("chunkUid", "c1", "parentChunkUid", "p1", "score", 0.90D)),
+                new Document("储能风险包括价格波动", Map.of("chunkUid", "c2", "parentChunkUid", "p2", "score", 0.89D))
+        ));
+        when(reportChunkMapper.selectByChunkUid("p1")).thenReturn(chunk("p1", "港口父上下文", 0));
+        when(reportChunkMapper.selectByChunkUid("p2")).thenReturn(chunk("p2", "储能父上下文", 0));
+
+        List<ReportRetrievalService.RetrievedChunk> chunks = service.retrieve("储能风险");
+
+        Assertions.assertEquals("储能风险包括价格波动", chunks.get(0).chunkText());
+        Assertions.assertEquals("储能父上下文", chunks.get(0).evidenceText());
+    }
+
+    @Test
+    void shouldRerankBeforeParentAggregationWhenBothStrategiesEnabled() {
+        VectorStore vectorStore = mock(VectorStore.class);
+        ObjectProvider<VectorStore> vectorStoreProvider = mock(ObjectProvider.class);
+        ReportChunkMapper reportChunkMapper = mock(ReportChunkMapper.class);
+        ReportQualityProperties properties = new ReportQualityProperties();
+        properties.getRetrieval().setRerankEnabled(true);
+        properties.getRetrieval().setFinalTopK(2);
+        ReportRetrievalService service = new ReportRetrievalService(vectorStoreProvider, reportChunkMapper, properties);
+
+        when(vectorStoreProvider.getIfAvailable()).thenReturn(vectorStore);
+        when(vectorStore.similaritySearch(any(SearchRequest.class))).thenReturn(List.of(
+                new Document("港口吞吐量改善", Map.of("chunkUid", "c1", "parentChunkUid", "p1", "score", 0.90D)),
+                new Document("储能风险包括价格波动", Map.of("chunkUid", "c2", "parentChunkUid", "p2", "score", 0.90D))
+        ));
+        when(reportChunkMapper.selectByChunkUid("p1")).thenReturn(chunk("p1", "港口父上下文", 0));
+        when(reportChunkMapper.selectByChunkUid("p2")).thenReturn(chunk("p2", "储能父上下文", 0));
+
+        List<ReportRetrievalService.RetrievedChunk> chunks = service.retrieve("储能风险");
+
+        Assertions.assertEquals("p2", chunks.get(0).document().getMetadata().get("parentChunkUid"));
+        Assertions.assertEquals("储能父上下文", chunks.get(0).evidenceText());
+    }
+
     private ReportChunk chunk(String chunkUid, String text, int index) {
         ReportChunk chunk = new ReportChunk();
         chunk.setChunkUid(chunkUid);

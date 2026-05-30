@@ -6,6 +6,17 @@ import com.example.aimilvusweb.entity.ReportChunk;
 import com.example.aimilvusweb.repository.ReportChunkMapper;
 import com.example.aimilvusweb.repository.ReportChunkTagMapper;
 import com.example.aimilvusweb.repository.ReportDocumentTagMapper;
+import com.example.aimilvusweb.service.retrieval.ChildExpansionEvidenceContextStrategy;
+import com.example.aimilvusweb.service.retrieval.ParentAggregationEvidenceContextStrategy;
+import com.example.aimilvusweb.service.retrieval.NoopRerankStrategy;
+import com.example.aimilvusweb.service.retrieval.QueryOverlapRerankStrategy;
+import com.example.aimilvusweb.service.retrieval.RetrievalAnchorExtractor;
+import com.example.aimilvusweb.service.retrieval.RetrievalCandidateFilter;
+import com.example.aimilvusweb.service.retrieval.RetrievalCandidateMapper;
+import com.example.aimilvusweb.service.retrieval.RetrievalPipeline;
+import com.example.aimilvusweb.service.retrieval.RetrievalSearchRequestBuilder;
+import com.example.aimilvusweb.service.retrieval.RetrievedChunkDeduplicator;
+import com.example.aimilvusweb.service.retrieval.VectorSearchExecutor;
 import com.example.aimilvusweb.service.ResearchQueryAnchorService.QueryAnchors;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.SearchRequest;
@@ -47,6 +58,8 @@ public class ReportRetrievalService {
     private final ReportChunkTagMapper reportChunkTagMapper;
     /** 报告级标签 Mapper，用于 metadata 不同步时进行父标签主数据诊断。 */
     private final ReportDocumentTagMapper reportDocumentTagMapper;
+    /** 推荐召回 Pipeline，负责按固定顺序串联召回候选处理和证据上下文策略。 */
+    private final RetrievalPipeline retrievalPipeline;
 
     /**
      * @Description: 初始化ReportRetrievalService依赖与运行所需组件。
@@ -75,6 +88,22 @@ public class ReportRetrievalService {
         this.reportChunkTagMapper = reportChunkTagMapper;
         // 保存报告级标签 Mapper，在父标签 metadata 未命中时用于主数据诊断。
         this.reportDocumentTagMapper = reportDocumentTagMapper;
+        // 构建召回 Pipeline 与策略组件，保持 ReportRetrievalService 对外 Facade 不变。
+        RetrievedChunkDeduplicator deduplicator = new RetrievedChunkDeduplicator();
+        // Pipeline 内部按配置选择 rerank 和 evidence context 策略。
+        this.retrievalPipeline = new RetrievalPipeline(
+                reportQualityProperties,
+                new RetrievalAnchorExtractor(researchQueryAnchorService),
+                new RetrievalSearchRequestBuilder(),
+                new VectorSearchExecutor(vectorStoreProvider, reportChunkTagMapper, reportDocumentTagMapper),
+                new RetrievalCandidateMapper(),
+                new RetrievalCandidateFilter(reportQualityProperties),
+                deduplicator,
+                new NoopRerankStrategy(),
+                new QueryOverlapRerankStrategy(),
+                new ChildExpansionEvidenceContextStrategy(reportChunkMapper, reportQualityProperties),
+                new ParentAggregationEvidenceContextStrategy(reportChunkMapper, reportQualityProperties, deduplicator)
+        );
     }
 
     /**
@@ -116,61 +145,8 @@ public class ReportRetrievalService {
      * @Date: 2026-05-24 18:40:00
      */
     public List<RetrievedChunk> retrieve(String query) {
-        // 获取已配置的 VectorStore；未配置时直接抛出明确异常，避免静默返回空证据。
-        VectorStore vectorStore = requireVectorStore();
-        // 读取初始召回数量，并保证最小值为 1，避免向量库收到非法 topK。
-        int initialTopK = Math.max(reportQualityProperties.getRetrieval().getInitialTopK(), 1);
-        // 读取最终返回数量，并保证最小值为 1，避免截断逻辑返回异常。
-        int finalTopK = Math.max(reportQualityProperties.getRetrieval().getFinalTopK(), 1);
-        // 从 query 中抽取主题、行业、公司、代码和章节意图等结构化锚点。
-        QueryAnchors anchors = extractAnchors(query);
-        // 基于 query、TopK 和锚点构造 Milvus ANN + metadata scalar filter 请求。
-        SearchRequest searchRequest = buildSearchRequest(query, initialTopK, anchors);
-        // 调用向量库执行相似度检索，返回候选 Document 列表。
-        List<Document> docs = vectorStore.similaritySearch(searchRequest);
-        // 向量库无结果时触发标签主数据诊断，并返回空证据交给上层降级。
-        if (docs == null || docs.isEmpty()) {
-            // 诊断 Milvus metadata 未命中是否可能由标签尚未同步导致。
-            diagnoseMetadataFallback(anchors);
-            // 无 Milvus 证据时不从 MySQL 拼装伪证据，保证推荐输出来源可信。
-            return List.of();
-        }
-
-        // 初始化候选结果集合，后续逐条写入通过分数过滤的召回 chunk。
-        List<RetrievedChunk> candidates = new ArrayList<>();
-        // 遍历 Milvus 返回的每个候选 Document。
-        for (Document doc : docs) {
-            // 从 Document metadata 或 score 字段中解析统一相关性分数。
-            Double relevanceScore = resolveRelevanceScore(doc);
-            // 分数低于配置阈值时丢弃该候选，避免低相关证据进入模型。
-            if (shouldFilterByScore(relevanceScore)) {
-                // 跳过当前低分候选，继续处理下一条召回结果。
-                continue;
-            }
-            // 使用 Document 正文作为命中子切片文本；空正文统一转为空字符串。
-            String chunkText = doc.getText() == null ? "" : doc.getText();
-            // 候选阶段只保留命中 CHILD 文本；PARENT 聚合或兼容扩展会在候选去重、重排后统一执行。
-            candidates.add(new RetrievedChunk(doc, relevanceScore, chunkText, chunkText));
-        }
-
-        // 按身份和展示正文双重去重，避免同一切片或完全相同文本被重复返回。
-        List<RetrievedChunk> deduplicated = deduplicateRetrievedChunks(candidates);
-        // 当配置启用重排时，使用 query 与子切片字符重合度对候选重新排序。
-        if (reportQualityProperties.getRetrieval().isRerankEnabled()) {
-            // 用轻量重排结果替换原始向量相似度排序。
-            deduplicated = rerankByQueryOverlap(query, deduplicated);
-        }
-        // 按配置选择 PARENT 聚合上下文或兼容旧的逐 CHILD 扩展上下文。
-        if (reportQualityProperties.getRetrieval().isParentAggregationEnabled()) {
-            return aggregateParentEvidence(deduplicated, finalTopK);
-        }
-        return deduplicated.stream()
-                // 控制上层推荐和前端只看到最终数量的证据。
-                .limit(finalTopK)
-                // 为兼容旧链路逐条回查 PARENT 上下文。
-                .map(this::expandRetrievedChunk)
-                // 收集为列表作为召回服务输出。
-                .toList();
+        // 委托 Pipeline 按固定顺序执行锚点抽取、Milvus 召回、候选处理和证据上下文策略。
+        return retrievalPipeline.retrieve(query);
     }
 
     /**

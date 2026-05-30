@@ -1,6 +1,5 @@
 package com.example.aimilvusweb.service;
 
-import com.alibaba.fastjson2.JSON;
 import com.example.aimilvusweb.common.util.SemanticChunkUtils.ReportChunkSlice;
 import com.example.aimilvusweb.common.util.SemanticChunkUtils.ReportSemanticChunks;
 import com.example.aimilvusweb.common.util.SemanticChunkUtils.ParagraphAtom;
@@ -19,7 +18,9 @@ import com.example.aimilvusweb.repository.ReportOcrPageMapper;
 import com.example.aimilvusweb.repository.ReportParagraphAtomMapper;
 import com.example.aimilvusweb.service.ReportOcrParseService.ReportOcrParseResult;
 import com.example.aimilvusweb.service.ReportOcrParseService.OcrPageResult;
-import org.springframework.ai.document.Document;
+import com.example.aimilvusweb.service.ingest.ReportChunkFilterPolicy;
+import com.example.aimilvusweb.service.ingest.ReportVectorBatchWriter;
+import com.example.aimilvusweb.service.ingest.ReportVectorDocumentBuilder;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.ObjectProvider;
@@ -31,10 +32,8 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -48,43 +47,6 @@ import java.util.stream.Collectors;
  * @Date: 2026-05-17 10:24:01
  */
 public class ReportIngestService {
-    private static final int EMBEDDING_BATCH_SIZE = 10;
-    /**
-     * @Description: 章节路径关键词黑名单，命中后该切片会被判定为低价值内容并过滤。
-     * @Logic: 用于识别免责声明、分析师声明、联系方式等非投资研究正文内容，避免进入检索与向量库。
-     * @Param: 无。
-     * @Return: 无（仅常量定义）。
-     * @author: cx
-     * @Date: 2026-05-17 10:24:01
-     */
-    private static final Set<String> EXCLUDED_SECTION_KEYWORDS = Set.of(
-            "免责声明", "免责条款", "法律声明", "分析师承诺", "评级说明", "投资评级说明", "风险披露",
-            "分析师声明", "研究所联系方式", "联系方式", "券商简介", "机构介绍", "中邮证券研究所"
-    );
-    /**
-     * @Description: 语义段类型黑名单，命中后切片不会进入最终有效 chunk 集合。
-     * @Logic: 结合 LLM 返回的 segmentType 做快速过滤，拦截版式噪声和非业务正文。
-     * @Param: 无。
-     * @Return: 无（仅常量定义）。
-     * @author: cx
-     * @Date: 2026-05-17 10:24:01
-     */
-    private static final Set<String> EXCLUDED_SEGMENT_TYPES = Set.of(
-            "DISCLAIMER", "ANALYST_DECLARATION", "BROKER_PROFILE", "CONTACT_INFO", "LAYOUT_NOISE"
-    );
-    /**
-     * @Description: 财务表格主题关键词集合，用于“短文本但高价值财务内容”的豁免判断。
-     * @Logic: 当切片命中财务关键词时，即使文本较短或噪声特征偏高，也尽量保留进入检索链路。
-     * @Param: 无。
-     * @Return: 无（仅常量定义）。
-     * @author: cx
-     * @Date: 2026-05-17 10:24:01
-     */
-    private static final Set<String> FINANCIAL_TABLE_KEYWORDS = Set.of(
-            "盈利预测", "财务指标", "财务报表", "主要财务比率", "利润表", "资产负债表", "现金流量表",
-            "营业收入", "归母净利润", "每股收益", "EPS", "P/E", "P/B", "市盈率", "市净率"
-    );
-
     private final ReportDocumentMapper reportDocumentMapper;
     private final ReportChunkMapper reportChunkMapper;
     private final ReportOcrPageMapper reportOcrPageMapper;
@@ -94,11 +56,14 @@ public class ReportIngestService {
     private final ReportOcrParseService reportOcrParseService;
     private final ReportSemanticChunkService reportSemanticChunkService;
     private final ReportIngestFailureService reportIngestFailureService;
-    private final ReportQualityProperties reportQualityProperties;
     /** chunk 标签抽取 job 服务提供器，用于 chunk 落库后异步创建结构化标签任务。 */
     private final ObjectProvider<ReportChunkTagJobService> reportChunkTagJobServiceProvider;
-    /** 向量 metadata 服务提供器，用于构建带结构化标签摘要的 Milvus Document。 */
-    private final ObjectProvider<ReportVectorMetadataSyncJobService> metadataSyncJobServiceProvider;
+    /** chunk 过滤策略，用于判定切片是否保留并生成诊断。 */
+    private final ReportChunkFilterPolicy chunkFilterPolicy;
+    /** 向量文档构建器，用于生成 Milvus Document metadata。 */
+    private final ReportVectorDocumentBuilder vectorDocumentBuilder;
+    /** 向量批量写入器，用于控制单批写入规模。 */
+    private final ReportVectorBatchWriter vectorBatchWriter;
 
     /**
      * @Description: 初始化ReportIngestService依赖与运行所需组件。
@@ -120,7 +85,10 @@ public class ReportIngestService {
                                ReportIngestFailureService reportIngestFailureService,
                                ReportQualityProperties reportQualityProperties,
                                ObjectProvider<ReportChunkTagJobService> reportChunkTagJobServiceProvider,
-                               ObjectProvider<ReportVectorMetadataSyncJobService> metadataSyncJobServiceProvider) {
+                               ObjectProvider<ReportVectorMetadataSyncJobService> metadataSyncJobServiceProvider,
+                               ReportChunkFilterPolicy chunkFilterPolicy,
+                               ReportVectorDocumentBuilder vectorDocumentBuilder,
+                               ReportVectorBatchWriter vectorBatchWriter) {
         this.reportDocumentMapper = reportDocumentMapper;
         this.reportChunkMapper = reportChunkMapper;
         this.reportOcrPageMapper = reportOcrPageMapper;
@@ -130,9 +98,10 @@ public class ReportIngestService {
         this.reportOcrParseService = reportOcrParseService;
         this.reportSemanticChunkService = reportSemanticChunkService;
         this.reportIngestFailureService = reportIngestFailureService;
-        this.reportQualityProperties = reportQualityProperties;
         this.reportChunkTagJobServiceProvider = reportChunkTagJobServiceProvider;
-        this.metadataSyncJobServiceProvider = metadataSyncJobServiceProvider;
+        this.chunkFilterPolicy = chunkFilterPolicy;
+        this.vectorDocumentBuilder = vectorDocumentBuilder;
+        this.vectorBatchWriter = vectorBatchWriter;
     }
 
     /**
@@ -155,7 +124,10 @@ public class ReportIngestService {
                                ReportQualityProperties reportQualityProperties) {
         this(reportDocumentMapper, reportChunkMapper, reportOcrPageMapper, reportParagraphAtomMapper,
                 reportChunkDiagnosticMapper, vectorStoreProvider, reportOcrParseService, reportSemanticChunkService,
-                reportIngestFailureService, reportQualityProperties, null, null);
+                reportIngestFailureService, reportQualityProperties, null, null,
+                new ReportChunkFilterPolicy(reportQualityProperties),
+                new ReportVectorDocumentBuilder(null),
+                new ReportVectorBatchWriter());
     }
 
     /**
@@ -182,7 +154,7 @@ public class ReportIngestService {
             List<ReportChunk> persistedChildChunks = persistChunks(report, preparation.chunks());
             stage = "MILVUS";
             // 向量写入采用批量策略，降低单次请求体积并便于定位失败批次。
-            addVectorDocumentsInBatches(vectorStore, buildVectorDocuments(report, persistedChildChunks));
+            vectorBatchWriter.write(vectorStore, vectorDocumentBuilder.buildVectorDocuments(report, persistedChildChunks));
             return buildUploadResp(null, report, persistedChildChunks.size());
         } catch (RuntimeException e) {
             // 记录当前失败阶段用于运维排障与后续重试策略判定。
@@ -295,7 +267,7 @@ public class ReportIngestService {
         if (pendingChildren.isEmpty()) {
             return 0;
         }
-        addVectorDocumentsInBatches(vectorStore, buildVectorDocuments(report, pendingChildren));
+        vectorBatchWriter.write(vectorStore, vectorDocumentBuilder.buildVectorDocuments(report, pendingChildren));
         for (ReportChunk chunk : pendingChildren) {
             reportChunkMapper.updateVectorStoredByChunkUid(chunk.getChunkUid(), true);
         }
@@ -418,13 +390,13 @@ public class ReportIngestService {
      */
     private List<ReportChunk> persistChunks(ReportDocument report, ReportSemanticChunks chunks) {
         List<ReportChunkSlice> filteredParents = chunks.parents().stream()
-                .filter(this::shouldKeepSlice)
+                .filter(chunkFilterPolicy::shouldKeepSlice)
                 .toList();
         Map<Integer, String> parentUidByIndex = filteredParents.stream()
                 .collect(Collectors.toMap(ReportChunkSlice::parentIndex, ignored -> newChunkUid()));
 
         for (ReportChunkSlice parentSlice : chunks.parents()) {
-            String filterReason = resolveFilterReason(parentSlice);
+            String filterReason = chunkFilterPolicy.resolveFilterReason(parentSlice);
             String parentChunkUid = parentUidByIndex.get(parentSlice.parentIndex());
             if (filterReason == null) {
                 ReportChunk parentChunk = buildReportChunk(report, parentSlice, parentChunkUid, null, false, null);
@@ -437,7 +409,7 @@ public class ReportIngestService {
 
         List<ReportChunk> persistedChildChunks = new ArrayList<>();
         List<ReportChunkSlice> filteredChildren = chunks.children().stream()
-                .filter(this::shouldKeepSlice)
+                .filter(chunkFilterPolicy::shouldKeepSlice)
                 .filter(slice -> parentUidByIndex.containsKey(slice.parentIndex()))
                 .toList();
         for (int i = 0; i < filteredChildren.size(); i++) {
@@ -452,7 +424,7 @@ public class ReportIngestService {
             persistedChildChunks.add(childChunk);
         }
         for (ReportChunkSlice childSlice : chunks.children()) {
-            String filterReason = resolveFilterReason(childSlice);
+            String filterReason = chunkFilterPolicy.resolveFilterReason(childSlice);
             if (filterReason != null || !parentUidByIndex.containsKey(childSlice.parentIndex())) {
                 String reason = filterReason == null ? "PARENT_FILTERED" : filterReason;
                 persistChunkDiagnostic(report, childSlice, null, parentUidByIndex.get(childSlice.parentIndex()), false, reason);
@@ -490,7 +462,7 @@ public class ReportIngestService {
         chunk.setStartPageNumber(slice.startPageNumber());
         chunk.setEndPageNumber(slice.endPageNumber());
         chunk.setFilterReason(filterReason);
-        chunk.setDiagnostics(buildChunkDiagnostics(slice, filterReason));
+        chunk.setDiagnostics(chunkFilterPolicy.buildChunkDiagnostics(slice, filterReason));
         chunk.setVectorStored(vectorStored);
         chunk.setCreatedAt(Instant.now());
         return chunk;
@@ -525,7 +497,7 @@ public class ReportIngestService {
         diagnostic.setEndPageNumber(slice.endPageNumber());
         diagnostic.setKept(kept);
         diagnostic.setFilterReason(filterReason);
-        diagnostic.setDiagnostics(buildChunkDiagnostics(slice, filterReason));
+        diagnostic.setDiagnostics(chunkFilterPolicy.buildChunkDiagnostics(slice, filterReason));
         diagnostic.setChunkText(slice.text());
         diagnostic.setCreatedAt(Instant.now());
         reportChunkDiagnosticMapper.insert(diagnostic);
@@ -544,54 +516,6 @@ public class ReportIngestService {
     }
 
     /**
-     * @Description: 构建目标对象或请求数据。
- * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
- * @Param: 详见方法签名；无入参时为无。
- * @Return: 详见返回类型；void 时为无（仅副作用）。
-     * @author: cx
-     * @Date: 2026-05-17 10:24:01
-     */
-    private List<Document> buildVectorDocuments(ReportDocument report, List<ReportChunk> chunks) {
-        ReportVectorMetadataSyncJobService metadataService = metadataSyncJobServiceProvider == null ? null : metadataSyncJobServiceProvider.getIfAvailable();
-        List<Document> vectorDocuments = new ArrayList<>();
-        for (ReportChunk chunk : chunks) {
-            if (metadataService != null) {
-                vectorDocuments.add(metadataService.buildVectorDocument(report, chunk));
-                continue;
-            }
-            Map<String, Object> metadata = new HashMap<>();
-            metadata.put("reportId", report.getId());
-            metadata.put("chunkId", chunk.getId());
-            metadata.put("chunkUid", chunk.getChunkUid());
-            metadata.put("parentChunkUid", chunk.getParentChunkUid() == null ? "" : chunk.getParentChunkUid());
-            metadata.put("chunkType", chunk.getChunkType());
-            metadata.put("chunkIndex", chunk.getChunkIndex());
-            metadata.put("sectionPath", chunk.getSectionPath() == null ? "" : chunk.getSectionPath());
-            metadata.put("tokenCount", chunk.getTokenCount() == null ? 0 : chunk.getTokenCount());
-            metadata.put("startParagraphId", chunk.getStartParagraphId() == null ? 0 : chunk.getStartParagraphId());
-            metadata.put("endParagraphId", chunk.getEndParagraphId() == null ? 0 : chunk.getEndParagraphId());
-            metadata.put("startPageNumber", chunk.getStartPageNumber() == null ? 0 : chunk.getStartPageNumber());
-            metadata.put("endPageNumber", chunk.getEndPageNumber() == null ? 0 : chunk.getEndPageNumber());
-            metadata.put("title", report.getTitle());
-            metadata.put("source", report.getSource());
-            metadata.put("institution", report.getInstitution() == null ? "" : report.getInstitution());
-            metadata.put("publishDate", report.getPublishDate() == null ? "" : report.getPublishDate().toString());
-            metadata.put("reportThemeCode", "");
-            metadata.put("reportThemeCodes", List.of());
-            metadata.put("themeCode", "");
-            metadata.put("industryCode", "");
-            metadata.put("companyName", "");
-            metadata.put("ticker", "");
-            metadata.put("themeCodes", List.of());
-            metadata.put("industryCodes", List.of());
-            metadata.put("companyNames", List.of());
-            metadata.put("tickers", List.of());
-            vectorDocuments.add(new Document(chunk.getChunkUid(), chunk.getChunkText(), metadata));
-        }
-        return vectorDocuments;
-    }
-
-    /**
      * @Description: 为新落库的子切片创建结构化标签抽取 job。
      * @Logic: 标签 job 服务存在时异步排队；服务不可用时跳过，避免影响 OCR/切片/向量主链路。
      * @Param: chunk 新落库子切片。
@@ -605,159 +529,6 @@ public class ReportIngestService {
         if (tagJobService != null) {
             tagJobService.enqueue(chunk);
         }
-    }
-
-    /**
-     * @Description: 向目标集合追加处理结果。
- * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
- * @Param: 详见方法签名；无入参时为无。
- * @Return: 详见返回类型；void 时为无（仅副作用）。
-     * @author: cx
-     * @Date: 2026-05-17 10:24:01
-     */
-    private void addVectorDocumentsInBatches(VectorStore vectorStore, List<Document> documents) {
-        for (int start = 0; start < documents.size(); start += EMBEDDING_BATCH_SIZE) {
-            int end = Math.min(documents.size(), start + EMBEDDING_BATCH_SIZE);
-            vectorStore.add(documents.subList(start, end));
-        }
-    }
-
-    /**
-     * @Description: 执行shouldKeepSlice相关业务处理。
- * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
- * @Param: 详见方法签名；无入参时为无。
- * @Return: 详见返回类型；void 时为无（仅副作用）。
-     * @author: cx
-     * @Date: 2026-05-17 10:24:01
-     */
-    private boolean shouldKeepSlice(ReportChunkSlice slice) {
-        return resolveFilterReason(slice) == null;
-    }
-
-    /**
-     * @Description: 根据上下文解析并确定最终值。
- * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
- * @Param: 详见方法签名；无入参时为无。
- * @Return: 详见返回类型；void 时为无（仅副作用）。
-     * @author: cx
-     * @Date: 2026-05-17 10:24:01
-     */
-    private String resolveFilterReason(ReportChunkSlice slice) {
-        String segmentType = normalizedSegmentType(slice);
-        if (EXCLUDED_SEGMENT_TYPES.contains(segmentType)) {
-            return "EXCLUDED_SEGMENT_TYPE:" + segmentType;
-        }
-        String sectionPath = slice.sectionPath() == null ? "" : slice.sectionPath().trim();
-        if (!sectionPath.isBlank()) {
-            for (String keyword : EXCLUDED_SECTION_KEYWORDS) {
-                if (sectionPath.contains(keyword)) {
-                    return "EXCLUDED_SECTION:" + keyword;
-                }
-            }
-        }
-        return resolveLowSemanticReason(slice);
-    }
-
-    /**
-     * @Description: 根据上下文解析并确定最终值。
- * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
- * @Param: 详见方法签名；无入参时为无。
- * @Return: 详见返回类型；void 时为无（仅副作用）。
-     * @author: cx
-     * @Date: 2026-05-17 10:24:01
-     */
-    private String resolveLowSemanticReason(ReportChunkSlice slice) {
-        if (slice.tokenCount() < reportQualityProperties.getChunk().getMinSliceTokenCount()) {
-            return "LOW_TOKEN_COUNT:" + slice.tokenCount();
-        }
-        String text = slice.text() == null ? "" : slice.text();
-        if (isFinancialTableCandidate(slice)) {
-            return null;
-        }
-        String normalized = text.replaceAll("\\s+", "");
-        if (normalized.length() < 60) {
-            return "SHORT_TEXT:" + normalized.length();
-        }
-        int han = 0;
-        int digits = 0;
-        int symbols = 0;
-        for (int i = 0; i < normalized.length(); i++) {
-            char ch = normalized.charAt(i);
-            if (Character.UnicodeScript.of(ch) == Character.UnicodeScript.HAN) {
-                han++;
-            } else if (Character.isDigit(ch)) {
-                digits++;
-            } else if (!Character.isLetter(ch)) {
-                symbols++;
-            }
-        }
-        double hanRatio = han / (double) normalized.length();
-        double noiseRatio = (digits + symbols) / (double) normalized.length();
-        if (hanRatio < 0.20D) {
-            return "LOW_HAN_RATIO:" + hanRatio;
-        }
-        if (noiseRatio > 0.65D) {
-            return "HIGH_NOISE_RATIO:" + noiseRatio;
-        }
-        return null;
-    }
-
-    /**
-     * @Description: 构建目标对象或请求数据。
- * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
- * @Param: 详见方法签名；无入参时为无。
- * @Return: 详见返回类型；void 时为无（仅副作用）。
-     * @author: cx
-     * @Date: 2026-05-17 10:24:01
-     */
-    private String buildChunkDiagnostics(ReportChunkSlice slice, String filterReason) {
-        Map<String, Object> diagnostics = new HashMap<>();
-        diagnostics.put("startParagraphId", slice.startParagraphId());
-        diagnostics.put("endParagraphId", slice.endParagraphId());
-        diagnostics.put("startPageNumber", slice.startPageNumber());
-        diagnostics.put("endPageNumber", slice.endPageNumber());
-        diagnostics.put("segmentType", normalizedSegmentType(slice));
-        diagnostics.put("financialTableCandidate", isFinancialTableCandidate(slice));
-        diagnostics.put("filterReason", filterReason == null ? "" : filterReason);
-        return JSON.toJSONString(diagnostics);
-    }
-
-    /**
-     * @Description: 对输入数据进行规范化处理。
- * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
- * @Param: 详见方法签名；无入参时为无。
- * @Return: 详见返回类型；void 时为无（仅副作用）。
-     * @author: cx
-     * @Date: 2026-05-17 10:24:01
-     */
-    private String normalizedSegmentType(ReportChunkSlice slice) {
-        String segmentType = slice.segmentType();
-        if (segmentType == null || segmentType.isBlank()) {
-            return "OTHER";
-        }
-        return segmentType.trim().toUpperCase();
-    }
-
-    /**
-     * @Description: 判断是否满足FinancialTableCandidate条件。
- * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
- * @Param: 详见方法签名；无入参时为无。
- * @Return: 详见返回类型；void 时为无（仅副作用）。
-     * @author: cx
-     * @Date: 2026-05-17 10:24:01
-     */
-    private boolean isFinancialTableCandidate(ReportChunkSlice slice) {
-        String segmentType = normalizedSegmentType(slice);
-        if ("FINANCIAL_TABLE".equals(segmentType) || "FINANCIAL_FORECAST".equals(segmentType)) {
-            return true;
-        }
-        String haystack = ((slice.sectionPath() == null ? "" : slice.sectionPath()) + "\n" + (slice.text() == null ? "" : slice.text())).toUpperCase();
-        for (String keyword : FINANCIAL_TABLE_KEYWORDS) {
-            if (haystack.contains(keyword.toUpperCase())) {
-                return true;
-            }
-        }
-        return false;
     }
 
     /**
