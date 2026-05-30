@@ -6,6 +6,7 @@ import com.example.aimilvusweb.dto.RecommendStreamEventDTO;
 import com.example.aimilvusweb.dto.IngestMetricsRespDTO;
 import com.example.aimilvusweb.dto.IngestJobStatusRespDTO;
 import com.example.aimilvusweb.dto.ReportIngestStageEventRespDTO;
+import com.example.aimilvusweb.dto.ReportIngestChainObservationRespDTO;
 import com.example.aimilvusweb.dto.ReportChunkObservationRespDTO;
 import com.example.aimilvusweb.dto.ReportObservationRespDTO;
 import com.example.aimilvusweb.dto.ReportUploadRespDTO;
@@ -175,6 +176,19 @@ public class ReportController {
     @GetMapping("/{reportId}/chunk-observation")
     public ReportChunkObservationRespDTO chunkObservation(@PathVariable("reportId") Long reportId) {
         return reportQualityQueryService.getChunkObservationByReportId(reportId);
+    }
+
+    /**
+     * @Description: 查询指定研报的开发者导入链路解释视图。
+     * @Logic: Controller 只接收 reportId 并委托质量查询服务聚合报告主档、阶段事件、OCR、切片和向量状态。
+     * @Param: reportId 研报ID。
+     * @Return: 导入链路解释响应，包含阶段摘要、操作说明、前后状态、影响点和可展开明细。
+     * @author: cx
+     * @Date: 2026-05-30 00:00:00
+     */
+    @GetMapping("/{reportId}/ingest-chain-observation")
+    public ReportIngestChainObservationRespDTO ingestChainObservation(@PathVariable("reportId") Long reportId) {
+        return reportQualityQueryService.getIngestChainObservation(reportId);
     }
 
     /**

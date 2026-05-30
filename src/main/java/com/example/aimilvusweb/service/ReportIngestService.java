@@ -4,6 +4,7 @@ import com.alibaba.fastjson2.JSON;
 import com.example.aimilvusweb.common.util.SemanticChunkUtils.ReportChunkSlice;
 import com.example.aimilvusweb.common.util.SemanticChunkUtils.ReportSemanticChunks;
 import com.example.aimilvusweb.common.util.SemanticChunkUtils.ParagraphAtom;
+import com.example.aimilvusweb.common.util.TextEncodingRepairUtils;
 import com.example.aimilvusweb.config.ReportQualityProperties;
 import com.example.aimilvusweb.dto.ReportUploadRespDTO;
 import com.example.aimilvusweb.entity.ReportChunk;
@@ -358,13 +359,20 @@ public class ReportIngestService {
      */
     private ReportDocument persistReportDocument(MultipartFile file, String title, String source, String institution, LocalDate publishDate) {
         ReportDocument report = new ReportDocument();
-        report.setTitle((title == null || title.isBlank()) ? file.getOriginalFilename() : title.trim());
-        report.setSource((source == null || source.isBlank()) ? "uploaded" : source.trim());
-        report.setInstitution(institution == null ? null : institution.trim());
+        report.setTitle(repairMetadataText((title == null || title.isBlank()) ? file.getOriginalFilename() : title));
+        report.setSource(repairMetadataText((source == null || source.isBlank()) ? "uploaded" : source));
+        report.setInstitution(institution == null ? null : repairMetadataText(institution));
         report.setPublishDate(publishDate);
         report.setCreatedAt(Instant.now());
         reportDocumentMapper.insert(report);
         return report;
+    }
+
+    private String repairMetadataText(String value) {
+        if (value == null) {
+            return null;
+        }
+        return TextEncodingRepairUtils.repairMojibake(value.trim());
     }
 
     /**

@@ -1,5 +1,6 @@
 package com.example.aimilvusweb.service;
 
+import com.example.aimilvusweb.common.util.TextEncodingRepairUtils;
 import com.example.aimilvusweb.config.ReportIngestAsyncProperties;
 import com.example.aimilvusweb.dto.IngestJobStatusRespDTO;
 import com.example.aimilvusweb.dto.IngestMetricsRespDTO;
@@ -136,7 +137,7 @@ public class ReportIngestAsyncService {
             throw new IllegalArgumentException("Report file is required");
         }
         String jobUid = UUID.randomUUID().toString().replace("-", "");
-        String reportTitle = (title == null || title.isBlank()) ? file.getOriginalFilename() : title.trim();
+        String reportTitle = repairMetadataText((title == null || title.isBlank()) ? file.getOriginalFilename() : title);
         Instant now = Instant.now();
 
         Path spoolFile = persistUploadFile(jobUid, file);
@@ -145,8 +146,8 @@ public class ReportIngestAsyncService {
         job.setJobUid(jobUid);
         job.setReportTitleSnapshot(reportTitle);
         job.setTitleSearchKey(normalizeTitle(reportTitle));
-        job.setSource(source == null || source.isBlank() ? "uploaded" : source.trim());
-        job.setInstitution(institution == null ? null : institution.trim());
+        job.setSource(repairMetadataText(source == null || source.isBlank() ? "uploaded" : source));
+        job.setInstitution(institution == null ? null : repairMetadataText(institution));
         job.setPublishDate(publishDate);
         job.setThemeTags(normalizeOptionalTags(themeTags));
         job.setIndustryTags(normalizeOptionalTags(industryTags));
@@ -451,7 +452,20 @@ public class ReportIngestAsyncService {
      * @Return: 标准化后的标签文本。
      */
     private String normalizeOptionalTags(String value) {
-        return value == null || value.isBlank() ? null : value.trim();
+        return value == null || value.isBlank() ? null : repairMetadataText(value);
+    }
+
+    /**
+     * @Description: 修复上传元信息中可能出现的 UTF-8 误解码乱码。
+     * @Logic: 去除首尾空白后调用编码修复工具，正常文本保持原样。
+     * @Param: value 原始元信息文本。
+     * @Return: 可安全展示和入库的元信息文本。
+     */
+    private String repairMetadataText(String value) {
+        if (value == null) {
+            return null;
+        }
+        return TextEncodingRepairUtils.repairMojibake(value.trim());
     }
 
     /**

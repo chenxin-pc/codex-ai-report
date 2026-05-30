@@ -73,6 +73,16 @@ public class ReportQualityProperties {
         private boolean rerankEnabled = false;
         /** 父切片上下文最大 token 数，用于限制注入模型的上下文长度。 */
         private int maxParentContextTokens = 4500;
+        /** 是否启用按 PARENT 聚合推荐上下文。 */
+        private boolean parentAggregationEnabled = true;
+        /** 推荐上下文最多保留的 PARENT 证据组数量。 */
+        private int maxParentEvidenceGroups = 3;
+        /** 推荐 evidence context 的总 token 上限。 */
+        private int totalEvidenceContextTokens = 12000;
+        /** 超过该 token 数的 PARENT 使用 CHILD 覆盖窗口。 */
+        private int largeParentContextTokens = 4500;
+        /** 构建 CHILD 覆盖窗口时命中切片前后补充的同父切片数量。 */
+        private int childWindowNeighborCount = 1;
     }
 
     /**

@@ -17,10 +17,12 @@ import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * @Description: 研报召回服务，负责把用户 query 转为 Milvus ANN + metadata scalar filter 查询并返回可展示证据。
@@ -147,8 +149,8 @@ public class ReportRetrievalService {
             }
             // 使用 Document 正文作为命中子切片文本；空正文统一转为空字符串。
             String chunkText = doc.getText() == null ? "" : doc.getText();
-            // 保存子切片文本和父上下文扩展结果，供前端展示和模型证据拼接。
-            candidates.add(new RetrievedChunk(doc, relevanceScore, chunkText, expandContext(doc, chunkText)));
+            // 候选阶段只保留命中 CHILD 文本；PARENT 聚合或兼容扩展会在候选去重、重排后统一执行。
+            candidates.add(new RetrievedChunk(doc, relevanceScore, chunkText, chunkText));
         }
 
         // 按身份和展示正文双重去重，避免同一切片或完全相同文本被重复返回。
@@ -158,10 +160,15 @@ public class ReportRetrievalService {
             // 用轻量重排结果替换原始向量相似度排序。
             deduplicated = rerankByQueryOverlap(query, deduplicated);
         }
-        // 截断为最终 TopK 并返回不可变列表。
+        // 按配置选择 PARENT 聚合上下文或兼容旧的逐 CHILD 扩展上下文。
+        if (reportQualityProperties.getRetrieval().isParentAggregationEnabled()) {
+            return aggregateParentEvidence(deduplicated, finalTopK);
+        }
         return deduplicated.stream()
                 // 控制上层推荐和前端只看到最终数量的证据。
                 .limit(finalTopK)
+                // 为兼容旧链路逐条回查 PARENT 上下文。
+                .map(this::expandRetrievedChunk)
                 // 收集为列表作为召回服务输出。
                 .toList();
     }
@@ -476,6 +483,212 @@ public class ReportRetrievalService {
     }
 
     /**
+     * @Description: 按 PARENT 聚合召回候选并构建推荐生成上下文。
+     * @Logic: CHILD 候选仍作为召回和引用粒度；生成上下文按 parentChunkUid 去重、排序并受总 token 预算控制。
+     * @Param: candidates 去重和可选重排后的 CHILD 候选；finalTopK 兼容旧最终返回数量上限。
+     * @Return: PARENT 聚合后的召回证据组。
+     * @author: cx
+     * @Date: 2026-05-27 00:00:00
+     */
+    private List<RetrievedChunk> aggregateParentEvidence(List<RetrievedChunk> candidates, int finalTopK) {
+        if (candidates.isEmpty()) {
+            return List.of();
+        }
+        Map<String, ParentEvidenceAccumulator> groups = new LinkedHashMap<>();
+        for (int rank = 0; rank < candidates.size(); rank++) {
+            RetrievedChunk candidate = candidates.get(rank);
+            String parentChunkUid = metadataText(candidate.document(), "parentChunkUid");
+            String groupKey = parentChunkUid.isBlank() ? "child:" + identityDedupKey(candidate) + ":" + rank : "parent:" + parentChunkUid;
+            int firstRank = rank;
+            ParentEvidenceAccumulator accumulator = groups.computeIfAbsent(groupKey, ignored -> new ParentEvidenceAccumulator(parentChunkUid, firstRank));
+            accumulator.add(candidate, rank);
+        }
+
+        List<ParentEvidenceAccumulator> sortedGroups = groups.values().stream()
+                .sorted(Comparator.comparingInt(ParentEvidenceAccumulator::hitCount).reversed()
+                        .thenComparing(Comparator.comparingDouble(ParentEvidenceAccumulator::maxScore).reversed())
+                        .thenComparing(Comparator.comparingDouble(ParentEvidenceAccumulator::averageScore).reversed())
+                        .thenComparingInt(ParentEvidenceAccumulator::firstRank))
+                .toList();
+
+        int maxGroups = Math.max(1, Math.min(finalTopK, reportQualityProperties.getRetrieval().getMaxParentEvidenceGroups()));
+        int remainingTokens = Math.max(1, reportQualityProperties.getRetrieval().getTotalEvidenceContextTokens());
+        List<RetrievedChunk> selected = new ArrayList<>();
+        for (ParentEvidenceAccumulator group : sortedGroups) {
+            if (selected.size() >= maxGroups || remainingTokens <= 0) {
+                break;
+            }
+            RetrievedChunk retrievedChunk = buildParentEvidenceGroup(group, remainingTokens);
+            if (retrievedChunk.evidenceText().isBlank()) {
+                continue;
+            }
+            selected.add(retrievedChunk);
+            remainingTokens -= Math.max(1, SemanticChunkUtils.estimateTokens(retrievedChunk.evidenceText()));
+        }
+        return selected;
+    }
+
+    /**
+     * @Description: 将单个 PARENT 聚合组转换为 RetrievedChunk。
+     * @Logic: 小 PARENT 使用完整或截断上下文；超长或预算不足时退化为命中 CHILD 覆盖窗口。
+     * @Param: group PARENT 聚合候选；remainingTokens 当前剩余总 evidence token 预算。
+     * @Return: 可供推荐链路消费的聚合证据。
+     * @author: cx
+     * @Date: 2026-05-27 00:00:00
+     */
+    private RetrievedChunk buildParentEvidenceGroup(ParentEvidenceAccumulator group, int remainingTokens) {
+        RetrievedChunk representative = group.representative();
+        String parentChunkUid = group.parentChunkUid();
+        int parentBudget = Math.max(1, Math.min(reportQualityProperties.getRetrieval().getMaxParentContextTokens(), remainingTokens));
+        List<RetrievedChild> hitChildren = group.hitChildren();
+        if (parentChunkUid.isBlank()) {
+            String fallbackText = limitTokens(joinHitChildTexts(group.hits()), parentBudget);
+            return aggregateResult(representative, fallbackText, EvidenceContextType.CHILD_FALLBACK, hitChildren, true);
+        }
+
+        ReportChunk parentChunk = reportChunkMapper.selectByChunkUid(parentChunkUid);
+        if (parentChunk == null || parentChunk.getChunkText() == null || parentChunk.getChunkText().isBlank()) {
+            String fallbackText = limitTokens(joinHitChildTexts(group.hits()), parentBudget);
+            return aggregateResult(representative, fallbackText, EvidenceContextType.CHILD_FALLBACK, hitChildren, true);
+        }
+
+        String parentText = parentChunk.getChunkText();
+        int parentTokens = SemanticChunkUtils.estimateTokens(parentText);
+        if (parentTokens <= parentBudget && parentTokens <= reportQualityProperties.getRetrieval().getLargeParentContextTokens()) {
+            return aggregateResult(representative, parentText, EvidenceContextType.FULL_PARENT, hitChildren, false);
+        }
+        if (parentTokens <= reportQualityProperties.getRetrieval().getLargeParentContextTokens()) {
+            return aggregateResult(representative, limitTokens(parentText, parentBudget), EvidenceContextType.TRUNCATED_PARENT, hitChildren, true);
+        }
+        String childWindow = buildChildWindowContext(parentChunkUid, group.hits(), parentBudget);
+        return aggregateResult(representative, childWindow, EvidenceContextType.CHILD_WINDOW, hitChildren, true);
+    }
+
+    /**
+     * @Description: 为兼容旧配置逐条扩展召回候选的父上下文。
+     * @Logic: 关闭 PARENT 聚合时沿用每个 CHILD 单独回查 PARENT 的行为。
+     * @Param: candidate CHILD 候选。
+     * @Return: 带父上下文的召回结果。
+     * @author: cx
+     * @Date: 2026-05-27 00:00:00
+     */
+    private RetrievedChunk expandRetrievedChunk(RetrievedChunk candidate) {
+        String evidenceText = expandContext(candidate.document(), candidate.chunkText());
+        EvidenceContextType contextType = evidenceText.equals(candidate.chunkText()) ? EvidenceContextType.CHILD_FALLBACK : EvidenceContextType.TRUNCATED_PARENT;
+        return new RetrievedChunk(candidate.document(), candidate.score(), candidate.chunkText(), evidenceText, contextType,
+                List.of(new RetrievedChild(candidate.document(), candidate.score(), candidate.chunkText(), 0)),
+                1, candidate.score() == null ? 0D : candidate.score(), candidate.score() == null ? 0D : candidate.score(),
+                SemanticChunkUtils.estimateTokens(evidenceText) > reportQualityProperties.getRetrieval().getMaxParentContextTokens(), false);
+    }
+
+    /**
+     * @Description: 构建聚合召回结果。
+     * @Logic: 复用代表 CHILD 的 Document 和 chunkText，同时把聚合上下文、命中明细和诊断摘要写入返回值。
+     * @Param: representative 聚合组代表 CHILD；evidenceText 生成上下文；contextType 上下文来源类型；hitChildren 命中 CHILD 明细；truncated 是否截断或退化。
+     * @Return: 聚合后的 RetrievedChunk。
+     * @author: cx
+     * @Date: 2026-05-27 00:00:00
+     */
+    private RetrievedChunk aggregateResult(RetrievedChunk representative,
+                                           String evidenceText,
+                                           EvidenceContextType contextType,
+                                           List<RetrievedChild> hitChildren,
+                                           boolean truncated) {
+        double maxScore = hitChildren.stream().map(RetrievedChild::score).mapToDouble(score -> score == null ? 0D : score).max().orElse(0D);
+        double averageScore = hitChildren.stream().map(RetrievedChild::score).mapToDouble(score -> score == null ? 0D : score).average().orElse(0D);
+        return new RetrievedChunk(representative.document(), representative.score(), representative.chunkText(), evidenceText,
+                contextType, hitChildren, hitChildren.size(), maxScore, averageScore, truncated, false);
+    }
+
+    /**
+     * @Description: 构建命中 CHILD 及同父相邻 CHILD 的覆盖窗口。
+     * @Logic: 超长 PARENT 不直接整段入 Prompt，优先保留实际命中的 CHILD，再补充前后邻域。
+     * @Param: parentChunkUid 父切片 UID；hits 当前 PARENT 组内命中 CHILD；maxTokens 窗口 token 上限。
+     * @Return: CHILD 覆盖窗口文本。
+     * @author: cx
+     * @Date: 2026-05-27 00:00:00
+     */
+    private String buildChildWindowContext(String parentChunkUid, List<RetrievedChunk> hits, int maxTokens) {
+        List<ReportChunk> siblings = reportChunkMapper.selectChildrenByParentChunkUid(parentChunkUid);
+        if (siblings == null || siblings.isEmpty()) {
+            return limitTokens(joinHitChildTexts(hits), maxTokens);
+        }
+        Set<String> hitChunkUids = new HashSet<>();
+        for (RetrievedChunk hit : hits) {
+            String chunkUid = metadataText(hit.document(), "chunkUid");
+            if (!chunkUid.isBlank()) {
+                hitChunkUids.add(chunkUid);
+            }
+        }
+        if (hitChunkUids.isEmpty()) {
+            return limitTokens(joinHitChildTexts(hits), maxTokens);
+        }
+
+        int neighborCount = Math.max(0, reportQualityProperties.getRetrieval().getChildWindowNeighborCount());
+        Set<Integer> selectedIndexes = new HashSet<>();
+        for (int i = 0; i < siblings.size(); i++) {
+            ReportChunk sibling = siblings.get(i);
+            if (hitChunkUids.contains(sibling.getChunkUid())) {
+                int start = Math.max(0, i - neighborCount);
+                int end = Math.min(siblings.size() - 1, i + neighborCount);
+                for (int selectedIndex = start; selectedIndex <= end; selectedIndex++) {
+                    selectedIndexes.add(selectedIndex);
+                }
+            }
+        }
+        if (selectedIndexes.isEmpty()) {
+            return limitTokens(joinHitChildTexts(hits), maxTokens);
+        }
+
+        StringBuilder builder = new StringBuilder();
+        int tokens = 0;
+        for (int i = 0; i < siblings.size(); i++) {
+            if (!selectedIndexes.contains(i)) {
+                continue;
+            }
+            String text = siblings.get(i).getChunkText();
+            if (text == null || text.isBlank()) {
+                continue;
+            }
+            int textTokens = SemanticChunkUtils.estimateTokens(text);
+            if (tokens > 0 && tokens + textTokens > maxTokens) {
+                break;
+            }
+            if (!builder.isEmpty()) {
+                builder.append("\n\n");
+            }
+            builder.append(text.trim());
+            tokens += textTokens;
+        }
+        if (builder.isEmpty()) {
+            return limitTokens(joinHitChildTexts(hits), maxTokens);
+        }
+        return builder.toString();
+    }
+
+    /**
+     * @Description: 拼接同一聚合组内命中的 CHILD 文本。
+     * @Logic: 父切片缺失或 CHILD 窗口无法构建时使用实际命中内容兜底。
+     * @Param: hits 命中的 CHILD 候选。
+     * @Return: 拼接后的 CHILD 证据文本。
+     * @author: cx
+     * @Date: 2026-05-27 00:00:00
+     */
+    private String joinHitChildTexts(List<RetrievedChunk> hits) {
+        StringBuilder builder = new StringBuilder();
+        for (RetrievedChunk hit : hits) {
+            if (hit.chunkText() == null || hit.chunkText().isBlank()) {
+                continue;
+            }
+            if (!builder.isEmpty()) {
+                builder.append("\n\n");
+            }
+            builder.append(hit.chunkText().trim());
+        }
+        return builder.toString();
+    }
+
+    /**
      * @Description: 计算 query 和文本的字符重合分。
      * @Logic: query 为空或文本为空时返回 0；否则逐字符判断 query 字符是否出现在候选文本中。
      * @Param: query 规范化后的 query；text 规范化后的候选文本。
@@ -619,19 +832,125 @@ public class ReportRetrievalService {
     }
 
     /**
-     * @Description: 召回结果值对象，保存 Milvus 文档、相关性分数、子切片文本和父上下文文本。
+     * @Description: PARENT 聚合过程中的临时累加器。
+     * @Logic: 保存同一 parentChunkUid 下命中的 CHILD 候选和原始召回顺序，用于排序和上下文构建。
+     * @author: cx
+     * @Date: 2026-05-27 00:00:00
+     */
+    private static class ParentEvidenceAccumulator {
+        /** 父切片 UID，缺失时为空字符串。 */
+        private final String parentChunkUid;
+        /** 当前聚合组第一次出现的召回顺序。 */
+        private final int firstRank;
+        /** 当前聚合组内的命中 CHILD 候选。 */
+        private final List<RetrievedChunk> hits = new ArrayList<>();
+        /** 当前聚合组内每个 CHILD 的原始召回顺序。 */
+        private final List<Integer> ranks = new ArrayList<>();
+
+        private ParentEvidenceAccumulator(String parentChunkUid, int firstRank) {
+            this.parentChunkUid = parentChunkUid == null ? "" : parentChunkUid;
+            this.firstRank = firstRank;
+        }
+
+        private void add(RetrievedChunk hit, int rank) {
+            hits.add(hit);
+            ranks.add(rank);
+        }
+
+        private String parentChunkUid() {
+            return parentChunkUid;
+        }
+
+        private int firstRank() {
+            return firstRank;
+        }
+
+        private int hitCount() {
+            return hits.size();
+        }
+
+        private double maxScore() {
+            return hits.stream().map(RetrievedChunk::score).mapToDouble(score -> score == null ? 0D : score).max().orElse(0D);
+        }
+
+        private double averageScore() {
+            return hits.stream().map(RetrievedChunk::score).mapToDouble(score -> score == null ? 0D : score).average().orElse(0D);
+        }
+
+        private RetrievedChunk representative() {
+            return hits.stream()
+                    .max(Comparator.comparingDouble(hit -> hit.score() == null ? 0D : hit.score()))
+                    .orElse(hits.get(0));
+        }
+
+        private List<RetrievedChunk> hits() {
+            return hits;
+        }
+
+        private List<RetrievedChild> hitChildren() {
+            List<RetrievedChild> children = new ArrayList<>();
+            for (int i = 0; i < hits.size(); i++) {
+                RetrievedChunk hit = hits.get(i);
+                children.add(new RetrievedChild(hit.document(), hit.score(), hit.chunkText(), ranks.get(i)));
+            }
+            return List.copyOf(children);
+        }
+    }
+
+    /** 推荐上下文来源类型，用于区分完整 PARENT、截断 PARENT、CHILD 窗口和 CHILD 兜底。 */
+    public enum EvidenceContextType {
+        FULL_PARENT,
+        TRUNCATED_PARENT,
+        CHILD_WINDOW,
+        CHILD_FALLBACK
+    }
+
+    /**
+     * @Description: PARENT 聚合组内命中的 CHILD 明细。
+     * @Logic: 保留实际召回命中的 CHILD 文本、分数和原始顺序，供引用、展示和诊断使用。
+     * @Param: document 命中 CHILD 的 Milvus 文档；score 相关性分数；chunkText CHILD 文本；originalRank 原始召回顺序。
+     */
+    public record RetrievedChild(
+            Document document,
+            Double score,
+            String chunkText,
+            int originalRank
+    ) {
+    }
+
+    /**
+     * @Description: 召回结果值对象，保存 Milvus 文档、相关性分数、子切片文本和聚合后的生成上下文。
      * @Logic: ReportRecommendService 和证据护栏服务读取该对象，分别用于前端展示、Prompt 拼接和输出前质量判断。
-     * @Param: document 原始召回文档；score 相关性分数；chunkText 命中子切片文本；evidenceText 父切片上下文或兜底文本。
+     * @Param: document 原始召回文档；score 相关性分数；chunkText 命中子切片文本；evidenceText 聚合后的生成上下文。
      */
     public record RetrievedChunk(
             /** Milvus 返回的原始 Document，包含正文和 metadata。 */
             Document document,
             /** 召回相关性分数，可能来自 score、distance 转换或 Document score。 */
             Double score,
-            /** 命中的 CHILD 子切片文本，作为前端主展示文本。 */
+            /** 命中的 CHILD 子切片文本，作为前端主展示文本和引用定位。 */
             String chunkText,
-            /** 扩展后的证据文本，优先为父切片上下文，用于模型和护栏判断。 */
-            String evidenceText
+            /** 扩展后的证据文本，优先为 PARENT 聚合上下文，用于模型和护栏判断。 */
+            String evidenceText,
+            /** 生成上下文来源类型。 */
+            EvidenceContextType contextType,
+            /** 当前 PARENT 证据组内实际命中的 CHILD 明细。 */
+            List<RetrievedChild> hitChildren,
+            /** 当前证据组命中的 CHILD 数量。 */
+            int hitCount,
+            /** 当前证据组内最高相关性分数。 */
+            Double maxScore,
+            /** 当前证据组内平均相关性分数。 */
+            Double averageScore,
+            /** 当前证据上下文是否被截断或退化。 */
+            boolean truncated,
+            /** 是否仅用于诊断而非有效推荐证据。 */
+            boolean diagnosticOnly
     ) {
+        public RetrievedChunk(Document document, Double score, String chunkText, String evidenceText) {
+            this(document, score, chunkText, evidenceText, EvidenceContextType.CHILD_FALLBACK,
+                    List.of(new RetrievedChild(document, score, chunkText, 0)), 1,
+                    score == null ? 0D : score, score == null ? 0D : score, false, false);
+        }
     }
 }

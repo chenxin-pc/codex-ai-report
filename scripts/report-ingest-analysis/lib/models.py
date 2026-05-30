@@ -46,6 +46,10 @@ class QueryResult:
     recommendation: str = ""
     risks: list[str] = field(default_factory=list)
     citations: list[str] = field(default_factory=list)
+    input_intent: str = ""
+    output_level: str = ""
+    degradation_reasons: list[str] = field(default_factory=list)
+    evidence_quality: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass

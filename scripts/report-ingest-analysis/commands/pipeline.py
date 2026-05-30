@@ -58,6 +58,10 @@ class ReportInput:
     institution: str = ""
     publish_date: str = ""
     source_url: str = ""
+    theme_tags: str = ""
+    industry_tags: str = ""
+    company_tags: str = ""
+    ticker_tags: str = ""
     fingerprint: str = ""
     collect_status: str = "collected"
     error_summary: str = ""
@@ -208,6 +212,10 @@ def metadata_from_row(row: dict[str, str]) -> dict[str, str]:
         "publish_date": row.get("publishDate") or row.get("publish_date") or row.get("发布日期") or "",
         "url": row.get("url") or row.get("URL") or row.get("下载地址") or "",
         "file_name": row.get("fileName") or row.get("file_name") or row.get("文件名") or "",
+        "theme_tags": row.get("themeTags") or row.get("theme_tags") or row.get("theme") or row.get("主题") or "",
+        "industry_tags": row.get("industryTags") or row.get("industry_tags") or row.get("industry") or row.get("行业") or "",
+        "company_tags": row.get("companyTags") or row.get("company_tags") or row.get("company") or row.get("公司") or "",
+        "ticker_tags": row.get("tickerTags") or row.get("ticker_tags") or row.get("ticker") or row.get("code") or row.get("股票代码") or "",
     }
 
 
@@ -260,6 +268,51 @@ def read_url_manifest(path: Path) -> list[dict[str, str]]:
         return [{"url": line.strip()} for line in file if line.strip() and not line.strip().startswith("#")]
 
 
+def build_url_title_catalog(config: dict[str, Any], manifest_path: Path) -> dict[str, dict[str, str]]:
+    catalog: dict[str, dict[str, str]] = {}
+    candidates = [manifest_path]
+    reports_dir = Path(config.get("input", {}).get("reports_dir", "./reports"))
+    candidates.extend(sorted(reports_dir.glob("eastmoney_urls*.csv")))
+    seen: set[Path] = set()
+    for path in candidates:
+        if path in seen or not path.exists():
+            continue
+        seen.add(path)
+        try:
+            rows = read_url_manifest(path)
+        except (OSError, csv.Error, ValueError):
+            continue
+        for row in rows:
+            url = (row.get("url") or "").strip()
+            title = (row.get("title") or "").strip()
+            if not url or not title:
+                continue
+            key_url = url
+            key_name = Path(urllib.parse.urlparse(url).path).name
+            metadata = {
+                "title": title,
+                "source": (row.get("source") or "").strip(),
+                "institution": (row.get("institution") or "").strip(),
+                "publish_date": (row.get("publish_date") or "").strip(),
+                "theme_tags": (row.get("theme_tags") or "").strip(),
+                "industry_tags": (row.get("industry_tags") or "").strip(),
+                "company_tags": (row.get("company_tags") or "").strip(),
+                "ticker_tags": (row.get("ticker_tags") or "").strip(),
+            }
+            catalog[key_url] = metadata
+            if key_name:
+                catalog[key_name] = metadata
+    return catalog
+
+
+def looks_like_generated_title(title: str) -> bool:
+    text = (title or "").strip()
+    if not text:
+        return True
+    # Typical downloaded PDF stem: H3_AP202605171822381468_1
+    return re.fullmatch(r"H\d+_AP\d+_\d+", text) is not None
+
+
 def safe_download_name(url: str, index: int) -> str:
     parsed = urllib.parse.urlparse(url)
     name = Path(urllib.parse.unquote(parsed.path)).name
@@ -284,6 +337,7 @@ def collect_url_reports(config: dict[str, Any], state: RunState) -> list[ReportI
     download_dir = Path(input_config.get("download_dir", run_dir(config, state.run_id) / "downloads"))
     limit = int(input_config.get("limit", DEFAULT_LIMIT))
     rows = read_url_manifest(manifest_path)[:limit]
+    title_catalog = build_url_title_catalog(config, manifest_path)
 
     reports: list[ReportInput] = []
     for index, row in enumerate(rows, start=1):
@@ -294,13 +348,29 @@ def collect_url_reports(config: dict[str, Any], state: RunState) -> list[ReportI
         target = download_dir / safe_download_name(url, index)
         try:
             download_pdf(url, target)
+            key_name = target.name
+            catalog_hit = title_catalog.get(url) or title_catalog.get(key_name) or {}
+            title = row.get("title") or target.stem
+            if looks_like_generated_title(title) and catalog_hit.get("title"):
+                title = catalog_hit["title"]
+            source = row.get("source") or catalog_hit.get("source") or "url_manifest"
+            institution = row.get("institution") or catalog_hit.get("institution", "")
+            publish_date = row.get("publish_date") or catalog_hit.get("publish_date", "")
+            theme_tags = (row.get("theme_tags") or catalog_hit.get("theme_tags") or title or "").strip()
+            company_tags = (row.get("company_tags") or catalog_hit.get("company_tags") or institution or "").strip()
+            industry_tags = (row.get("industry_tags") or catalog_hit.get("industry_tags") or "").strip()
+            ticker_tags = (row.get("ticker_tags") or catalog_hit.get("ticker_tags") or "").strip()
             reports.append(ReportInput(
                 local_path=str(target),
-                title=row.get("title") or target.stem,
-                source=row.get("source") or "url_manifest",
-                institution=row.get("institution", ""),
-                publish_date=row.get("publish_date", ""),
+                title=title,
+                source=source,
+                institution=institution,
+                publish_date=publish_date,
                 source_url=url,
+                theme_tags=theme_tags,
+                industry_tags=industry_tags,
+                company_tags=company_tags,
+                ticker_tags=ticker_tags,
                 fingerprint=sha256_file(target),
                 collect_status="downloaded",
             ))
@@ -320,12 +390,10 @@ def collect_url_reports(config: dict[str, Any], state: RunState) -> list[ReportI
 
 def collect_inputs(config: dict[str, Any], state: RunState) -> list[ReportInput]:
     mode = config.get("input", {}).get("mode", "local_dir")
-    if mode == "local_dir":
-        reports = collect_local_reports(config)
-    elif mode == "url_manifest":
+    if mode == "url_manifest":
         reports = collect_url_reports(config, state)
     else:
-        raise ValueError(f"Unsupported input mode: {mode}")
+        raise ValueError("Unsupported input mode. This pipeline now requires input.mode=url_manifest (link-based ingest).")
     if len(reports) < int(config.get("input", {}).get("limit", DEFAULT_LIMIT)):
         print(f"Collected {len(reports)} reports; fewer than configured limit.")
     state.input_manifest = [asdict(report) for report in reports]
@@ -384,13 +452,23 @@ def upload_report(config: dict[str, Any], report: ReportInput) -> dict[str, Any]
     pdf_path = Path(report.local_path)
     if not pdf_path.exists():
         raise FileNotFoundError(f"PDF not found: {pdf_path}")
+    if not report.source_url:
+        raise ValueError("source_url is required. This pipeline only supports link-based ingest.")
     fields = {
         "title": report.title,
-        "source": report.source or report.source_url or "script",
+        "source": report.source or "url_manifest",
         "institution": report.institution,
     }
     if report.publish_date:
         fields["publishDate"] = report.publish_date
+    if report.theme_tags:
+        fields["themeTags"] = report.theme_tags
+    if report.industry_tags:
+        fields["industryTags"] = report.industry_tags
+    if report.company_tags:
+        fields["companyTags"] = report.company_tags
+    if report.ticker_tags:
+        fields["tickerTags"] = report.ticker_tags
     body, content_type = multipart_form(fields, "file", pdf_path)
     request = urllib.request.Request(endpoint, data=body, headers={"Content-Type": content_type}, method="POST")
     with urllib.request.urlopen(request, timeout=900) as response:
@@ -403,6 +481,7 @@ def upload_report(config: dict[str, Any], report: ReportInput) -> dict[str, Any]
 def ingest_reports(config: dict[str, Any], state: RunState, reports: list[ReportInput], force: bool) -> list[ReportResult]:
     previous_success = successful_fingerprints(config, state.run_id)
     continue_on_error = bool(config.get("runtime", {}).get("continue_on_error", True))
+    existing_titles, existing_urls = existing_title_url_keys(config)
     results: list[ReportResult] = []
 
     for index, report in enumerate(reports, start=1):
@@ -424,6 +503,13 @@ def ingest_reports(config: dict[str, Any], state: RunState, reports: list[Report
             if not continue_on_error:
                 break
             continue
+        reason = duplicate_reason(report.title, report.source_url, existing_titles, existing_urls)
+        if reason and not force:
+            result.status = "skipped"
+            result.skipped_reason = reason
+            results.append(result)
+            print(f"  skipped: {reason}")
+            continue
         if report.fingerprint in previous_success and not force:
             previous = previous_success[report.fingerprint]
             result.status = "skipped"
@@ -440,6 +526,8 @@ def ingest_reports(config: dict[str, Any], state: RunState, reports: list[Report
                 result.report_id = int(report_id)
             if payload.get("chunkCount") is not None:
                 result.chunk_count = int(payload["chunkCount"])
+            existing_titles.add(normalize_key(report.title))
+            existing_urls.add(normalize_key(report.source_url))
             if result.report_id is not None:
                 print(f"  success: reportId={result.report_id}, chunks={result.chunk_count}")
             else:
@@ -462,6 +550,48 @@ def ingest_reports(config: dict[str, Any], state: RunState, reports: list[Report
     update_summary(state)
     save_state(config, state)
     return results
+
+
+def normalize_key(value: str) -> str:
+    return (value or "").strip().lower()
+
+
+def looks_like_url(value: str) -> bool:
+    text = normalize_key(value)
+    return text.startswith("http://") or text.startswith("https://")
+
+
+def existing_title_url_keys(config: dict[str, Any]) -> tuple[set[str], set[str]]:
+    sql = """
+SELECT JSON_OBJECT(
+    'title', IFNULL(title, ''),
+    'source', IFNULL(source, '')
+)
+FROM report_document;
+""".strip()
+    rows = mysql_json_rows(config, sql)
+    titles: set[str] = set()
+    urls: set[str] = set()
+    for row in rows:
+        title = normalize_key(str(row.get("title", "")))
+        source = normalize_key(str(row.get("source", "")))
+        if title:
+            titles.add(title)
+        if looks_like_url(source):
+            urls.add(source)
+    return titles, urls
+
+
+def duplicate_reason(title: str, source_url: str, titles: set[str], urls: set[str]) -> str:
+    title_hit = normalize_key(title) in titles
+    url_hit = normalize_key(source_url) in urls
+    if title_hit and url_hit:
+        return "duplicate title and source_url"
+    if title_hit:
+        return "duplicate title"
+    if url_hit:
+        return "duplicate source_url"
+    return ""
 
 
 def report_ids_from_state(state: RunState) -> list[int]:

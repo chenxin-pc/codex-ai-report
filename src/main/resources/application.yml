@@ -87,6 +87,11 @@ app:
       min-similarity-score: ${REPORT_RETRIEVAL_MIN_SIMILARITY_SCORE:0.0}
       rerank-enabled: ${REPORT_RETRIEVAL_RERANK_ENABLED:false}
       max-parent-context-tokens: ${REPORT_RETRIEVAL_MAX_PARENT_CONTEXT_TOKENS:4500}
+      parent-aggregation-enabled: ${REPORT_RETRIEVAL_PARENT_AGGREGATION_ENABLED:true}
+      max-parent-evidence-groups: ${REPORT_RETRIEVAL_MAX_PARENT_EVIDENCE_GROUPS:3}
+      total-evidence-context-tokens: ${REPORT_RETRIEVAL_TOTAL_EVIDENCE_CONTEXT_TOKENS:12000}
+      large-parent-context-tokens: ${REPORT_RETRIEVAL_LARGE_PARENT_CONTEXT_TOKENS:4500}
+      child-window-neighbor-count: ${REPORT_RETRIEVAL_CHILD_WINDOW_NEIGHBOR_COUNT:1}
     query-guardrail:
       enabled: ${REPORT_QUERY_GUARDRAIL_ENABLED:true}
       dictionary-path: ${REPORT_QUERY_GUARDRAIL_DICTIONARY_PATH:query-guardrail/}

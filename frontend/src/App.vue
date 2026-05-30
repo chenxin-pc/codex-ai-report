@@ -284,8 +284,8 @@
         <div class="section-heading">
           <span>05</span>
           <div>
-            <h2>处理链路</h2>
-            <p>按 reportId 或标题关键词查看 OCR / Chunk / Vector 阶段事件。</p>
+            <h2>导入链路解释</h2>
+            <p>按阶段解释这篇研报经历了什么操作、数据状态如何变化、对后续有什么影响。</p>
           </div>
         </div>
         <div class="observation-layout">
@@ -306,24 +306,165 @@
               </button>
             </div>
           </div>
-          <div class="evidence-list">
-            <article v-for="(item, idx) in stageEvents" :key="idx" class="evidence-item">
-              <header>
-                <strong>{{ item.stage }} / {{ item.status }}</strong>
-                <span>{{ item.durationMs || 0 }}ms</span>
-              </header>
-              <small>{{ item.reportTitle || '-' }} / {{ item.modelName || '-' }}</small>
-              <pre>
-traceId={{ item.traceId || '-' }}  reportId={{ item.reportId || '-' }}  attempt={{ item.attempt }}  createdAt={{ formatDateTime(item.createdAt) }}
-startedAt={{ formatDateTime(item.startedAt) }}  finishedAt={{ formatDateTime(item.finishedAt) }}
-input={{ item.inputSize ?? '-' }}  output={{ item.outputSize ?? '-' }}  durationMs={{ item.durationMs ?? '-' }}
-errorCode={{ item.errorCode || '-' }}  error={{ truncateText(item.errorMessageShort, 80) }}
-              </pre>
-              <div class="query-actions">
-                <button class="ghost-btn" type="button" @click="openStageEventDetail(item)">查看全部</button>
+          <div class="chain-pane">
+            <div v-if="chainObservation" class="chain-detail">
+              <section class="report-summary">
+                <div>
+                  <strong>#{{ chainObservation.report?.reportId }} {{ chainObservation.report?.title || '未命名研报' }}</strong>
+                  <small>{{ chainObservation.report?.source || '-' }} / {{ chainObservation.report?.institution || '-' }} / {{ chainObservation.report?.publishDate || '-' }}</small>
+                </div>
+                <div class="summary-status">
+                  <span>{{ chainObservation.overallStatus || '-' }}</span>
+                  <small>当前关注：{{ chainObservation.currentStage || '-' }}</small>
+                  <small v-if="chainObservation.lastErrorCode">错误：{{ chainObservation.lastErrorCode }}</small>
+                </div>
+              </section>
+
+              <div class="stage-nav">
+                <button
+                  v-for="stage in chainObservation.stages || []"
+                  :key="stage.stage"
+                  type="button"
+                  class="stage-nav-item"
+                  :class="{ active: selectedIngestStage === stage.stage, danger: isStageFailed(stage) }"
+                  @click="selectIngestStage(stage.stage)"
+                >
+                  <strong>{{ stage.name }}</strong>
+                  <span>{{ stage.status || '-' }}</span>
+                </button>
               </div>
-            </article>
-            <p v-if="!timelineLoading && !stageEvents.length" class="feedback">暂无链路事件，请确认该研报已进入异步导入流程。</p>
+
+              <article v-if="selectedIngestStageData" class="stage-card">
+                <header>
+                  <div>
+                    <strong>{{ selectedIngestStageData.name }}</strong>
+                    <small>{{ selectedIngestStageData.status || '-' }} / {{ selectedIngestStageData.modelName || 'no model' }} / {{ selectedIngestStageData.durationMs ?? '-' }}ms</small>
+                  </div>
+                  <span v-if="selectedIngestStageData.errorCode" class="danger-text">{{ selectedIngestStageData.errorCode }}</span>
+                </header>
+
+                <div class="metric-grid">
+                  <div v-for="metric in selectedIngestStageData.summary?.metrics || []" :key="metric.label" :class="['metric-item', metric.tone]">
+                    <span>{{ metric.label }}</span>
+                    <strong>{{ metric.value }}</strong>
+                  </div>
+                </div>
+
+                <div class="explain-grid">
+                  <section>
+                    <h3>做了什么</h3>
+                    <p>{{ selectedIngestStageData.explanation?.operationSummary || '-' }}</p>
+                  </section>
+                  <section>
+                    <h3>执行前</h3>
+                    <ul>
+                      <li v-for="item in selectedIngestStageData.explanation?.beforeState || []" :key="item">{{ item }}</li>
+                    </ul>
+                  </section>
+                  <section>
+                    <h3>执行后</h3>
+                    <ul>
+                      <li v-for="item in selectedIngestStageData.explanation?.afterState || []" :key="item">{{ item }}</li>
+                    </ul>
+                  </section>
+                  <section>
+                    <h3>影响点</h3>
+                    <p>{{ selectedIngestStageData.explanation?.impact || '-' }}</p>
+                  </section>
+                </div>
+
+                <p v-if="selectedIngestStageData.explanation?.failureExplanation" class="feedback danger">
+                  {{ selectedIngestStageData.explanation.failureExplanation }}
+                </p>
+
+                <div v-if="selectedIngestStage === 'OCR'" class="detail-block">
+                  <details>
+                    <summary>页级 OCR 预览（{{ selectedIngestStageData.details?.ocrPages?.length || 0 }}）</summary>
+                    <article v-for="page in selectedIngestStageData.details?.ocrPages || []" :key="page.pageNumber" class="mini-row">
+                      <strong>Page {{ page.pageNumber }}</strong>
+                      <pre>raw={{ page.rawPreview || '-' }}
+cleaned={{ page.cleanedPreview || '-' }}
+diagnostics={{ page.diagnosticsPreview || '-' }}</pre>
+                    </article>
+                  </details>
+                  <details>
+                    <summary>段落 atom 预览（{{ selectedIngestStageData.details?.paragraphAtoms?.length || 0 }}）</summary>
+                    <article v-for="atom in selectedIngestStageData.details?.paragraphAtoms || []" :key="atom.paragraphId" class="mini-row">
+                      <strong>#{{ atom.paragraphId }} / page={{ atom.pageNumber }} / {{ atom.tokenCount ?? '-' }} tokens</strong>
+                      <small>{{ atom.sectionPath || '-' }}</small>
+                      <pre>{{ atom.textPreview || '-' }}</pre>
+                    </article>
+                  </details>
+                </div>
+
+                <div v-if="selectedIngestStage === 'CHUNK'" class="detail-block">
+                  <div class="tab-group">
+                    <button class="tab-btn" :class="{ active: chunkTreeFilter === 'all' }" type="button" @click="chunkTreeFilter = 'all'">全部 CHILD</button>
+                    <button class="tab-btn" :class="{ active: chunkTreeFilter === 'pendingVector' }" type="button" @click="chunkTreeFilter = 'pendingVector'">未入库 CHILD</button>
+                    <button class="tab-btn" :class="{ active: chunkTreeFilter === 'filtered' }" type="button" @click="chunkTreeFilter = 'filtered'">过滤项</button>
+                  </div>
+                  <div v-if="chunkTreeFilter !== 'filtered'" class="chunk-tree">
+                    <article v-for="parent in visibleParentChunks" :key="parent.chunkUid || parent.sectionPath" class="parent-node">
+                      <header>
+                        <strong>{{ parent.sectionPath || 'PARENT' }}</strong>
+                        <span>{{ parent.childCount }} children / {{ parent.vectorStoredCount }} vectorized</span>
+                      </header>
+                      <small>parent={{ parent.chunkUid || '-' }} / page={{ parent.pageRange || '-' }} / paragraph={{ parent.paragraphRange || '-' }} / {{ parent.tokenCount ?? '-' }} tokens</small>
+                      <pre>{{ parent.textPreview || '-' }}</pre>
+                      <div class="child-list">
+                        <article v-for="child in visibleChildren(parent)" :key="child.chunkUid" class="child-node">
+                          <strong>{{ child.chunkUid || '-' }}</strong>
+                          <span :class="{ danger: !child.vectorStored }">{{ child.vectorStored ? '已入库' : '未入库' }}</span>
+                          <small>parent={{ child.parentChunkUid || '-' }} / page={{ child.pageRange || '-' }} / paragraph={{ child.paragraphRange || '-' }} / {{ child.tokenCount ?? '-' }} tokens</small>
+                          <pre>{{ child.textPreview || '-' }}</pre>
+                        </article>
+                      </div>
+                    </article>
+                  </div>
+                  <div v-else class="evidence-list">
+                    <article v-for="item in selectedIngestStageData.details?.filteredDiagnostics || []" :key="`${item.parentIndex}-${item.chunkIndexInParent}-${item.filterReason}`" class="evidence-item">
+                      <header>
+                        <strong>{{ item.chunkType || '-' }} / kept={{ item.kept }}</strong>
+                        <span>{{ item.filterReason || 'no reason' }}</span>
+                      </header>
+                      <small>page={{ item.pageRange || '-' }} / paragraph={{ item.paragraphRange || '-' }} / persisted={{ item.persisted }}</small>
+                      <pre>{{ item.textPreview || '-' }}
+diagnostics={{ item.diagnosticsPreview || '-' }}</pre>
+                    </article>
+                  </div>
+                </div>
+
+                <div v-if="selectedIngestStage === 'VECTOR'" class="detail-block">
+                  <div class="query-actions">
+                    <button class="ghost-btn" type="button" @click="jumpToChunkCandidates('all')">查看候选 CHILD</button>
+                    <button class="ghost-btn" type="button" @click="jumpToChunkCandidates('pendingVector')">查看未入库 CHILD</button>
+                  </div>
+                  <div class="evidence-list">
+                    <article v-for="item in selectedIngestStageData.details?.vectorCandidates || []" :key="item.chunkUid" class="evidence-item">
+                      <header>
+                        <strong>{{ item.chunkUid }}</strong>
+                        <span :class="{ danger: !item.vectorStored }">{{ item.status }}</span>
+                      </header>
+                      <small>parent={{ item.parentChunkUid || '-' }} / {{ item.parentSectionPath || item.sectionPath || '-' }} / page={{ item.pageRange || '-' }} / {{ item.tokenCount ?? '-' }} tokens</small>
+                    </article>
+                  </div>
+                </div>
+              </article>
+
+              <details class="raw-events" v-if="stageEvents.length">
+                <summary>原始阶段事件（{{ stageEvents.length }}）</summary>
+                <article v-for="(item, idx) in stageEvents" :key="idx" class="mini-row">
+                  <strong>{{ item.stage }} / {{ item.status }} / {{ item.durationMs || 0 }}ms</strong>
+                  <pre>traceId={{ item.traceId || '-' }}  attempt={{ item.attempt }}  createdAt={{ formatDateTime(item.createdAt) }}
+errorCode={{ item.errorCode || '-' }}  error={{ truncateText(item.errorMessageShort, 80) }}</pre>
+                  <button class="ghost-btn small-btn" type="button" @click="openStageEventDetail(item)">查看全部</button>
+                </article>
+              </details>
+            </div>
+            <div v-else class="empty-state">
+              <strong>{{ chainLoading ? '正在加载链路解释' : '选择一篇研报' }}</strong>
+              <span>从上方列表点击“观测链路”，或输入 reportId 查询。</span>
+            </div>
           </div>
         </div>
         <p v-if="observationMsg" class="feedback">{{ observationMsg }}</p>
@@ -404,6 +545,10 @@ const observationMsg = ref('')
 const chunkObservationLoading = ref(false)
 const chunkObservationMsg = ref('')
 const chunkObservationData = ref(null)
+const chainObservation = ref(null)
+const chainLoading = ref(false)
+const selectedIngestStage = ref('')
+const chunkTreeFilter = ref('all')
 
 const query = ref('')
 const loading = ref(false)
@@ -433,6 +578,19 @@ const runtimeText = computed(() => {
   if (loading.value && result.value?.streamStatus) return result.value.streamStatus
   if (selectedFile.value) return selectedFile.value.name
   return '前端代理 /api -> 8080'
+})
+
+const selectedIngestStageData = computed(() => {
+  if (!chainObservation.value?.stages?.length) return null
+  return chainObservation.value.stages.find((stage) => stage.stage === selectedIngestStage.value) || chainObservation.value.stages[0]
+})
+
+const visibleParentChunks = computed(() => {
+  const parents = selectedIngestStageData.value?.details?.parentChunks || []
+  if (chunkTreeFilter.value !== 'pendingVector') return parents
+  return parents
+    .map((parent) => ({ ...parent, children: (parent.children || []).filter((child) => !child.vectorStored) }))
+    .filter((parent) => parent.children.length > 0)
 })
 
 const onFileChange = (event) => {
@@ -498,6 +656,9 @@ const loadTimeline = async () => {
       ? `reportId=${encodeURIComponent(reportId)}`
       : `titleKeyword=${encodeURIComponent(titleKeyword)}&limit=50`
     stageEvents.value = await requestJson(`/api/reports/ingest-stage-events?${queryString}`)
+    if (reportId) {
+      await loadIngestChainObservation(reportId)
+    }
     observationMsg.value = stageEvents.value.length
       ? `已加载 ${stageEvents.value.length} 条链路事件`
       : '未查询到链路事件'
@@ -529,6 +690,46 @@ const observeReport = async (item) => {
   await loadTimeline()
   await nextTick()
   timelineSectionRef.value?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+}
+
+const loadIngestChainObservation = async (reportId) => {
+  if (!reportId) return
+  chainLoading.value = true
+  try {
+    const data = await requestJson(`/api/reports/${encodeURIComponent(reportId)}/ingest-chain-observation`)
+    chainObservation.value = data
+    selectedIngestStage.value = data.currentStage || data.stages?.[0]?.stage || ''
+    chunkTreeFilter.value = selectedIngestStage.value === 'VECTOR' ? 'pendingVector' : 'all'
+  } catch (error) {
+    chainObservation.value = null
+    observationMsg.value = `链路解释加载失败：${toUiErrorMessage(error, '后端服务可能未启动，请先启动 8080 后端')}`
+  } finally {
+    chainLoading.value = false
+  }
+}
+
+const selectIngestStage = (stage) => {
+  selectedIngestStage.value = stage
+  if (stage !== 'CHUNK') {
+    chunkTreeFilter.value = 'all'
+  }
+}
+
+const jumpToChunkCandidates = (filter) => {
+  selectedIngestStage.value = 'CHUNK'
+  chunkTreeFilter.value = filter
+}
+
+const visibleChildren = (parent) => {
+  const children = parent?.children || []
+  if (chunkTreeFilter.value === 'pendingVector') {
+    return children.filter((child) => !child.vectorStored)
+  }
+  return children
+}
+
+const isStageFailed = (stage) => {
+  return String(stage?.status || '').includes('FAILED') || Boolean(stage?.errorCode)
 }
 
 const observeChunks = async (item) => {

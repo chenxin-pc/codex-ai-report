@@ -138,15 +138,17 @@ class ReportIngestAnalysisPipelineTests(unittest.TestCase):
             report = pipeline.ReportInput(local_path="/tmp/report.pdf", title="Report", fingerprint="abc")
 
             state = pipeline.RunState(run_id="current-run", created_at=pipeline.utc_now(), config_path="config.json")
-            with redirect_stdout(io.StringIO()):
-                skipped = pipeline.ingest_reports(config, state, [report], force=False)
+            with mock.patch("pipeline.existing_title_url_keys", return_value=(set(), set())):
+                with redirect_stdout(io.StringIO()):
+                    skipped = pipeline.ingest_reports(config, state, [report], force=False)
             self.assertEqual("skipped", skipped[0].status)
             self.assertEqual(7, skipped[0].report_id)
 
             forced_state = pipeline.RunState(run_id="forced-run", created_at=pipeline.utc_now(), config_path="config.json")
-            with mock.patch("pipeline.upload_report", return_value={"reportId": 8, "chunkCount": 2}):
-                with redirect_stdout(io.StringIO()):
-                    forced = pipeline.ingest_reports(config, forced_state, [report], force=True)
+            with mock.patch("pipeline.existing_title_url_keys", return_value=(set(), set())):
+                with mock.patch("pipeline.upload_report", return_value={"reportId": 8, "chunkCount": 2}):
+                    with redirect_stdout(io.StringIO()):
+                        forced = pipeline.ingest_reports(config, forced_state, [report], force=True)
             self.assertEqual("success", forced[0].status)
             self.assertEqual(8, forced[0].report_id)
 
@@ -156,15 +158,17 @@ class ReportIngestAnalysisPipelineTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             stop_config = {"output": {"dir": temp_dir}, "runtime": {"continue_on_error": False}}
             stop_state = pipeline.RunState(run_id="stop-run", created_at=pipeline.utc_now(), config_path="config.json")
-            with redirect_stdout(io.StringIO()):
-                stopped = pipeline.ingest_reports(stop_config, stop_state, [failed, next_report], force=False)
+            with mock.patch("pipeline.existing_title_url_keys", return_value=(set(), set())):
+                with redirect_stdout(io.StringIO()):
+                    stopped = pipeline.ingest_reports(stop_config, stop_state, [failed, next_report], force=False)
             self.assertEqual(1, len(stopped))
 
             continue_config = {"output": {"dir": temp_dir}, "runtime": {"continue_on_error": True}}
             continue_state = pipeline.RunState(run_id="continue-run", created_at=pipeline.utc_now(), config_path="config.json")
-            with mock.patch("pipeline.upload_report", return_value={"reportId": 3, "chunkCount": 1}):
-                with redirect_stdout(io.StringIO()):
-                    continued = pipeline.ingest_reports(continue_config, continue_state, [failed, next_report], force=False)
+            with mock.patch("pipeline.existing_title_url_keys", return_value=(set(), set())):
+                with mock.patch("pipeline.upload_report", return_value={"reportId": 3, "chunkCount": 1}):
+                    with redirect_stdout(io.StringIO()):
+                        continued = pipeline.ingest_reports(continue_config, continue_state, [failed, next_report], force=False)
             self.assertEqual(["failed", "success"], [item.status for item in continued])
 
     def test_build_search_workbook_contains_required_sheets(self):

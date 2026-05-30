@@ -299,27 +299,32 @@ public class ReportRecommendService {
             String chunkUid = String.valueOf(doc.getMetadata().getOrDefault("chunkUid", ""));
             // 从 metadata 读取父切片 uid，供排查父子上下文关系。
             String parentChunkUid = String.valueOf(doc.getMetadata().getOrDefault("parentChunkUid", ""));
-            // 组装前端展示用 TopResult，chunkText 是命中子切片，parentContext/evidenceText 是父上下文。
-            topResults.add(new TopResultRespDTO(retrievedChunk.score(), title, retrievedChunk.chunkText(), source,
+            // 组装前端展示用 TopResult，chunkText 是代表命中子切片，parentContext/evidenceText 是聚合后的生成上下文。
+            topResults.add(new TopResultRespDTO(retrievedChunk.maxScore(), title, retrievedChunk.chunkText(), source,
                     // 写入切片定位字段。
                     sectionPath, chunkUid, parentChunkUid, retrievedChunk.evidenceText(),
                     // 写入主题、行业、公司和代码 metadata 摘要。
                     metadataList(doc, "themeCodes"), metadataList(doc, "industryCodes"),
                     // 写入公司名和股票代码摘要，并标记不是诊断候选。
-                    metadataList(doc, "companyNames"), metadataList(doc, "tickers"), false));
-            // 为模型证据文本追加 chunk 编号和来源信息。
-            evidenceBuilder.append("[Chunk ").append(i + 1).append("] ")
+                    metadataList(doc, "companyNames"), metadataList(doc, "tickers"), retrievedChunk.diagnosticOnly()));
+            // 为模型证据文本追加证据组编号和来源信息。
+            evidenceBuilder.append("[Evidence ").append(i + 1).append("] ")
                     // 追加研报标题。
                     .append("title=").append(title)
                     // 追加研报来源。
                     .append(", source=").append(source)
                     // 追加章节路径。
                     .append(", section=").append(sectionPath)
+                    // 追加上下文来源和命中覆盖度，提示模型这是 PARENT 聚合后的证据。
+                    .append(", contextType=").append(retrievedChunk.contextType())
+                    .append(", hitChildren=").append(retrievedChunk.hitCount())
+                    .append(", maxScore=").append(retrievedChunk.maxScore())
+                    .append(", childRefs=").append(buildHitChildReferenceSummary(retrievedChunk))
                     // 换行后开始写入证据正文。
                     .append("\n")
-                    // 追加父上下文或子切片兜底文本。
+                    // 追加聚合后的 PARENT 上下文、CHILD 窗口或子切片兜底文本。
                     .append(retrievedChunk.evidenceText())
-                    // 每个 chunk 后保留空行，便于模型区分证据段。
+                    // 每个证据组后保留空行，便于模型区分证据段。
                     .append("\n\n");
         }
         // 返回完整推荐上下文，供同步和流式链路复用。
@@ -733,6 +738,39 @@ public class ReportRecommendService {
         }
         // 字段不存在或为空时返回空列表。
         return List.of();
+    }
+
+    /**
+     * @Description: 构建 PARENT 证据组内命中 CHILD 的引用摘要。
+     * @Logic: 保留 chunkUid 与原始召回顺序，帮助模型和前端理解 PARENT 上下文来自哪些 CHILD 命中。
+     * @Param: retrievedChunk 聚合后的召回证据。
+     * @Return: CHILD 引用摘要文本。
+     * @author: cx
+     * @Date: 2026-05-27 00:00:00
+     */
+    private String buildHitChildReferenceSummary(ReportRetrievalService.RetrievedChunk retrievedChunk) {
+        // 无命中明细时使用代表 Document 的 chunkUid 兜底。
+        if (retrievedChunk.hitChildren() == null || retrievedChunk.hitChildren().isEmpty()) {
+            // 从代表 Document 读取 chunkUid。
+            Object chunkUid = retrievedChunk.document().getMetadata().get("chunkUid");
+            // 返回单个 chunkUid 或空字符串。
+            return chunkUid == null ? "" : String.valueOf(chunkUid);
+        }
+        // 初始化引用摘要列表。
+        List<String> refs = new ArrayList<>();
+        // 遍历聚合组内命中的 CHILD。
+        for (ReportRetrievalService.RetrievedChild child : retrievedChunk.hitChildren()) {
+            // 读取 CHILD 的 chunkUid。
+            Object chunkUid = child.document().getMetadata().get("chunkUid");
+            // 缺失 chunkUid 时使用原始召回顺序兜底。
+            String ref = chunkUid == null || String.valueOf(chunkUid).isBlank()
+                    ? "rank#" + child.originalRank()
+                    : String.valueOf(chunkUid);
+            // 将引用加入摘要。
+            refs.add(ref + "@" + child.score());
+        }
+        // 用逗号连接，保持 Prompt 中紧凑可读。
+        return String.join(",", refs);
     }
 
     /**
