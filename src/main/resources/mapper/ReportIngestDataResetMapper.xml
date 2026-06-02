@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.aimilvusweb.repository.ReportIngestDataResetMapper">
+
+    <delete id="deleteVectorMetadataSyncJobs">
+        DELETE FROM report_vector_metadata_sync_job
+    </delete>
+
+    <delete id="deleteChunkTagJobs">
+        DELETE FROM report_chunk_tag_job
+    </delete>
+
+    <delete id="deleteDocumentTags">
+        DELETE FROM report_document_tag
+    </delete>
+
+    <delete id="deleteChunkTags">
+        DELETE FROM report_chunk_tag
+    </delete>
+
+    <delete id="deleteStageEvents">
+        DELETE FROM report_ingest_stage_event
+    </delete>
+
+    <delete id="deleteIngestJobs">
+        DELETE FROM ingest_job
+    </delete>
+
+    <delete id="deleteIngestFailures">
+        DELETE FROM report_ingest_failure
+    </delete>
+
+    <delete id="deleteChunkDiagnostics">
+        DELETE FROM report_chunk_diagnostic
+    </delete>
+
+    <delete id="deleteChunks">
+        DELETE FROM report_chunk
+    </delete>
+
+    <delete id="deleteParagraphAtoms">
+        DELETE FROM report_paragraph_atom
+    </delete>
+
+    <delete id="deleteOcrPages">
+        DELETE FROM report_ocr_page
+    </delete>
+
+    <delete id="deleteDocumentAuthors">
+        DELETE FROM report_document_author
+    </delete>
+
+    <delete id="deleteDocuments">
+        DELETE FROM report_document
+    </delete>
+
+</mapper>

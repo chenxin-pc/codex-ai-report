@@ -88,7 +88,7 @@ class RecommendationEvidenceGuardrailServiceTests {
         ResearchQueryAnchorService anchorService = mock(ResearchQueryAnchorService.class);
         RecommendationEvidenceGuardrailService service = buildService(anchorService);
         when(anchorService.extract("储能板块")).thenReturn(new ResearchQueryAnchorService.QueryAnchors(
-                List.of("STORAGE"), List.of(), List.of(), List.of(), List.of(), List.of("储能")
+                List.of("STORAGE"), List.of(), List.of(), List.of(), List.of(), List.of(), List.of("储能")
         ));
 
         RecommendationEvidenceGuardrailService.EvidenceDecision decision = service.evaluate(
@@ -107,7 +107,7 @@ class RecommendationEvidenceGuardrailServiceTests {
         ResearchQueryAnchorService anchorService = mock(ResearchQueryAnchorService.class);
         RecommendationEvidenceGuardrailService service = buildService(anchorService);
         when(anchorService.extract("储能板块")).thenReturn(new ResearchQueryAnchorService.QueryAnchors(
-                List.of("STORAGE"), List.of(), List.of(), List.of(), List.of(), List.of("储能")
+                List.of("STORAGE"), List.of(), List.of(), List.of(), List.of(), List.of(), List.of("储能")
         ));
 
         RecommendationEvidenceGuardrailService.EvidenceDecision decision = service.evaluate(
@@ -125,7 +125,7 @@ class RecommendationEvidenceGuardrailServiceTests {
         ResearchQueryAnchorService anchorService = mock(ResearchQueryAnchorService.class);
         RecommendationEvidenceGuardrailService service = buildService(anchorService);
         when(anchorService.extract("储能板块")).thenReturn(new ResearchQueryAnchorService.QueryAnchors(
-                List.of("STORAGE"), List.of(), List.of(), List.of(), List.of(), List.of("储能")
+                List.of("STORAGE"), List.of(), List.of(), List.of(), List.of(), List.of(), List.of("储能")
         ));
 
         RecommendationEvidenceGuardrailService.EvidenceDecision decision = service.evaluate(

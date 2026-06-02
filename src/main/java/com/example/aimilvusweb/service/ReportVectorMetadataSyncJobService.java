@@ -6,10 +6,10 @@ import com.example.aimilvusweb.entity.ReportVectorMetadataSyncJob;
 import com.example.aimilvusweb.repository.ReportChunkMapper;
 import com.example.aimilvusweb.repository.ReportDocumentMapper;
 import com.example.aimilvusweb.repository.ReportVectorMetadataSyncJobMapper;
+import com.example.aimilvusweb.service.ReportAuthorService.AuthorMetadata;
 import com.example.aimilvusweb.service.ReportTagMetadataService.TagMetadata;
+import com.example.aimilvusweb.service.retrieval.ReportHybridVectorStore;
 import org.springframework.ai.document.Document;
-import org.springframework.ai.vectorstore.VectorStore;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,7 +24,7 @@ import java.util.UUID;
 /**
  * @Description: Milvus metadata 同步 job 服务，负责创建、调度和执行向量 metadata 最终一致同步。
  * @Logic: 标签变化后按 tagSnapshotHash 幂等创建任务；执行时读取 MySQL 标签主数据并重新 upsert 向量文档 metadata。
- * @Param: 详见方法签名；无入参时为无。
+ * @Param: 无。
  * @Return: 创建或执行的 job 数量。
  * @author: cx
  * @Date: 2026-05-24 00:00:00
@@ -49,13 +49,15 @@ public class ReportVectorMetadataSyncJobService {
     private final ReportDocumentMapper reportDocumentMapper;
     /** 标签 metadata 服务，用于读取标签摘要和计算 tagSnapshotHash。 */
     private final ReportTagMetadataService reportTagMetadataService;
-    /** VectorStore 提供器，允许测试或本地未启用 Milvus 时降级。 */
-    private final ObjectProvider<VectorStore> vectorStoreProvider;
+    /** 研报作者服务，用于从 MySQL 作者事实表补充 author metadata。 */
+    private final ReportAuthorService reportAuthorService;
+    /** hybrid 向量存储，用于把最新 metadata 重新写入 Milvus hybrid collection。 */
+    private final ReportHybridVectorStore hybridVectorStore;
 
     /**
      * @Description: 初始化 metadata 同步服务依赖。
-     * @Logic: 保存 job、chunk、report、标签和向量库依赖，供创建任务和调度执行复用。
-     * @Param: syncJobMapper sync job Mapper；reportChunkMapper chunk Mapper；reportDocumentMapper report Mapper；reportTagMetadataService 标签 metadata 服务；vectorStoreProvider 向量库提供器。
+     * @Logic: 保存 job、chunk、report、标签、作者和 hybrid 向量存储依赖，供创建任务和调度执行复用。
+     * @Param: syncJobMapper sync job Mapper；reportChunkMapper chunk Mapper；reportDocumentMapper report Mapper；reportTagMetadataService 标签 metadata 服务；reportAuthorService 作者服务；hybridVectorStore hybrid 向量存储。
      * @Return: 无（仅初始化对象状态）。
      * @author: cx
      * @Date: 2026-05-24 00:00:00
@@ -64,12 +66,14 @@ public class ReportVectorMetadataSyncJobService {
                                               ReportChunkMapper reportChunkMapper,
                                               ReportDocumentMapper reportDocumentMapper,
                                               ReportTagMetadataService reportTagMetadataService,
-                                              ObjectProvider<VectorStore> vectorStoreProvider) {
+                                              ReportAuthorService reportAuthorService,
+                                              ReportHybridVectorStore hybridVectorStore) {
         this.syncJobMapper = syncJobMapper;
         this.reportChunkMapper = reportChunkMapper;
         this.reportDocumentMapper = reportDocumentMapper;
         this.reportTagMetadataService = reportTagMetadataService;
-        this.vectorStoreProvider = vectorStoreProvider;
+        this.reportAuthorService = reportAuthorService;
+        this.hybridVectorStore = hybridVectorStore;
     }
 
     /**
@@ -159,7 +163,7 @@ public class ReportVectorMetadataSyncJobService {
 
     /**
      * @Description: 执行单个 metadata 同步 job。
-     * @Logic: 标记处理中后读取 chunk/report/tag，并向 VectorStore upsert 带最新 metadata 的文档。
+     * @Logic: 标记处理中后读取 chunk/report/tag/作者，并向 Milvus hybrid collection upsert 带最新 metadata 的文档。
      * @Param: job 待执行同步任务。
      * @Return: 无（仅更新 Milvus 和 job 状态）。
      * @author: cx
@@ -170,13 +174,13 @@ public class ReportVectorMetadataSyncJobService {
         syncJobMapper.markProcessing(job.getId(), now);
         try {
             // 向量库缺失时认为同步不可执行，交由失败重试与运维诊断处理。
-            VectorStore vectorStore = requireVectorStore();
+            ReportHybridVectorStore vectorStore = requireHybridVectorStore();
             // chunk 不存在时说明主数据异常，直接抛出明确错误。
             ReportChunk chunk = requireChunk(job.getChunkUid());
             // report 不存在时同样视为主数据异常。
             ReportDocument report = requireReport(chunk.getReportId());
             // 使用当前标签主数据构建最新 metadata 文档。
-            vectorStore.add(List.of(buildVectorDocument(report, chunk)));
+            vectorStore.write(List.of(buildVectorDocument(report, chunk)));
             // 写入成功后标记 job 成功。
             syncJobMapper.markSucceeded(job.getId(), Instant.now());
         } catch (RuntimeException e) {
@@ -212,6 +216,7 @@ public class ReportVectorMetadataSyncJobService {
         metadata.put("source", report.getSource());
         metadata.put("institution", report.getInstitution() == null ? "" : report.getInstitution());
         metadata.put("publishDate", report.getPublishDate() == null ? "" : report.getPublishDate().toString());
+        putAuthorMetadata(metadata, authorMetadata(report));
         metadata.put("reportThemeCode", tagMetadata.primaryReportThemeCode());
         metadata.put("reportThemeCodes", tagMetadata.reportThemeCodes());
         metadata.put("themeCode", tagMetadata.primaryThemeCode());
@@ -227,19 +232,56 @@ public class ReportVectorMetadataSyncJobService {
     }
 
     /**
-     * @Description: 获取可用 VectorStore。
-     * @Logic: 未配置向量库时抛出明确异常，job 会记录失败并等待后续重试。
+     * @Description: 写入作者 metadata 字段。
+     * @Logic: 作者信息以 MySQL 作者表为事实来源，同时提供展示名、规范化名和 Milvus 可过滤文本。
+     * @Param: metadata 待写入 metadata；authorMetadata 作者投影对象。
+     * @Return: 无（仅修改 metadata）。
+     * @author: cx
+     * @Date: 2026-05-31 00:00:00
+     */
+    private void putAuthorMetadata(Map<String, Object> metadata, AuthorMetadata authorMetadata) {
+        // 写入首个展示作者，便于返回和诊断。
+        metadata.put("author", authorMetadata.primaryAuthor());
+        // 写入展示作者列表，保留多作者可读信息。
+        metadata.put("authors", authorMetadata.authors());
+        // 写入首个规范化作者，便于单值过滤兜底。
+        metadata.put("normalizedAuthor", authorMetadata.primaryNormalizedAuthor());
+        // 写入全部规范化作者，便于构造多值 OR 过滤。
+        metadata.put("normalizedAuthors", authorMetadata.normalizedAuthors());
+        // 写入多作者过滤文本，便于 Milvus like 表达式匹配完整作者。
+        metadata.put("authorText", authorMetadata.authorText());
+    }
+
+    /**
+     * @Description: 读取报告作者 metadata。
+     * @Logic: 生产链路从 MySQL 作者事实表读取；测试或历史构造未注入作者服务时返回空作者集合。
+     * @Param: report 研报主档。
+     * @Return: 作者 metadata。
+     * @author: cx
+     * @Date: 2026-05-31 00:00:00
+     */
+    private AuthorMetadata authorMetadata(ReportDocument report) {
+        // 作者服务为空时不伪造作者信息。
+        if (reportAuthorService == null) {
+            return new AuthorMetadata("", List.of(), "", List.of(), "");
+        }
+        // 从作者事实表读取 metadata。
+        return reportAuthorService.metadataForReport(report.getId());
+    }
+
+    /**
+     * @Description: 获取可用 hybrid 向量存储。
+     * @Logic: 未配置 hybrid 向量存储时抛出明确异常，job 会记录失败并等待后续重试。
      * @Param: 无。
-     * @Return: VectorStore 实例。
+     * @Return: hybrid 向量存储实例。
      * @author: cx
      * @Date: 2026-05-24 00:00:00
      */
-    private VectorStore requireVectorStore() {
-        VectorStore vectorStore = vectorStoreProvider.getIfAvailable();
-        if (vectorStore == null) {
-            throw new IllegalStateException("VectorStore is not configured for metadata sync");
+    private ReportHybridVectorStore requireHybridVectorStore() {
+        if (hybridVectorStore == null) {
+            throw new IllegalStateException("ReportHybridVectorStore is not configured for metadata sync");
         }
-        return vectorStore;
+        return hybridVectorStore;
     }
 
     /**

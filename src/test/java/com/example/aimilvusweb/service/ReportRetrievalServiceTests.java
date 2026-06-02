@@ -110,7 +110,7 @@ class ReportRetrievalServiceTests {
 
         when(vectorStoreProvider.getIfAvailable()).thenReturn(vectorStore);
         when(anchorService.extract("储能")).thenReturn(new ResearchQueryAnchorService.QueryAnchors(
-                List.of("STORAGE"), List.of(), List.of(), List.of(), List.of(), List.of("储能")
+                List.of("STORAGE"), List.of(), List.of(), List.of(), List.of(), List.of(), List.of("储能")
         ));
         when(vectorStore.similaritySearch(any(SearchRequest.class))).thenReturn(List.of(
                 new Document("storage evidence", Map.of("chunkUid", "c1", "parentChunkUid", "", "distance", 1.0D))
@@ -138,7 +138,7 @@ class ReportRetrievalServiceTests {
 
         when(vectorStoreProvider.getIfAvailable()).thenReturn(vectorStore);
         when(anchorService.extract("储能")).thenReturn(new ResearchQueryAnchorService.QueryAnchors(
-                List.of("STORAGE"), List.of(), List.of(), List.of(), List.of(), List.of("储能")
+                List.of("STORAGE"), List.of(), List.of(), List.of(), List.of(), List.of(), List.of("储能")
         ));
         when(vectorStore.similaritySearch(any(SearchRequest.class))).thenReturn(List.of());
 

@@ -1,6 +1,7 @@
 package com.example.aimilvusweb.service;
 
 import com.example.aimilvusweb.common.util.SemanticChunkUtils;
+import com.example.aimilvusweb.config.MilvusHybridProperties;
 import com.example.aimilvusweb.config.ReportQualityProperties;
 import com.example.aimilvusweb.entity.ReportChunk;
 import com.example.aimilvusweb.repository.ReportChunkMapper;
@@ -16,6 +17,8 @@ import com.example.aimilvusweb.service.retrieval.RetrievalCandidateMapper;
 import com.example.aimilvusweb.service.retrieval.RetrievalPipeline;
 import com.example.aimilvusweb.service.retrieval.RetrievalSearchRequestBuilder;
 import com.example.aimilvusweb.service.retrieval.RetrievedChunkDeduplicator;
+import com.example.aimilvusweb.service.retrieval.ReportHybridVectorStore;
+import com.example.aimilvusweb.service.retrieval.SpringVectorStoreReportHybridVectorStore;
 import com.example.aimilvusweb.service.retrieval.VectorSearchExecutor;
 import com.example.aimilvusweb.service.ResearchQueryAnchorService.QueryAnchors;
 import org.springframework.ai.document.Document;
@@ -36,9 +39,9 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * @Description: 研报召回服务，负责把用户 query 转为 Milvus ANN + metadata scalar filter 查询并返回可展示证据。
- * @Logic: 先抽取 query 结构化锚点构造过滤条件，再执行向量召回、分数过滤、父上下文扩展、去重、可选重排和 TopK 截断。
- * @Param: 详见方法签名；无入参时为无。
+ * @Description: 研报召回服务，负责把用户 query 转为 Milvus BM25+dense hybrid 检索并返回可展示证据。
+ * @Logic: 先抽取结构化锚点，再执行 hybrid 召回、分数过滤、业务加权、父上下文聚合、去重和 TopK 截断。
+ * @Param: 无。
  * @Return: 召回结果列表，每条结果包含命中子切片文本、父切片上下文和召回分数。
  * @author: cx
  * @Date: 2026-05-24 18:40:00
@@ -48,6 +51,8 @@ public class ReportRetrievalService {
 
     /** 向量库提供器，允许测试或未配置 Milvus 时按需检测是否可用。 */
     private final ObjectProvider<VectorStore> vectorStoreProvider;
+    /** hybrid 向量存储，生产链路使用 Milvus 原生 BM25+dense 检索。 */
+    private final ReportHybridVectorStore hybridVectorStore;
     /** 研报切片 Mapper，用于根据 parentChunkUid 回查父切片上下文。 */
     private final ReportChunkMapper reportChunkMapper;
     /** 研报质量配置，提供召回 TopK、相似度阈值、父上下文长度和重排开关。 */
@@ -75,9 +80,13 @@ public class ReportRetrievalService {
                                   ReportQualityProperties reportQualityProperties,
                                   ResearchQueryAnchorService researchQueryAnchorService,
                                   ReportChunkTagMapper reportChunkTagMapper,
-                                  ReportDocumentTagMapper reportDocumentTagMapper) {
+                                  ReportDocumentTagMapper reportDocumentTagMapper,
+                                  ReportHybridVectorStore hybridVectorStore,
+                                  MilvusHybridProperties milvusHybridProperties) {
         // 保存向量库提供器，实际查询时再判断 Milvus 是否已配置。
         this.vectorStoreProvider = vectorStoreProvider;
+        // 保存 hybrid 向量存储，生产链路通过它执行 BM25+dense hybrid search。
+        this.hybridVectorStore = hybridVectorStore;
         // 保存切片 Mapper，后续用于根据 parentChunkUid 取父切片文本。
         this.reportChunkMapper = reportChunkMapper;
         // 保存质量配置，召回数量、分数阈值和上下文长度都从这里读取。
@@ -94,8 +103,8 @@ public class ReportRetrievalService {
         this.retrievalPipeline = new RetrievalPipeline(
                 reportQualityProperties,
                 new RetrievalAnchorExtractor(researchQueryAnchorService),
-                new RetrievalSearchRequestBuilder(),
-                new VectorSearchExecutor(vectorStoreProvider, reportChunkTagMapper, reportDocumentTagMapper),
+                new RetrievalSearchRequestBuilder(milvusHybridProperties),
+                new VectorSearchExecutor(hybridVectorStore, reportChunkTagMapper, reportDocumentTagMapper),
                 new RetrievalCandidateMapper(),
                 new RetrievalCandidateFilter(reportQualityProperties),
                 deduplicator,
@@ -104,6 +113,44 @@ public class ReportRetrievalService {
                 new ChildExpansionEvidenceContextStrategy(reportChunkMapper, reportQualityProperties),
                 new ParentAggregationEvidenceContextStrategy(reportChunkMapper, reportQualityProperties, deduplicator)
         );
+    }
+
+    /**
+     * @Description: 兼容未显式传入 hybrid 配置的检索服务构造器。
+     * @Logic: 使用默认 MilvusHybridProperties，保持旧测试和手动构造路径稳定。
+     * @Param: vectorStoreProvider 向量库提供器；reportChunkMapper chunk Mapper；reportQualityProperties 检索配置；researchQueryAnchorService query 锚点服务；reportChunkTagMapper chunk 标签 Mapper；reportDocumentTagMapper 报告级标签 Mapper；hybridVectorStore hybrid 向量存储。
+     * @Return: 无（仅初始化对象状态）。
+     * @author: cx
+     * @Date: 2026-05-31 00:00:00
+     */
+    public ReportRetrievalService(ObjectProvider<VectorStore> vectorStoreProvider,
+                                  ReportChunkMapper reportChunkMapper,
+                                  ReportQualityProperties reportQualityProperties,
+                                  ResearchQueryAnchorService researchQueryAnchorService,
+                                  ReportChunkTagMapper reportChunkTagMapper,
+                                  ReportDocumentTagMapper reportDocumentTagMapper,
+                                  ReportHybridVectorStore hybridVectorStore) {
+        // 委托完整构造器并使用默认 hybrid filter 配置。
+        this(vectorStoreProvider, reportChunkMapper, reportQualityProperties, researchQueryAnchorService,
+                reportChunkTagMapper, reportDocumentTagMapper, hybridVectorStore, new MilvusHybridProperties());
+    }
+
+    /**
+     * @Description: 兼容旧测试的检索服务构造器。
+     * @Logic: 未注入 hybrid 存储时用旧 VectorStore 适配器包装，生产构造器不会走该路径。
+     * @Param: vectorStoreProvider 向量库提供器；reportChunkMapper chunk Mapper；reportQualityProperties 检索配置；researchQueryAnchorService query 锚点服务；reportChunkTagMapper chunk 标签 Mapper；reportDocumentTagMapper 报告级标签 Mapper。
+     * @Return: 无（仅初始化对象状态）。
+     * @author: cx
+     * @Date: 2026-05-31 00:00:00
+     */
+    public ReportRetrievalService(ObjectProvider<VectorStore> vectorStoreProvider,
+                                  ReportChunkMapper reportChunkMapper,
+                                  ReportQualityProperties reportQualityProperties,
+                                  ResearchQueryAnchorService researchQueryAnchorService,
+                                  ReportChunkTagMapper reportChunkTagMapper,
+                                  ReportDocumentTagMapper reportDocumentTagMapper) {
+        this(vectorStoreProvider, reportChunkMapper, reportQualityProperties, researchQueryAnchorService,
+                reportChunkTagMapper, reportDocumentTagMapper, new SpringVectorStoreReportHybridVectorStore(vectorStoreProvider));
     }
 
     /**
@@ -161,7 +208,7 @@ public class ReportRetrievalService {
         // 旧测试或局部构造未注入锚点服务时返回空锚点，保持纯向量召回兼容。
         if (researchQueryAnchorService == null) {
             // 空锚点包含空主题、行业、公司、代码、章节意图和命中词。
-            return new QueryAnchors(List.of(), List.of(), List.of(), List.of(), List.of(), List.of());
+            return new QueryAnchors(List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of());
         }
         // 正常链路委托锚点服务抽取结构化检索信号。
         return researchQueryAnchorService.extract(query);

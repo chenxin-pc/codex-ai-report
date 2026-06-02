@@ -226,7 +226,7 @@ public class RecommendationEvidenceGuardrailService {
         // 兼容旧测试或旧构造器没有注入锚点服务的情况。
         if (researchQueryAnchorService == null) {
             // 返回空锚点，主题覆盖判断会按无锚点处理。
-            return new QueryAnchors(List.of(), List.of(), List.of(), List.of(), List.of(), List.of());
+            return new QueryAnchors(List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of());
         }
         // 正常链路委托结构化锚点服务抽取 query 标签。
         return researchQueryAnchorService.extract(query);

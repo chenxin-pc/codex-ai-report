@@ -4,7 +4,6 @@ import com.example.aimilvusweb.config.ReportQualityProperties;
 import com.example.aimilvusweb.service.ReportRetrievalService.RetrievedChunk;
 import com.example.aimilvusweb.service.ResearchQueryAnchorService.QueryAnchors;
 import org.springframework.ai.document.Document;
-import org.springframework.ai.vectorstore.SearchRequest;
 
 import java.util.List;
 
@@ -32,6 +31,8 @@ public class RetrievalPipeline {
     private final RetrievalCandidateFilter candidateFilter;
     /** 候选去重组件。 */
     private final RetrievedChunkDeduplicator deduplicator;
+    /** 业务 metadata 加权排序组件。 */
+    private final RetrievalBusinessBoostRanker businessBoostRanker = new RetrievalBusinessBoostRanker();
     /** 关闭重排时的原顺序策略。 */
     private final RerankStrategy noopRerankStrategy;
     /** 开启重排时的 query overlap 策略。 */
@@ -85,7 +86,7 @@ public class RetrievalPipeline {
         int initialTopK = Math.max(reportQualityProperties.getRetrieval().getInitialTopK(), 1);
         int finalTopK = Math.max(reportQualityProperties.getRetrieval().getFinalTopK(), 1);
         QueryAnchors anchors = anchorExtractor.extract(query);
-        SearchRequest searchRequest = searchRequestBuilder.build(query, initialTopK, anchors);
+        ReportHybridSearchRequest searchRequest = searchRequestBuilder.build(query, initialTopK, anchors);
         List<Document> documents = vectorSearchExecutor.search(searchRequest, anchors);
         if (documents.isEmpty()) {
             return List.of();
@@ -94,7 +95,8 @@ public class RetrievalPipeline {
         List<RetrievedChunk> filtered = candidateFilter.filter(candidates);
         List<RetrievedChunk> deduplicated = deduplicator.deduplicate(filtered);
         List<RetrievedChunk> reranked = rerankStrategy().rerank(query, deduplicated);
-        return evidenceContextStrategy().build(reranked, finalTopK);
+        List<RetrievedChunk> boosted = businessBoostRanker.rank(reranked, anchors);
+        return evidenceContextStrategy().build(boosted, finalTopK);
     }
 
     /**

@@ -21,6 +21,7 @@ import java.time.LocalDate;
 import java.util.List;
 
 import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -182,6 +183,44 @@ class ReportIngestServiceTests {
         verify(chunkMapper, never()).updateVectorStoredByChunkUid("child-stored", true);
         verify(chunkMapper, never()).updateVectorStoredByChunkUid("parent-1", true);
         verify(vectorStore, times(1)).add(anyList());
+    }
+
+    @Test
+    void shouldNotMarkChunksStoredWhenVectorWriteFails() {
+        ReportDocumentMapper documentMapper = mock(ReportDocumentMapper.class);
+        ReportChunkMapper chunkMapper = mock(ReportChunkMapper.class);
+        ReportOcrPageMapper ocrPageMapper = mock(ReportOcrPageMapper.class);
+        ReportParagraphAtomMapper paragraphAtomMapper = mock(ReportParagraphAtomMapper.class);
+        ReportChunkDiagnosticMapper chunkDiagnosticMapper = mock(ReportChunkDiagnosticMapper.class);
+        ObjectProvider<VectorStore> vectorStoreProvider = mock(ObjectProvider.class);
+        VectorStore vectorStore = mock(VectorStore.class);
+        ReportIngestService ingestService = new ReportIngestService(
+                documentMapper,
+                chunkMapper,
+                ocrPageMapper,
+                paragraphAtomMapper,
+                chunkDiagnosticMapper,
+                vectorStoreProvider,
+                mock(ReportOcrParseService.class),
+                mock(ReportSemanticChunkService.class),
+                mock(ReportIngestFailureService.class),
+                new ReportQualityProperties()
+        );
+        ReportDocument report = new ReportDocument();
+        report.setId(1L);
+        report.setTitle("测试报告");
+        report.setSource("uploaded");
+        ReportChunk pendingChild = chunk("child-pending", "CHILD", "parent-1", false);
+
+        when(vectorStoreProvider.getIfAvailable()).thenReturn(vectorStore);
+        when(documentMapper.selectById(1L)).thenReturn(report);
+        when(chunkMapper.selectByReportId(1L)).thenReturn(List.of(pendingChild));
+        doThrow(new IllegalStateException("milvus down")).when(vectorStore).add(anyList());
+
+        IllegalStateException exception = Assertions.assertThrows(IllegalStateException.class, () -> ingestService.ingestVectorStage(1L));
+
+        Assertions.assertTrue(exception.getMessage().contains("milvus down"));
+        verify(chunkMapper, never()).updateVectorStoredByChunkUid("child-pending", true);
     }
 
     /**

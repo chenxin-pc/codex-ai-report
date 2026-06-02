@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.aimilvusweb.repository.ReportDocumentAuthorMapper">
+
+    <resultMap id="ReportDocumentAuthorResultMap" type="com.example.aimilvusweb.entity.ReportDocumentAuthor">
+        <id property="id" column="id"/>
+        <result property="reportId" column="report_id"/>
+        <result property="authorName" column="author_name"/>
+        <result property="normalizedAuthorName" column="normalized_author_name"/>
+        <result property="authorOrder" column="author_order"/>
+        <result property="createdAt" column="created_at"/>
+    </resultMap>
+
+    <insert id="insert" parameterType="com.example.aimilvusweb.entity.ReportDocumentAuthor" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO report_document_author(
+            report_id,
+            author_name,
+            normalized_author_name,
+            author_order,
+            created_at
+        )
+        VALUES(
+            #{reportId},
+            #{authorName},
+            #{normalizedAuthorName},
+            #{authorOrder},
+            #{createdAt}
+        )
+    </insert>
+
+    <select id="selectByReportId" resultMap="ReportDocumentAuthorResultMap">
+        SELECT id,
+               report_id,
+               author_name,
+               normalized_author_name,
+               author_order,
+               created_at
+        FROM report_document_author
+        WHERE report_id = #{reportId}
+        ORDER BY author_order ASC, id ASC
+    </select>
+
+    <delete id="deleteByReportId">
+        DELETE FROM report_document_author
+        WHERE report_id = #{reportId}
+    </delete>
+
+</mapper>

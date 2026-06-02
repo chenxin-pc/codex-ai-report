@@ -7,6 +7,19 @@ CREATE TABLE IF NOT EXISTS report_document (
     created_at TIMESTAMP NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS report_document_author (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    report_id BIGINT NOT NULL,
+    author_name VARCHAR(128) NOT NULL,
+    normalized_author_name VARCHAR(128) NOT NULL,
+    author_order INT NOT NULL DEFAULT 0,
+    created_at TIMESTAMP NOT NULL,
+    CONSTRAINT fk_report_document_author_report_id FOREIGN KEY (report_id) REFERENCES report_document(id),
+    UNIQUE KEY uk_report_document_author_report_name (report_id, normalized_author_name),
+    KEY idx_report_document_author_report_id (report_id),
+    KEY idx_report_document_author_normalized (normalized_author_name)
+);
+
 CREATE TABLE IF NOT EXISTS report_chunk (
     id BIGINT PRIMARY KEY AUTO_INCREMENT,
     report_id BIGINT NOT NULL,
@@ -115,6 +128,7 @@ CREATE TABLE IF NOT EXISTS ingest_job (
     industry_tags VARCHAR(1024) NULL,
     company_tags VARCHAR(1024) NULL,
     ticker_tags VARCHAR(1024) NULL,
+    author_tags VARCHAR(1024) NULL,
     original_filename VARCHAR(255) NULL,
     file_path VARCHAR(1024) NOT NULL,
     ocr_status VARCHAR(32) NOT NULL DEFAULT 'PENDING',

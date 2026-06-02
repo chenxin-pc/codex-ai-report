@@ -17,6 +17,7 @@
         <result property="industryTags" column="industry_tags"/>
         <result property="companyTags" column="company_tags"/>
         <result property="tickerTags" column="ticker_tags"/>
+        <result property="authorTags" column="author_tags"/>
         <result property="originalFilename" column="original_filename"/>
         <result property="filePath" column="file_path"/>
         <result property="ocrStatus" column="ocr_status"/>
@@ -36,12 +37,12 @@
     <insert id="insert" parameterType="com.example.aimilvusweb.entity.IngestJob" useGeneratedKeys="true" keyProperty="id">
         INSERT INTO ingest_job(
             job_uid, report_id, report_title_snapshot, title_search_key, source, institution, publish_date,
-            theme_tags, industry_tags, company_tags, ticker_tags, original_filename, file_path,
+            theme_tags, industry_tags, company_tags, ticker_tags, author_tags, original_filename, file_path,
             ocr_status, chunk_status, vector_status, ocr_attempt_count, chunk_attempt_count, vector_attempt_count, next_run_at, priority,
             last_error_code, last_error_message, created_at, updated_at
         ) VALUES (
             #{jobUid}, #{reportId}, #{reportTitleSnapshot}, #{titleSearchKey}, #{source}, #{institution}, #{publishDate},
-            #{themeTags}, #{industryTags}, #{companyTags}, #{tickerTags}, #{originalFilename}, #{filePath},
+            #{themeTags}, #{industryTags}, #{companyTags}, #{tickerTags}, #{authorTags}, #{originalFilename}, #{filePath},
             #{ocrStatus}, #{chunkStatus}, #{vectorStatus}, #{ocrAttemptCount}, #{chunkAttemptCount}, #{vectorAttemptCount}, #{nextRunAt}, #{priority},
             #{lastErrorCode}, #{lastErrorMessage}, #{createdAt}, #{updatedAt}
         )
@@ -50,7 +51,7 @@
     <select id="selectByJobUid" resultMap="IngestJobResultMap">
         SELECT
             id, job_uid, report_id, report_title_snapshot, title_search_key, source, institution, publish_date,
-            theme_tags, industry_tags, company_tags, ticker_tags, original_filename, file_path,
+            theme_tags, industry_tags, company_tags, ticker_tags, author_tags, original_filename, file_path,
             ocr_status, chunk_status, vector_status, ocr_attempt_count, chunk_attempt_count, vector_attempt_count, next_run_at, priority,
             last_error_code, last_error_message, created_at, updated_at
         FROM ingest_job
@@ -61,7 +62,7 @@
         <!-- 定时任务拉取“当前阶段可执行任务”的统一 SQL。 -->
         SELECT
             id, job_uid, report_id, report_title_snapshot, title_search_key, source, institution, publish_date,
-            theme_tags, industry_tags, company_tags, ticker_tags, original_filename, file_path,
+            theme_tags, industry_tags, company_tags, ticker_tags, author_tags, original_filename, file_path,
             ocr_status, chunk_status, vector_status, ocr_attempt_count, chunk_attempt_count, vector_attempt_count, next_run_at, priority,
             last_error_code, last_error_message, created_at, updated_at
         FROM ingest_job

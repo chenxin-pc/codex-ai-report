@@ -19,11 +19,11 @@ import static org.mockito.Mockito.when;
 
 /**
  * @Description: ReportIngestAsyncServiceTests类，负责异步导入服务提交与指标汇总能力验证。
- * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
- * @Param: 详见方法签名；无入参时为无。
- * @Return: 详见返回类型；void 时为无（仅副作用）。
+ * @Logic: 构造 mock 依赖后分别验证任务提交字段落库快照，以及各阶段队列和终态失败指标聚合结果。
+ * @Param: 无。
+ * @Return: 无（仅通过断言校验异步导入服务行为）。
  * @author: cx
- * @Date: 2026-05-19 23:15:00
+ * @Date: 2026-05-31 20:45:00
  */
 class ReportIngestAsyncServiceTests {
 
@@ -48,7 +48,7 @@ class ReportIngestAsyncServiceTests {
         MockMultipartFile file = new MockMultipartFile("file", "demo.pdf", "application/pdf", "demo".getBytes());
         when(ingestJobMapper.insert(any(IngestJob.class))).thenReturn(1);
 
-        ReportUploadRespDTO resp = service.submit(file, "测试标题", "source", "inst", null, "STORAGE:储能", "POWER:电力", "宁德时代", "300750.SZ");
+        ReportUploadRespDTO resp = service.submit(file, "测试标题", "source", "inst", null, "STORAGE:储能", "POWER:电力", "宁德时代", "300750.SZ", "张三");
 
         Assertions.assertNotNull(resp.jobId());
         Assertions.assertFalse(resp.jobId().isBlank());
@@ -59,6 +59,7 @@ class ReportIngestAsyncServiceTests {
         Assertions.assertEquals("POWER:电力", captor.getValue().getIndustryTags());
         Assertions.assertEquals("宁德时代", captor.getValue().getCompanyTags());
         Assertions.assertEquals("300750.SZ", captor.getValue().getTickerTags());
+        Assertions.assertEquals("张三", captor.getValue().getAuthorTags());
     }
 
     @Test

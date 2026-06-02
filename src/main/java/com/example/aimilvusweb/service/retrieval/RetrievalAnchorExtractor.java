@@ -40,7 +40,7 @@ public class RetrievalAnchorExtractor {
      */
     public QueryAnchors extract(String query) {
         if (researchQueryAnchorService == null) {
-            return new QueryAnchors(List.of(), List.of(), List.of(), List.of(), List.of(), List.of());
+            return new QueryAnchors(List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of());
         }
         return researchQueryAnchorService.extract(query);
     }

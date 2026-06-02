@@ -42,6 +42,8 @@ public class IngestJob {
     private String companyTags;
     /** 导入时显式指定的股票代码标签，逗号分隔。 */
     private String tickerTags;
+    /** 导入时显式指定的研报作者，逗号或顿号分隔。 */
+    private String authorTags;
     /** 上传原始文件名。 */
     private String originalFilename;
     /** 上传文件落盘绝对路径。 */

@@ -110,3 +110,31 @@ app:
     backoff-second-ms: ${REPORT_INGEST_ASYNC_BACKOFF_SECOND_MS:300000}
     backoff-third-ms: ${REPORT_INGEST_ASYNC_BACKOFF_THIRD_MS:900000}
     spool-dir: ${REPORT_INGEST_ASYNC_SPOOL_DIR:reports/ingest-spool}
+  milvus-hybrid:
+    enabled: ${MILVUS_HYBRID_ENABLED:true}
+    host: ${MILVUS_HOST:localhost}
+    port: ${MILVUS_PORT:19530}
+    database-name: ${MILVUS_DATABASE:default}
+    collection-name: ${MILVUS_HYBRID_COLLECTION:report_chunks_hybrid}
+    legacy-collection-names: ${MILVUS_LEGACY_COLLECTIONS:report_chunks}
+    embedding-dimension: ${MILVUS_DIMENSION:1024}
+    dense-vector-field: ${MILVUS_HYBRID_DENSE_FIELD:denseVector}
+    sparse-vector-field: ${MILVUS_HYBRID_SPARSE_FIELD:sparseVector}
+    text-field: ${MILVUS_HYBRID_TEXT_FIELD:chunkText}
+    text-analyzer-type: ${MILVUS_HYBRID_TEXT_ANALYZER:standard}
+    primary-key-field: ${MILVUS_HYBRID_PRIMARY_KEY:chunkUid}
+    dense-index-type: ${MILVUS_HYBRID_DENSE_INDEX_TYPE:AUTOINDEX}
+    sparse-index-type: ${MILVUS_HYBRID_SPARSE_INDEX_TYPE:SPARSE_INVERTED_INDEX}
+    dense-metric-type: ${MILVUS_HYBRID_DENSE_METRIC:COSINE}
+    sparse-metric-type: ${MILVUS_HYBRID_SPARSE_METRIC:BM25}
+    ranker-type: ${MILVUS_HYBRID_RANKER_TYPE:RRF}
+    rrf-k: ${MILVUS_HYBRID_RRF_K:60}
+    dense-weight: ${MILVUS_HYBRID_DENSE_WEIGHT:0.6}
+    bm25-weight: ${MILVUS_HYBRID_BM25_WEIGHT:0.4}
+    auto-initialize: ${MILVUS_HYBRID_AUTO_INITIALIZE:true}
+    route-score-diagnostics-enabled: ${MILVUS_HYBRID_ROUTE_SCORE_DIAGNOSTICS_ENABLED:true}
+    metadata-filter-strategy: ${MILVUS_HYBRID_METADATA_FILTER_STRATEGY:BALANCED}
+    author-filter-enabled: ${MILVUS_HYBRID_AUTHOR_FILTER_ENABLED:true}
+    unique-ticker-hard-filter-enabled: ${MILVUS_HYBRID_UNIQUE_TICKER_HARD_FILTER_ENABLED:true}
+    unique-company-hard-filter-enabled: ${MILVUS_HYBRID_UNIQUE_COMPANY_HARD_FILTER_ENABLED:true}
+    theme-industry-hard-filter-enabled: ${MILVUS_HYBRID_THEME_INDUSTRY_HARD_FILTER_ENABLED:false}

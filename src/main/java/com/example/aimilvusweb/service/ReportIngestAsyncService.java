@@ -39,8 +39,8 @@ import java.util.UUID;
 /**
  * @Description: 异步研报导入服务，负责任务提交、阶段调度触发、状态查询和导入观测查询。
  * @Logic: 上传阶段只落盘并创建任务；调度阶段委托 IngestStageExecutor 执行 OCR、CHUNK、VECTOR 的统一状态生命周期。
- * @Param: 详见方法签名；无入参时为无。
- * @Return: 详见返回类型；void 时为无（仅副作用）。
+ * @Param: 无。
+ * @Return: 无（由各方法返回任务、指标或观测响应）。
  * @author: cx
  * @Date: 2026-05-30 16:00:00
  */
@@ -87,7 +87,7 @@ public class ReportIngestAsyncService {
     /**
      * @Description: 提交异步导入任务并返回 jobId。
      * @Logic: 校验上传文件，写入 spool 目录，创建三阶段 PENDING 任务，并保存导入表单显式标签。
-     * @Param: file 上传文件；title/source/institution/publishDate 报告元信息；themeTags/industryTags/companyTags/tickerTags 导入标签。
+     * @Param: file 上传文件；title/source/institution/publishDate 报告元信息；themeTags/industryTags/companyTags/tickerTags 导入标签；authorTags 导入作者文本。
      * @Return: 上传响应，包含 jobId 和标题快照。
      * @author: cx
      * @Date: 2026-05-30 16:00:00
@@ -101,7 +101,8 @@ public class ReportIngestAsyncService {
                                       String themeTags,
                                       String industryTags,
                                       String companyTags,
-                                      String tickerTags) {
+                                      String tickerTags,
+                                      String authorTags) {
         if (file == null || file.isEmpty()) {
             throw new IllegalArgumentException("Report file is required");
         }
@@ -121,6 +122,7 @@ public class ReportIngestAsyncService {
         job.setIndustryTags(normalizeOptionalTags(industryTags));
         job.setCompanyTags(normalizeOptionalTags(companyTags));
         job.setTickerTags(normalizeOptionalTags(tickerTags));
+        job.setAuthorTags(normalizeOptionalTags(authorTags));
         job.setOriginalFilename(file.getOriginalFilename());
         job.setFilePath(spoolFile.toString());
         job.setOcrStatus(IngestStageStatusEnum.PENDING.code());

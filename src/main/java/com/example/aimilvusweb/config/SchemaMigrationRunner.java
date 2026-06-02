@@ -15,7 +15,7 @@ import java.util.Map;
 /**
  * @Description: 补齐 schema.sql 无法安全表达的兼容性字段迁移。
  * @Logic: 启动后通过 JDBC 元数据检查字段是否存在，仅对旧库执行普通 ALTER，避免 MySQL 方言不兼容。
- * @Author: Codex
+ * @author: Codex
  * @Date: 2026-05-24 18:40:00
  */
 @Component
@@ -28,7 +28,8 @@ public class SchemaMigrationRunner implements InitializingBean {
             "theme_tags", "VARCHAR(1024) NULL",
             "industry_tags", "VARCHAR(1024) NULL",
             "company_tags", "VARCHAR(1024) NULL",
-            "ticker_tags", "VARCHAR(1024) NULL"
+            "ticker_tags", "VARCHAR(1024) NULL",
+            "author_tags", "VARCHAR(1024) NULL"
     );
 
     /** JDBC 执行器。 */

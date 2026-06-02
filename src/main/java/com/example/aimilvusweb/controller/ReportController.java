@@ -1,26 +1,28 @@
 package com.example.aimilvusweb.controller;
 
+import com.example.aimilvusweb.dto.IngestJobStatusRespDTO;
+import com.example.aimilvusweb.dto.IngestMetricsRespDTO;
 import com.example.aimilvusweb.dto.RecommendReqDTO;
 import com.example.aimilvusweb.dto.RecommendRespDTO;
 import com.example.aimilvusweb.dto.RecommendStreamEventDTO;
-import com.example.aimilvusweb.dto.IngestMetricsRespDTO;
-import com.example.aimilvusweb.dto.IngestJobStatusRespDTO;
-import com.example.aimilvusweb.dto.ReportIngestStageEventRespDTO;
-import com.example.aimilvusweb.dto.ReportIngestChainObservationRespDTO;
 import com.example.aimilvusweb.dto.ReportChunkObservationRespDTO;
+import com.example.aimilvusweb.dto.ReportIngestChainObservationRespDTO;
+import com.example.aimilvusweb.dto.ReportIngestDataResetRespDTO;
+import com.example.aimilvusweb.dto.ReportIngestStageEventRespDTO;
 import com.example.aimilvusweb.dto.ReportObservationRespDTO;
 import com.example.aimilvusweb.dto.ReportUploadRespDTO;
 import com.example.aimilvusweb.service.ReportIngestAsyncService;
+import com.example.aimilvusweb.service.ReportIngestDataResetService;
 import com.example.aimilvusweb.service.ReportQualityQueryService;
 import com.example.aimilvusweb.service.ReportRecommendService;
 import jakarta.validation.Valid;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.MediaType;
 import org.springframework.http.codec.ServerSentEvent;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -31,10 +33,10 @@ import java.time.LocalDate;
 import java.util.List;
 
 /**
- * @Description: ReportController类，负责相关业务能力的组织与实现。
- * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
- * @Param: 详见方法签名；无入参时为无。
- * @Return: 详见返回类型；void 时为无（仅副作用）。
+ * @Description: 研报 HTTP 控制器，暴露上传、导入观测、清空导入域和推荐分析接口。
+ * @Logic: Controller 只做参数接收和服务转发，具体导入、清空、召回与推荐逻辑全部下沉到 Service。
+ * @Param: 无。
+ * @Return: 无（Spring MVC 根据各接口返回值序列化响应）。
  * @author: cx
  * @Date: 2026-05-17 10:24:01
  */
@@ -42,37 +44,38 @@ import java.util.List;
 @RequestMapping("/api/reports")
 public class ReportController {
 
+    /** 异步导入服务，用于创建导入任务、查询任务状态和导入观测数据。 */
     private final ReportIngestAsyncService reportIngestAsyncService;
+    /** 推荐服务，用于同步和流式生成研报推荐分析。 */
     private final ReportRecommendService reportRecommendService;
+    /** 导入质量查询服务，用于返回切片观测和导入链路解释视图。 */
     private final ReportQualityQueryService reportQualityQueryService;
+    /** 导入域清空服务，用于显式删除可重建历史研报数据。 */
+    private final ReportIngestDataResetService reportIngestDataResetService;
 
     /**
-     * @Description: 初始化ReportController依赖与运行所需组件。
-     * @Logic: 保存入库服务与推荐服务引用，供各HTTP入口方法委托调用。
-     * @Param: reportIngestService 研报入库服务；reportRecommendService 推荐分析服务。
+     * @Description: 初始化研报 HTTP 控制器依赖。
+     * @Logic: 保存异步导入、推荐、质量查询和导入域清空服务引用，供接口方法委托调用。
+     * @Param: reportIngestAsyncService 异步导入服务；reportRecommendService 推荐分析服务；reportQualityQueryService 质量查询服务；reportIngestDataResetService 导入域清空服务。
      * @Return: 无（仅初始化对象状态）。
- * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
- * @Param: 详见方法签名；无入参时为无。
- * @Return: 详见返回类型；void 时为无（仅副作用）。
      * @author: cx
      * @Date: 2026-05-17 14:48:00
      */
     public ReportController(ReportIngestAsyncService reportIngestAsyncService,
                             ReportRecommendService reportRecommendService,
-                            ReportQualityQueryService reportQualityQueryService) {
+                            ReportQualityQueryService reportQualityQueryService,
+                            ReportIngestDataResetService reportIngestDataResetService) {
         this.reportIngestAsyncService = reportIngestAsyncService;
         this.reportRecommendService = reportRecommendService;
         this.reportQualityQueryService = reportQualityQueryService;
+        this.reportIngestDataResetService = reportIngestDataResetService;
     }
 
     /**
-     * @Description: 接收上传请求并委托入库服务执行OCR解析、切片与存储流程。
-     * @Logic: 仅做参数接收与转发，不在Controller层编排业务细节。
-     * @Param: file 上传PDF文件；title/source/institution/publishDate 报告元信息。
-     * @Return: 入库结果对象，包含报告ID与切片统计。
- * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
- * @Param: 详见方法签名；无入参时为无。
- * @Return: 详见返回类型；void 时为无（仅副作用）。
+     * @Description: 接收上传请求并创建异步研报导入任务。
+     * @Logic: 接收文件、报告元信息、显式标签和作者字段后委托异步导入服务保存任务快照。
+     * @Param: file 上传 PDF 文件；title/source/institution/publishDate 报告元信息；themeTags/industryTags/companyTags/tickerTags 显式标签；authors 研报作者文本。
+     * @Return: 入库受理结果，包含 jobId、标题快照和提示信息。
      * @author: cx
      * @Date: 2026-05-17 14:48:00
      */
@@ -86,9 +89,10 @@ public class ReportController {
             @RequestParam(value = "themeTags", required = false) String themeTags,
             @RequestParam(value = "industryTags", required = false) String industryTags,
             @RequestParam(value = "companyTags", required = false) String companyTags,
-            @RequestParam(value = "tickerTags", required = false) String tickerTags
+            @RequestParam(value = "tickerTags", required = false) String tickerTags,
+            @RequestParam(value = "authors", required = false) String authors
     ) {
-        return reportIngestAsyncService.submit(file, title, source, institution, publishDate, themeTags, industryTags, companyTags, tickerTags);
+        return reportIngestAsyncService.submit(file, title, source, institution, publishDate, themeTags, industryTags, companyTags, tickerTags, authors);
     }
 
     /**
@@ -96,9 +100,6 @@ public class ReportController {
      * @Logic: 根据 jobId 调用异步服务返回 OCR/Chunk/Vector 三阶段状态与重试信息。
      * @Param: jobId 导入任务唯一标识。
      * @Return: 任务状态响应对象。
- * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
- * @Param: 详见方法签名；无入参时为无。
- * @Return: 详见返回类型；void 时为无（仅副作用）。
      * @author: cx
      * @Date: 2026-05-19 23:40:00
      */
@@ -112,9 +113,6 @@ public class ReportController {
      * @Logic: 优先按 reportId 精确查询；未传 reportId 时按标题关键词模糊检索并限制返回条数。
      * @Param: reportId 报告ID；titleKeyword 标题关键词；limit 返回上限。
      * @Return: 阶段事件列表。
- * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
- * @Param: 详见方法签名；无入参时为无。
- * @Return: 详见返回类型；void 时为无（仅副作用）。
      * @author: cx
      * @Date: 2026-05-19 23:40:00
      */
@@ -135,9 +133,6 @@ public class ReportController {
      * @Logic: 委托异步服务聚合各阶段 pending 与 failed_final 数量。
      * @Param: 无。
      * @Return: 导入链路指标对象。
- * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
- * @Param: 详见方法签名；无入参时为无。
- * @Return: 详见返回类型；void 时为无（仅副作用）。
      * @author: cx
      * @Date: 2026-05-19 23:40:00
      */
@@ -147,13 +142,24 @@ public class ReportController {
     }
 
     /**
+     * @Description: 显式清空研报导入域历史数据。
+     * @Logic: 仅当 confirm 参数等于固定确认短语时委托清空服务删除 MySQL 导入域数据和 Milvus collection。
+     * @Param: confirm 清空确认短语。
+     * @Return: 清空结果响应，包含各表删除行数和 Milvus 删除状态。
+     * @author: cx
+     * @Date: 2026-05-31 00:00:00
+     */
+    @PostMapping("/ingest-data/reset")
+    public ReportIngestDataResetRespDTO resetIngestData(@RequestParam("confirm") String confirm) {
+        // 委托服务层执行确认短语校验、MySQL 删除和 Milvus collection 删除。
+        return reportIngestDataResetService.reset(confirm);
+    }
+
+    /**
      * @Description: 查询研报观测列表。
      * @Logic: 按标题关键词筛选并返回每篇研报的最新导入状态，供前端列表与观测入口使用。
      * @Param: titleKeyword 标题关键词；limit 返回上限。
      * @Return: 研报观测列表。
- * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
- * @Param: 详见方法签名；无入参时为无。
- * @Return: 详见返回类型；void 时为无（仅副作用）。
      * @author: cx
      * @Date: 2026-05-19 23:59:00
      */

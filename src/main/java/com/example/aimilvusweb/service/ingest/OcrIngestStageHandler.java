@@ -80,6 +80,7 @@ public class OcrIngestStageHandler implements IngestStageHandler {
                 job.getSource(),
                 job.getInstitution(),
                 job.getPublishDate(),
+                job.getAuthorTags(),
                 job.getReportId());
         ingestJobMapper.bindReportId(job.getJobUid(), reportId, Instant.now());
         reportDocumentTagService.refreshFromImportMetadata(reportId,

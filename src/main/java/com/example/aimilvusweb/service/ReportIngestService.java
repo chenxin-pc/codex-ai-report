@@ -21,6 +21,8 @@ import com.example.aimilvusweb.service.ReportOcrParseService.OcrPageResult;
 import com.example.aimilvusweb.service.ingest.ReportChunkFilterPolicy;
 import com.example.aimilvusweb.service.ingest.ReportVectorBatchWriter;
 import com.example.aimilvusweb.service.ingest.ReportVectorDocumentBuilder;
+import com.example.aimilvusweb.service.retrieval.ReportHybridVectorStore;
+import com.example.aimilvusweb.service.retrieval.SpringVectorStoreReportHybridVectorStore;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.ObjectProvider;
@@ -37,24 +39,33 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
-@Service
 /**
- * @Description: ReportIngestService类，负责相关业务能力的组织与实现。
- * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
- * @Param: 详见方法签名；无入参时为无。
- * @Return: 详见返回类型；void 时为无（仅副作用）。
+ * @Description: 研报导入服务，编排同步导入和异步 OCR/切片/向量阶段。
+ * @Logic: 将上传文件解析为 OCR 页、段落 atom、PARENT/CHILD chunk、作者元数据和 Milvus hybrid 向量文档。
+ * @Param: 无。
+ * @Return: 无（由各业务方法返回导入结果或阶段计数）。
  * @author: cx
  * @Date: 2026-05-17 10:24:01
  */
+@Service
 public class ReportIngestService {
+    /** 研报主档 Mapper，用于创建和查询 report_document。 */
     private final ReportDocumentMapper reportDocumentMapper;
+    /** 研报切片 Mapper，用于创建和查询 PARENT/CHILD chunk。 */
     private final ReportChunkMapper reportChunkMapper;
+    /** OCR 页 Mapper，用于保存页级 OCR 结果。 */
     private final ReportOcrPageMapper reportOcrPageMapper;
+    /** 段落 atom Mapper，用于保存 OCR 后的段落级切片输入。 */
     private final ReportParagraphAtomMapper reportParagraphAtomMapper;
+    /** chunk 诊断 Mapper，用于保存切片过滤和质量诊断。 */
     private final ReportChunkDiagnosticMapper reportChunkDiagnosticMapper;
-    private final ObjectProvider<VectorStore> vectorStoreProvider;
+    /** hybrid 向量存储，生产链路写入 Milvus BM25+dense collection。 */
+    private final ReportHybridVectorStore hybridVectorStore;
+    /** OCR 解析服务，用于把上传 PDF 转为页文本和段落 atom。 */
     private final ReportOcrParseService reportOcrParseService;
+    /** 语义切片服务，用于把段落 atom 组织为 PARENT/CHILD chunk。 */
     private final ReportSemanticChunkService reportSemanticChunkService;
+    /** 导入失败服务，用于记录同步导入失败阶段和错误信息。 */
     private final ReportIngestFailureService reportIngestFailureService;
     /** chunk 标签抽取 job 服务提供器，用于 chunk 落库后异步创建结构化标签任务。 */
     private final ObjectProvider<ReportChunkTagJobService> reportChunkTagJobServiceProvider;
@@ -64,12 +75,14 @@ public class ReportIngestService {
     private final ReportVectorDocumentBuilder vectorDocumentBuilder;
     /** 向量批量写入器，用于控制单批写入规模。 */
     private final ReportVectorBatchWriter vectorBatchWriter;
+    /** 研报作者服务，用于保存导入作者并为 Milvus metadata 提供事实来源。 */
+    private final ReportAuthorService reportAuthorService;
 
     /**
-     * @Description: 初始化ReportIngestService依赖与运行所需组件。
- * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
- * @Param: 详见方法签名；无入参时为无。
- * @Return: 详见返回类型；void 时为无（仅副作用）。
+     * @Description: 初始化研报导入服务依赖。
+     * @Logic: 保存 OCR、切片、MySQL Mapper、hybrid 向量存储、标签 job、向量文档构建和作者服务依赖。
+     * @Param: reportDocumentMapper 主档 Mapper；reportChunkMapper chunk Mapper；reportOcrPageMapper OCR 页 Mapper；reportParagraphAtomMapper 段落 Mapper；reportChunkDiagnosticMapper 诊断 Mapper；hybridVectorStore hybrid 向量存储；reportOcrParseService OCR 服务；reportSemanticChunkService 切片服务；reportIngestFailureService 失败记录服务；reportQualityProperties 质量配置；reportChunkTagJobServiceProvider 标签 job 服务提供器；metadataSyncJobServiceProvider metadata 同步服务提供器；chunkFilterPolicy chunk 过滤策略；vectorDocumentBuilder 向量文档构建器；vectorBatchWriter 向量批写入器；reportAuthorService 作者服务。
+     * @Return: 无（仅初始化服务依赖）。
      * @author: cx
      * @Date: 2026-05-17 10:24:01
      */
@@ -79,7 +92,7 @@ public class ReportIngestService {
                                ReportOcrPageMapper reportOcrPageMapper,
                                ReportParagraphAtomMapper reportParagraphAtomMapper,
                                ReportChunkDiagnosticMapper reportChunkDiagnosticMapper,
-                               ObjectProvider<VectorStore> vectorStoreProvider,
+                               ReportHybridVectorStore hybridVectorStore,
                                ReportOcrParseService reportOcrParseService,
                                ReportSemanticChunkService reportSemanticChunkService,
                                ReportIngestFailureService reportIngestFailureService,
@@ -88,13 +101,14 @@ public class ReportIngestService {
                                ObjectProvider<ReportVectorMetadataSyncJobService> metadataSyncJobServiceProvider,
                                ReportChunkFilterPolicy chunkFilterPolicy,
                                ReportVectorDocumentBuilder vectorDocumentBuilder,
-                               ReportVectorBatchWriter vectorBatchWriter) {
+                               ReportVectorBatchWriter vectorBatchWriter,
+                               ReportAuthorService reportAuthorService) {
         this.reportDocumentMapper = reportDocumentMapper;
         this.reportChunkMapper = reportChunkMapper;
         this.reportOcrPageMapper = reportOcrPageMapper;
         this.reportParagraphAtomMapper = reportParagraphAtomMapper;
         this.reportChunkDiagnosticMapper = reportChunkDiagnosticMapper;
-        this.vectorStoreProvider = vectorStoreProvider;
+        this.hybridVectorStore = hybridVectorStore;
         this.reportOcrParseService = reportOcrParseService;
         this.reportSemanticChunkService = reportSemanticChunkService;
         this.reportIngestFailureService = reportIngestFailureService;
@@ -102,6 +116,7 @@ public class ReportIngestService {
         this.chunkFilterPolicy = chunkFilterPolicy;
         this.vectorDocumentBuilder = vectorDocumentBuilder;
         this.vectorBatchWriter = vectorBatchWriter;
+        this.reportAuthorService = reportAuthorService;
     }
 
     /**
@@ -123,33 +138,49 @@ public class ReportIngestService {
                                ReportIngestFailureService reportIngestFailureService,
                                ReportQualityProperties reportQualityProperties) {
         this(reportDocumentMapper, reportChunkMapper, reportOcrPageMapper, reportParagraphAtomMapper,
-                reportChunkDiagnosticMapper, vectorStoreProvider, reportOcrParseService, reportSemanticChunkService,
+                reportChunkDiagnosticMapper, new SpringVectorStoreReportHybridVectorStore(vectorStoreProvider), reportOcrParseService, reportSemanticChunkService,
                 reportIngestFailureService, reportQualityProperties, null, null,
                 new ReportChunkFilterPolicy(reportQualityProperties),
                 new ReportVectorDocumentBuilder(null),
-                new ReportVectorBatchWriter());
+                new ReportVectorBatchWriter(),
+                null);
     }
 
     /**
-     * @Description: 执行ingest相关业务处理。
- * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
- * @Param: 详见方法签名；无入参时为无。
- * @Return: 详见返回类型；void 时为无（仅副作用）。
+     * @Description: 执行未携带作者的同步研报导入流程。
+     * @Logic: 兼容旧同步入口，委托新入口并将作者文本置空。
+     * @Param: file 上传文件；title 标题；source 来源；institution 机构；publishDate 发布日期。
+     * @Return: 上传导入响应。
      * @author: cx
      * @Date: 2026-05-17 10:24:01
      */
     @Transactional
     public ReportUploadRespDTO ingest(MultipartFile file, String title, String source, String institution, LocalDate publishDate) {
+        // 兼容旧同步入口，未传作者时按空作者集合落库。
+        return ingest(file, title, source, institution, publishDate, null);
+    }
+
+    /**
+     * @Description: 执行同步研报导入流程。
+     * @Logic: 先校验向量依赖和上传文件，再完成 OCR/切片、MySQL 主档与作者落库、质量数据落库和 Milvus 写入。
+     * @Param: file 上传文件；title 标题；source 来源；institution 机构；publishDate 发布日期；authorTags 导入作者文本。
+     * @Return: 上传导入响应。
+     * @author: cx
+     * @Date: 2026-05-31 00:00:00
+     */
+    @Transactional
+    public ReportUploadRespDTO ingest(MultipartFile file, String title, String source, String institution, LocalDate publishDate, String authorTags) {
         String stage = "VALIDATION";
         try {
             // 先确保向量存储可用，避免前置处理成功后才在落向量阶段失败导致补偿复杂化。
-            VectorStore vectorStore = requireVectorStore();
+            ReportHybridVectorStore vectorStore = requireHybridVectorStore();
             validateFile(file);
             stage = "OCR_AND_CHUNK";
             // OCR 与语义切片绑定在同一预处理步骤，保证后续落库输入的一致性。
             IngestPreparation preparation = parseAndChunk(file);
             stage = "MYSQL";
             ReportDocument report = persistReportDocument(file, title, source, institution, publishDate);
+            persistReportAuthors(report.getId(), authorTags);
             persistOcrQualityData(report, preparation.ocrResult());
             List<ReportChunk> persistedChildChunks = persistChunks(report, preparation.chunks());
             stage = "MILVUS";
@@ -165,12 +196,9 @@ public class ReportIngestService {
 
     /**
      * @Description: 异步 OCR 阶段执行入口，负责主档入库与 OCR/段落数据落库。
-     * @Logic: 校验文件后先创建 report_document，再写入页级 OCR 与 paragraph atom；已绑定 reportId 时直接返回以保障幂等。
-     * @Param: file 上传文件；title/source/institution/publishDate 报告元信息；existingReportId 已存在报告ID。
+     * @Logic: 已绑定 reportId 时直接返回；否则校验文件、解析 OCR、创建 report_document、保存作者和页/段落数据。
+     * @Param: file 上传文件；title/source/institution/publishDate 报告元信息；authorTags 导入作者文本；existingReportId 已存在报告ID。
      * @Return: 报告ID。
- * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
- * @Param: 详见方法签名；无入参时为无。
- * @Return: 详见返回类型；void 时为无（仅副作用）。
      * @author: cx
      * @Date: 2026-05-19 23:15:00
      */
@@ -180,6 +208,7 @@ public class ReportIngestService {
                                String source,
                                String institution,
                                LocalDate publishDate,
+                               String authorTags,
                                Long existingReportId) {
         if (existingReportId != null) {
             return existingReportId;
@@ -187,8 +216,27 @@ public class ReportIngestService {
         validateFile(file);
         ReportOcrParseResult ocrResult = reportOcrParseService.parseDetailed(file);
         ReportDocument report = persistReportDocument(file, title, source, institution, publishDate);
+        persistReportAuthors(report.getId(), authorTags);
         persistOcrQualityData(report, ocrResult);
         return report.getId();
+    }
+
+    /**
+     * @Description: 兼容未传作者的 OCR 阶段入口。
+     * @Logic: 旧调用路径不携带作者时委托新入口并保存空作者集合。
+     * @Param: file 上传文件；title 标题；source 来源；institution 机构；publishDate 发布日期；existingReportId 已绑定报告 ID。
+     * @Return: 报告 ID。
+     * @author: cx
+     * @Date: 2026-05-31 00:00:00
+     */
+    public Long ingestOcrStage(MultipartFile file,
+                               String title,
+                               String source,
+                               String institution,
+                               LocalDate publishDate,
+                               Long existingReportId) {
+        // 委托新入口，未传作者时按空作者集合处理。
+        return ingestOcrStage(file, title, source, institution, publishDate, null, existingReportId);
     }
 
     /**
@@ -196,9 +244,6 @@ public class ReportIngestService {
      * @Logic: 已存在切片时直接返回避免重复；否则读取 paragraph atom，调用切片服务生成并写入 chunk 与诊断表。
      * @Param: reportId 报告ID。
      * @Return: 子切片数量。
- * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
- * @Param: 详见方法签名；无入参时为无。
- * @Return: 详见返回类型；void 时为无（仅副作用）。
      * @author: cx
      * @Date: 2026-05-19 23:15:00
      */
@@ -245,15 +290,12 @@ public class ReportIngestService {
      * @Logic: 只处理未向量化 CHILD 切片，分批写入 Milvus，成功后逐条回写 vectorStored=true。
      * @Param: reportId 报告ID。
      * @Return: 本次向量化切片数量。
- * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
- * @Param: 详见方法签名；无入参时为无。
- * @Return: 详见返回类型；void 时为无（仅副作用）。
      * @author: cx
      * @Date: 2026-05-19 23:15:00
      */
     @Transactional
     public int ingestVectorStage(Long reportId) {
-        VectorStore vectorStore = requireVectorStore();
+        ReportHybridVectorStore vectorStore = requireHybridVectorStore();
         ReportDocument report = reportDocumentMapper.selectById(reportId);
         if (report == null) {
             throw new IllegalArgumentException("Report not found: " + reportId);
@@ -275,26 +317,26 @@ public class ReportIngestService {
     }
 
     /**
-     * @Description: 执行requireVectorStore相关业务处理。
- * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
- * @Param: 详见方法签名；无入参时为无。
- * @Return: 详见返回类型；void 时为无（仅副作用）。
+     * @Description: 获取 hybrid 向量存储。
+     * @Logic: 生产构造器注入 Milvus 原生实现；旧测试构造器注入 Spring VectorStore 适配器。
+     * @Param: 无。
+     * @Return: hybrid 向量存储。
      * @author: cx
-     * @Date: 2026-05-17 10:24:01
+     * @Date: 2026-05-31 00:00:00
      */
-    private VectorStore requireVectorStore() {
-        VectorStore vectorStore = vectorStoreProvider.getIfAvailable();
+    private ReportHybridVectorStore requireHybridVectorStore() {
+        ReportHybridVectorStore vectorStore = hybridVectorStore;
         if (vectorStore == null) {
-            throw new IllegalStateException("VectorStore is not configured. Set spring.ai.vectorstore.type=milvus and Milvus properties.");
+            throw new IllegalStateException("ReportHybridVectorStore is not configured. Check app.milvus-hybrid and embedding properties.");
         }
         return vectorStore;
     }
 
     /**
      * @Description: 校验输入参数与业务约束。
- * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
- * @Param: 详见方法签名；无入参时为无。
- * @Return: 详见返回类型；void 时为无（仅副作用）。
+     * @Logic: 上传文件不能为空，避免 OCR 阶段拿到无效输入。
+     * @Param: file 上传文件。
+     * @Return: 无；文件为空时抛出异常。
      * @author: cx
      * @Date: 2026-05-17 10:24:01
      */
@@ -306,9 +348,9 @@ public class ReportIngestService {
 
     /**
      * @Description: 解析输入内容并输出结构化结果。
- * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
- * @Param: 详见方法签名；无入参时为无。
- * @Return: 详见返回类型；void 时为无（仅副作用）。
+     * @Logic: 先调用 OCR 服务生成页/段落结果，再调用语义切片服务生成 PARENT/CHILD 草案。
+     * @Param: file 上传文件。
+     * @Return: OCR 结果和语义切片结果。
      * @author: cx
      * @Date: 2026-05-17 10:24:01
      */
@@ -322,10 +364,10 @@ public class ReportIngestService {
     }
 
     /**
-     * @Description: 执行persistReportDocument相关业务处理。
- * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
- * @Param: 详见方法签名；无入参时为无。
- * @Return: 详见返回类型；void 时为无（仅副作用）。
+     * @Description: 保存研报主档。
+     * @Logic: 标题和来源缺失时使用上传文件名和 uploaded 兜底，并对元信息做乱码修复后写入 report_document。
+     * @Param: file 上传文件；title 标题；source 来源；institution 机构；publishDate 发布日期。
+     * @Return: 已写入 ID 的研报主档。
      * @author: cx
      * @Date: 2026-05-17 10:24:01
      */
@@ -340,6 +382,31 @@ public class ReportIngestService {
         return report;
     }
 
+    /**
+     * @Description: 保存研报作者事实数据。
+     * @Logic: 作者服务可用时写入 MySQL；旧测试构造未注入作者服务时跳过，生产构造会提供该服务。
+     * @Param: reportId 研报主档 ID；authorTags 导入作者文本。
+     * @Return: 无（仅写入作者表副作用）。
+     * @author: cx
+     * @Date: 2026-05-31 00:00:00
+     */
+    private void persistReportAuthors(Long reportId, String authorTags) {
+        // 兼容旧测试构造器：未注入作者服务时不执行作者表写入。
+        if (reportAuthorService == null) {
+            return;
+        }
+        // 委托作者服务解析、去重并写入 MySQL 作者事实表。
+        reportAuthorService.saveImportAuthors(reportId, authorTags);
+    }
+
+    /**
+     * @Description: 修复并裁剪导入元信息文本。
+     * @Logic: null 保持 null；非空文本先 trim，再通过乱码修复工具处理常见 mojibake。
+     * @Param: value 原始元信息文本。
+     * @Return: 修复后的文本。
+     * @author: cx
+     * @Date: 2026-05-31 00:00:00
+     */
     private String repairMetadataText(String value) {
         if (value == null) {
             return null;
@@ -348,10 +415,10 @@ public class ReportIngestService {
     }
 
     /**
-     * @Description: 执行persistOcrQualityData相关业务处理。
- * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
- * @Param: 详见方法签名；无入参时为无。
- * @Return: 详见返回类型；void 时为无（仅副作用）。
+     * @Description: 保存 OCR 质量观测数据。
+     * @Logic: 将页级 OCR 文本写入 report_ocr_page，并将段落 atom 写入 report_paragraph_atom。
+     * @Param: report 研报主档；ocrResult OCR 解析结果。
+     * @Return: 无（仅写入 OCR 观测表）。
      * @author: cx
      * @Date: 2026-05-17 10:24:01
      */
@@ -381,10 +448,10 @@ public class ReportIngestService {
     }
 
     /**
-     * @Description: 执行persistChunks相关业务处理。
- * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
- * @Param: 详见方法签名；无入参时为无。
- * @Return: 详见返回类型；void 时为无（仅副作用）。
+     * @Description: 持久化 PARENT/CHILD 切片和诊断。
+     * @Logic: 先过滤并保存 PARENT，再保存父切片保留下来的 CHILD；被过滤的切片只写诊断不写检索 chunk。
+     * @Param: report 研报主档；chunks 语义切片结果。
+     * @Return: 已持久化且待向量化的 CHILD chunk。
      * @author: cx
      * @Date: 2026-05-17 10:24:01
      */
@@ -434,10 +501,10 @@ public class ReportIngestService {
     }
 
     /**
-     * @Description: 构建目标对象或请求数据。
- * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
- * @Param: 详见方法签名；无入参时为无。
- * @Return: 详见返回类型；void 时为无（仅副作用）。
+     * @Description: 构建 report_chunk 实体。
+     * @Logic: 将语义切片字段投影为数据库实体，并写入过滤诊断和初始向量状态。
+     * @Param: report 研报主档；slice 切片数据；chunkUid 当前切片 UID；parentChunkUid 父切片 UID；vectorStored 向量化状态；filterReason 过滤原因。
+     * @Return: 待写入 report_chunk 的实体。
      * @author: cx
      * @Date: 2026-05-17 10:24:01
      */
@@ -469,10 +536,10 @@ public class ReportIngestService {
     }
 
     /**
-     * @Description: 执行persistChunkDiagnostic相关业务处理。
- * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
- * @Param: 详见方法签名；无入参时为无。
- * @Return: 详见返回类型；void 时为无（仅副作用）。
+     * @Description: 保存切片诊断记录。
+     * @Logic: 无论切片是否保留，都记录页码、段落、token、过滤原因和诊断文本，便于回看召回语料质量。
+     * @Param: report 研报主档；slice 切片数据；chunkUid 当前切片 UID；parentChunkUid 父切片 UID；kept 是否保留；filterReason 过滤原因。
+     * @Return: 无（仅写入 report_chunk_diagnostic）。
      * @author: cx
      * @Date: 2026-05-17 10:24:01
      */
@@ -504,10 +571,10 @@ public class ReportIngestService {
     }
 
     /**
-     * @Description: 执行newChunkUid相关业务处理。
- * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
- * @Param: 详见方法签名；无入参时为无。
- * @Return: 详见返回类型；void 时为无（仅副作用）。
+     * @Description: 生成 chunk 唯一标识。
+     * @Logic: 使用去横线 UUID 作为 MySQL chunkUid 和 Milvus 主键。
+     * @Param: 无。
+     * @Return: chunk 唯一标识。
      * @author: cx
      * @Date: 2026-05-17 10:24:01
      */
@@ -532,10 +599,10 @@ public class ReportIngestService {
     }
 
     /**
-     * @Description: 构建目标对象或请求数据。
- * @Logic: 按方法或类型既定职责执行业务处理并保证结果可用。
- * @Param: 详见方法签名；无入参时为无。
- * @Return: 详见返回类型；void 时为无（仅副作用）。
+     * @Description: 构建同步上传响应。
+     * @Logic: 返回报告 ID、标题、切片数量和固定成功消息，供旧同步入口使用。
+     * @Param: jobId 导入任务 ID；report 研报主档；chunkCount 子切片数量。
+     * @Return: 上传响应 DTO。
      * @author: cx
      * @Date: 2026-05-17 10:24:01
      */
