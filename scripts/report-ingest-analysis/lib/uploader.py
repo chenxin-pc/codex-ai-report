@@ -51,6 +51,14 @@ def upload_report(config: dict[str, Any], report: ReportInput) -> dict[str, Any]
     }
     if report.publish_date:
         fields["publishDate"] = report.publish_date
+    if report.theme_tags:
+        fields["themeTags"] = report.theme_tags
+    if report.industry_tags:
+        fields["industryTags"] = report.industry_tags
+    if report.company_tags:
+        fields["companyTags"] = report.company_tags
+    if report.ticker_tags:
+        fields["tickerTags"] = report.ticker_tags
     body, content_type = multipart_form(fields, "file", pdf_path)
     request = urllib.request.Request(endpoint, data=body, headers={"Content-Type": content_type}, method="POST")
     with urllib.request.urlopen(request, timeout=900) as response:

@@ -22,8 +22,8 @@
 1. 任何实现/重构任务：
    加载 `general-baseline/rule.md`。
 2. 修改 `src/main/java` 或 `src/test/java`：
-   额外加载 `java-style/rule.md`。
-3. 涉及类/方法/字段注释或 Lombok：
+   额外加载 `java-style/rule.md` 与 `comment-and-lombok/rule.md`。
+3. 涉及 Java 类/方法/字段注释或 Lombok（即使未命中上述目录）：
    额外加载 `comment-and-lombok/rule.md`。
 4. 涉及 Mapper、XML SQL、`schema.sql`、索引或事务：
    额外加载 `persistence-mybatis/rule.md`。

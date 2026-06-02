@@ -33,11 +33,11 @@ export MYSQL_PASSWORD=123456
 
 ## 本地目录模式
 
-将 PDF 放入配置项 `input.local_dir` 指向的目录。也可以在同一目录添加 `manifest.csv`，用于补充标题、来源、机构、发布日期等元数据：
+将 PDF 放入配置项 `input.local_dir` 指向的目录。也可以在同一目录添加 `manifest.csv`，用于补充标题、来源、机构、发布日期等元数据。标题必须是真实研报标题，不能用 PDF 文件名、下载生成名或 URL 文件名伪造：
 
 ```csv
-fileName,title,source,institution,publishDate,url
-report.pdf,Report Title,Local,Institution,2026-05-01,
+fileName,title,source,institution,publishDate,url,pages,authors,tickerTags,companyTags,industryTags,themeTags
+report.pdf,Report Title,Local,Institution,2026-05-01,,12,Analyst A,000001.SZ,Company A,Bank,
 ```
 
 只执行导入：
@@ -54,18 +54,54 @@ python3 scripts/report-ingest-analysis/commands/pipeline.py --config scripts/rep
 
 ## URL 清单模式
 
-将 `input.mode` 设置为 `url_manifest`，并让 `input.url_manifest` 指向 URL 清单文件。清单可以是每行一个 PDF 地址的纯文本文件，也可以是包含以下字段的 CSV/TSV 文件：
+将 `input.mode` 设置为 `url_manifest`，并让 `input.url_manifest` 指向 URL 清单文件。推荐使用 CSV/TSV 文件显式提供真实标题和网站直取元数据：
 
 ```csv
-url,title,source,institution,publishDate
-https://example.test/report.pdf,Report Title,Example,Institution,2026-05-01
+url,title,source,institution,publishDate,pages,authors,tickerTags,companyTags,industryTags,themeTags
+https://example.test/report.pdf,Report Title,Example,Institution,2026-05-01,12,Analyst A,000001.SZ,Company A,Bank,
 ```
 
-脚本最多下载 `input.limit` 篇 PDF，记录下载失败原因，并根据 `runtime.continue_on_error` 决定遇错继续还是停止。
+脚本最多下载 `input.limit` 篇 PDF，记录下载失败原因，并根据 `runtime.continue_on_error` 决定遇错继续还是停止。`pages`、`authors`、`tickerTags`、`companyTags`、`industryTags`、`themeTags` 均为可选字段，网站或清单拿不到就留空；脚本不会从 PDF、OCR 文本或 chunk 文本中提取作者或主题。
+
+真实标题是硬约束：如果清单只有 PDF 地址，或者标题看起来是 `H3_AP202605171822381467_1`、`report-01.pdf` 等文件名/生成名，脚本会把该条记录标记为采集失败并跳过上传，避免伪造标题污染后端 `report_document.title`。
 
 ## 东方财富模式
 
 将 `input.mode` 设置为 `eastmoney`。可通过本地清单 `input.eastmoney_manifest` 或远端清单 `input.eastmoney_manifest_url` 提供东方财富 PDF 地址与元数据（字段与 URL 清单模式一致）。脚本会下载最多 `input.limit` 篇并继续执行导入、质量导出与搜索评估。
+
+东方财富来源同样只使用网站/API 已提供的作者、页数、股票代码、公司、行业和主题字段；不存在的字段保持为空，不进行 OCR 或推断补齐。
+
+## 东方财富 API 模式
+
+将 `input.mode` 设置为 `eastmoney_api` 时，脚本会直接请求东方财富研报列表 API，并从 API 记录中归一化导入元数据：
+
+| API 字段 | 脚本字段 | 导入策略 |
+| --- | --- | --- |
+| `stockName` | `companyTags` | 必填，缺失则跳过该条 |
+| `stockCode` | `tickerTags` | 必填，缺失则跳过该条 |
+| `indvInduName` / `industryName` | `industryTags` | 必填，优先 `indvInduName`，缺失则跳过该条 |
+| `researcher` / `author` | `authors` | 可选记录 |
+| `attachPages` | `pages` | 可选记录 |
+| 主题、概念或同义字段 | `themeTags` | 有就上传，没有就留空 |
+
+示例配置：
+
+```json
+{
+  "input": {
+    "mode": "eastmoney_api",
+    "limit": 20,
+    "beginTime": "2026-05-01",
+    "endTime": "2026-06-02",
+    "pageSize": 50,
+    "download_dir": "./outputs/downloads"
+  }
+}
+```
+
+该模式下，成功上传的研报必须具备公司、代码和行业；主题只使用东方财富 API 或页面直接返回的字段。脚本不会从 PDF、OCR 文本、标题、chunk 文本中提取或推断主题，也不会调用 LLM 补齐主题。
+
+运行摘要会额外展示 `input`、`downloaded`、`coreMetadataMissing` 和 `themeTagsPresent`，用于每次爬取后检查标签覆盖情况。
 
 推荐用于“只导入”的配置：
 

@@ -58,6 +58,8 @@ class ReportInput:
     institution: str = ""
     publish_date: str = ""
     source_url: str = ""
+    pages: str = ""
+    authors: str = ""
     theme_tags: str = ""
     industry_tags: str = ""
     company_tags: str = ""
@@ -76,6 +78,12 @@ class ReportResult:
     institution: str = ""
     publish_date: str = ""
     source_url: str = ""
+    pages: str = ""
+    authors: str = ""
+    theme_tags: str = ""
+    industry_tags: str = ""
+    company_tags: str = ""
+    ticker_tags: str = ""
     status: str = "pending"
     report_id: int | None = None
     chunk_count: int | None = None
@@ -494,6 +502,12 @@ def ingest_reports(config: dict[str, Any], state: RunState, reports: list[Report
             institution=report.institution,
             publish_date=report.publish_date,
             source_url=report.source_url,
+            pages=report.pages,
+            authors=report.authors,
+            theme_tags=report.theme_tags,
+            industry_tags=report.industry_tags,
+            company_tags=report.company_tags,
+            ticker_tags=report.ticker_tags,
         )
         if report.collect_status == "failed":
             result.status = "failed"
@@ -1044,6 +1058,17 @@ def update_summary(state: RunState) -> None:
     for row in state.results:
         status = row.get("status", "pending")
         counts[status] = counts.get(status, 0) + 1
+    counts["input_total"] = len(state.input_manifest)
+    counts["downloaded"] = sum(
+        1 for row in state.input_manifest
+        if row.get("collect_status") in {"downloaded", "collected"}
+    )
+    counts["core_metadata_missing"] = sum(
+        1 for row in state.input_manifest
+        if row.get("collect_status") == "failed"
+        and "Missing required metadata" in str(row.get("error_summary", ""))
+    )
+    counts["theme_tags_present"] = sum(1 for row in state.input_manifest if str(row.get("theme_tags", "")).strip())
     state.summary = counts
 
 
@@ -1057,6 +1082,14 @@ def print_summary(state: RunState) -> None:
         f"failed={state.summary.get('failed', 0)}, "
         f"skipped={state.summary.get('skipped', 0)}"
     )
+    if state.summary.get("input_total", 0):
+        print(
+            "metadata: "
+            f"input={state.summary.get('input_total', 0)}, "
+            f"downloaded={state.summary.get('downloaded', 0)}, "
+            f"coreMetadataMissing={state.summary.get('core_metadata_missing', 0)}, "
+            f"themeTagsPresent={state.summary.get('theme_tags_present', 0)}"
+        )
     if state.output_files:
         print("outputs:")
         for name, path in state.output_files.items():
@@ -1097,9 +1130,11 @@ load_optional_manifest = pipeline_inputs.load_optional_manifest
 collect_local_reports = pipeline_inputs.collect_local_reports
 read_url_manifest = pipeline_inputs.read_url_manifest
 safe_download_name = pipeline_inputs.safe_download_name
+title_error = pipeline_inputs.title_error
 download_pdf = pipeline_inputs.download_pdf
 collect_url_reports = pipeline_inputs.collect_url_reports
 collect_eastmoney_reports = pipeline_inputs.collect_eastmoney_reports
+collect_eastmoney_api_reports = pipeline_inputs.collect_eastmoney_api_reports
 collect_inputs = pipeline_inputs.collect_inputs
 
 multipart_form = pipeline_uploader.multipart_form

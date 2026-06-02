@@ -78,6 +78,95 @@ class ReportIngestAnalysisPipelineTests(unittest.TestCase):
             self.assertEqual("failed", reports[0].collect_status)
             self.assertEqual("download failure", "download failure" if "boom" in reports[0].error_summary else "")
 
+    def test_collect_url_reports_preserves_optional_metadata(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            manifest = root / "urls.csv"
+            manifest.write_text(
+                "url,title,source,institution,publishDate,pages,authors,tickerTags,companyTags,industryTags,themeTags\n"
+                "https://example.test/report.pdf,Real Report,Eastmoney,Inst,2026-05-01,12,Analyst A,000001.SZ,Company A,Bank,Theme A\n",
+                encoding="utf-8",
+            )
+            config = {
+                "input": {
+                    "mode": "url_manifest",
+                    "url_manifest": str(manifest),
+                    "download_dir": str(root / "downloads"),
+                    "limit": 10,
+                },
+                "output": {"dir": str(root / "outputs")},
+            }
+            state = pipeline.RunState(run_id="run", created_at=pipeline.utc_now(), config_path="config.json")
+
+            def fake_download(url, target, timeout=60):
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_bytes(b"%PDF-1.4")
+
+            with mock.patch("inputs.download_pdf", side_effect=fake_download):
+                reports = pipeline.collect_url_reports(config, state)
+
+            self.assertEqual("downloaded", reports[0].collect_status)
+            self.assertEqual("12", reports[0].pages)
+            self.assertEqual("Analyst A", reports[0].authors)
+            self.assertEqual("000001.SZ", reports[0].ticker_tags)
+            self.assertEqual("Company A", reports[0].company_tags)
+            self.assertEqual("Bank", reports[0].industry_tags)
+            self.assertEqual("Theme A", reports[0].theme_tags)
+
+    def test_collect_url_reports_allows_missing_optional_metadata(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            manifest = root / "urls.csv"
+            manifest.write_text("url,title\nhttps://example.test/report.pdf,Real Report\n", encoding="utf-8")
+            config = {
+                "input": {
+                    "mode": "url_manifest",
+                    "url_manifest": str(manifest),
+                    "download_dir": str(root / "downloads"),
+                    "limit": 10,
+                },
+                "output": {"dir": str(root / "outputs")},
+            }
+            state = pipeline.RunState(run_id="run", created_at=pipeline.utc_now(), config_path="config.json")
+
+            def fake_download(url, target, timeout=60):
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_bytes(b"%PDF-1.4")
+
+            with mock.patch("inputs.download_pdf", side_effect=fake_download):
+                reports = pipeline.collect_url_reports(config, state)
+
+            self.assertEqual("downloaded", reports[0].collect_status)
+            self.assertEqual("", reports[0].pages)
+            self.assertEqual("", reports[0].authors)
+            self.assertEqual("", reports[0].theme_tags)
+
+    def test_collect_url_reports_rejects_generated_filename_title(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            manifest = root / "urls.csv"
+            manifest.write_text(
+                "url,title\nhttps://example.test/H3_AP202605171822381467_1.pdf,H3_AP202605171822381467_1\n",
+                encoding="utf-8",
+            )
+            config = {
+                "input": {
+                    "mode": "url_manifest",
+                    "url_manifest": str(manifest),
+                    "download_dir": str(root / "downloads"),
+                    "limit": 10,
+                },
+                "output": {"dir": str(root / "outputs")},
+            }
+            state = pipeline.RunState(run_id="run", created_at=pipeline.utc_now(), config_path="config.json")
+
+            with mock.patch("inputs.download_pdf") as download:
+                reports = pipeline.collect_url_reports(config, state)
+
+            download.assert_not_called()
+            self.assertEqual("failed", reports[0].collect_status)
+            self.assertIn("generated", reports[0].error_summary)
+
     def test_collect_eastmoney_reports_from_manifest(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -107,6 +196,164 @@ class ReportIngestAnalysisPipelineTests(unittest.TestCase):
             self.assertEqual(1, len(reports))
             self.assertEqual("eastmoney", reports[0].source)
             self.assertEqual("EM Title", reports[0].title)
+
+    def test_collect_eastmoney_api_reports_maps_core_metadata_and_downloads(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            config = {
+                "input": {
+                    "mode": "eastmoney_api",
+                    "download_dir": str(root / "downloads"),
+                    "limit": 10,
+                },
+                "output": {"dir": str(root / "outputs")},
+            }
+            state = pipeline.RunState(run_id="run", created_at=pipeline.utc_now(), config_path="config.json")
+            records = [{
+                "title": "公司深度报告",
+                "infoCode": "AP202606021823164174",
+                "stockName": "上海瀚讯",
+                "stockCode": "300762",
+                "indvInduName": "军工电子Ⅱ",
+                "orgSName": "山西证券",
+                "publishDate": "2026-06-02 00:00:00.000",
+                "researcher": "张天",
+                "attachPages": 5,
+                "themeTags": "卫星互联网",
+            }]
+
+            def fake_download(url, target, timeout=60):
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_bytes(b"%PDF-1.4")
+
+            with mock.patch("inputs.eastmoney_api_records", return_value=records):
+                with mock.patch("inputs.download_pdf", side_effect=fake_download):
+                    reports = pipeline.collect_eastmoney_api_reports(config, state)
+
+            self.assertEqual("downloaded", reports[0].collect_status)
+            self.assertEqual("上海瀚讯", reports[0].company_tags)
+            self.assertEqual("300762", reports[0].ticker_tags)
+            self.assertEqual("军工电子Ⅱ", reports[0].industry_tags)
+            self.assertEqual("张天", reports[0].authors)
+            self.assertEqual("5", reports[0].pages)
+            self.assertEqual("卫星互联网", reports[0].theme_tags)
+            self.assertIn("H3_AP202606021823164174_1.pdf", reports[0].source_url)
+
+    def test_collect_eastmoney_api_reports_uses_industry_name_fallback(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            config = {
+                "input": {
+                    "mode": "eastmoney_api",
+                    "download_dir": str(root / "downloads"),
+                    "limit": 10,
+                },
+                "output": {"dir": str(root / "outputs")},
+            }
+            state = pipeline.RunState(run_id="run", created_at=pipeline.utc_now(), config_path="config.json")
+            records = [{
+                "title": "软件公司报告",
+                "infoCode": "AP202606021823161514",
+                "stockName": "金橙子",
+                "stockCode": "688291",
+                "indvInduName": "",
+                "industryName": "软件开发",
+            }]
+
+            def fake_download(url, target, timeout=60):
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_bytes(b"%PDF-1.4")
+
+            with mock.patch("inputs.eastmoney_api_records", return_value=records):
+                with mock.patch("inputs.download_pdf", side_effect=fake_download):
+                    reports = pipeline.collect_eastmoney_api_reports(config, state)
+
+            self.assertEqual("downloaded", reports[0].collect_status)
+            self.assertEqual("软件开发", reports[0].industry_tags)
+
+    def test_collect_eastmoney_api_reports_rejects_missing_core_metadata(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            config = {
+                "input": {
+                    "mode": "eastmoney_api",
+                    "download_dir": str(root / "downloads"),
+                    "limit": 10,
+                },
+                "output": {"dir": str(root / "outputs")},
+            }
+            state = pipeline.RunState(run_id="run", created_at=pipeline.utc_now(), config_path="config.json")
+            records = [{
+                "title": "缺公司报告",
+                "infoCode": "AP202606021823161512",
+                "stockName": "",
+                "stockCode": "600230",
+                "indvInduName": "化学制品",
+            }]
+
+            with mock.patch("inputs.eastmoney_api_records", return_value=records):
+                with mock.patch("inputs.download_pdf") as download:
+                    reports = pipeline.collect_eastmoney_api_reports(config, state)
+
+            download.assert_not_called()
+            self.assertEqual("failed", reports[0].collect_status)
+            self.assertIn("companyTags", reports[0].error_summary)
+
+    def test_collect_eastmoney_api_reports_allows_missing_theme_tags(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            config = {
+                "input": {
+                    "mode": "eastmoney_api",
+                    "download_dir": str(root / "downloads"),
+                    "limit": 10,
+                },
+                "output": {"dir": str(root / "outputs")},
+            }
+            state = pipeline.RunState(run_id="run", created_at=pipeline.utc_now(), config_path="config.json")
+            records = [{
+                "title": "汽车零部件报告",
+                "infoCode": "AP202606021823159965",
+                "stockName": "银轮股份",
+                "stockCode": "002126",
+                "indvInduName": "汽车零部件",
+            }]
+
+            def fake_download(url, target, timeout=60):
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_bytes(b"%PDF-1.4")
+
+            with mock.patch("inputs.eastmoney_api_records", return_value=records):
+                with mock.patch("inputs.download_pdf", side_effect=fake_download):
+                    reports = pipeline.collect_eastmoney_api_reports(config, state)
+
+            self.assertEqual("downloaded", reports[0].collect_status)
+            self.assertEqual("", reports[0].theme_tags)
+            self.assertEqual("银轮股份", reports[0].company_tags)
+            self.assertEqual("002126", reports[0].ticker_tags)
+            self.assertEqual("汽车零部件", reports[0].industry_tags)
+
+    def test_update_summary_includes_metadata_coverage(self):
+        state = pipeline.RunState(
+            run_id="run",
+            created_at=pipeline.utc_now(),
+            config_path="config.json",
+            input_manifest=[
+                {"collect_status": "downloaded", "theme_tags": "主题"},
+                {"collect_status": "failed", "error_summary": "Missing required metadata: companyTags"},
+            ],
+            results=[
+                {"status": "success"},
+                {"status": "failed"},
+            ],
+        )
+
+        pipeline.update_summary(state)
+
+        self.assertEqual(2, state.summary["input_total"])
+        self.assertEqual(1, state.summary["downloaded"])
+        self.assertEqual(1, state.summary["core_metadata_missing"])
+        self.assertEqual(1, state.summary["theme_tags_present"])
 
     def test_successful_fingerprints_excludes_current_run_and_supports_skip(self):
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -260,6 +507,51 @@ class ReportIngestAnalysisPipelineTests(unittest.TestCase):
             with mock.patch("urllib.request.urlopen", return_value=Response({"message": "bad"})):
                 with self.assertRaises(RuntimeError):
                     pipeline.upload_report(config, report)
+
+    def test_upload_report_submits_tag_fields_but_not_observation_only_fields(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            pdf_path = Path(temp_dir) / "report.pdf"
+            pdf_path.write_bytes(b"pdf")
+            report = pipeline.ReportInput(
+                local_path=str(pdf_path),
+                title="T",
+                publish_date="2026-05-01",
+                pages="9",
+                authors="Analyst A",
+                theme_tags="Theme",
+                industry_tags="Industry",
+                company_tags="Company",
+                ticker_tags="000001.SZ",
+                fingerprint="abc",
+            )
+            config = {"api": {"base_url": "http://example.test", "upload_path": "/upload"}}
+
+            class Response:
+                def __enter__(self):
+                    return self
+
+                def __exit__(self, exc_type, exc, traceback):
+                    return False
+
+                def read(self):
+                    return json.dumps({"reportId": 9, "chunkCount": 3}).encode("utf-8")
+
+            captured = {}
+
+            def fake_urlopen(request, timeout=900):
+                captured["body"] = request.data.decode("utf-8", errors="replace")
+                return Response()
+
+            with mock.patch("urllib.request.urlopen", side_effect=fake_urlopen):
+                pipeline.upload_report(config, report)
+
+            body = captured["body"]
+            self.assertIn('name="themeTags"', body)
+            self.assertIn('name="industryTags"', body)
+            self.assertIn('name="companyTags"', body)
+            self.assertIn('name="tickerTags"', body)
+            self.assertNotIn('name="authors"', body)
+            self.assertNotIn('name="pages"', body)
 
 
 if __name__ == "__main__":
