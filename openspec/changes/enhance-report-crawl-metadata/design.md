@@ -19,7 +19,7 @@
 
 - 不从 PDF 首页、OCR 文本或 chunk 文本中提取作者、主题、行业、公司或股票代码。
 - 不引入 LLM 推断或规则推断来补齐 `themeTags`。
-- 不修改数据库 schema，不要求 `authors`、`pages` 或 `sourceUrl` 写入 `report_document`。
+- 不修改数据库 schema，不要求 `pages` 或 `sourceUrl` 写入 `report_document`。
 - 不修改 `report_chunk_tag`、`report_document_tag` 的导入后抽取和聚合规则。
 - 不修改 Milvus metadata schema 或推荐检索逻辑。
 
@@ -47,7 +47,8 @@
 
 5. **上传只覆盖后端现有能力**
    - `themeTags`、`industryTags`、`companyTags`、`tickerTags` 通过现有 multipart 表单字段上传。
-   - `authors`、`pages` 和 `sourceUrl` 暂时只保留在脚本状态和输出中。
+   - `authors` 非空时通过后端现有作者字段上传。
+   - `pages` 和 `sourceUrl` 暂时只保留在脚本状态和输出中。
    - 备选方案是同步扩展后端 schema，但这会让变更跨越脚本、数据库、接口和 metadata，不符合本期“只改爬取”的收敛目标。
 
 6. **保持模块化脚本实现一致**
@@ -60,4 +61,4 @@
 - [Risk] `themeTags` 来源不稳定，直接使用网站字段可能覆盖率低。→ Mitigation：本期明确不追求主题补全，字段缺失保持空值，后续如需提升再独立设计抽取或推断。
 - [Risk] 作者多值分隔格式不统一。→ Mitigation：第一版只做字符串清洗，不拆分语义；README 约定推荐使用分号或逗号分隔。
 - [Risk] 部分来源只能拿到 PDF URL，拿不到真实标题。→ Mitigation：这类输入不得上传导入，记录明确失败原因，避免用文件名伪造标题污染数据库。
-- [Risk] 只在脚本状态中保存 `authors/pages/sourceUrl`，后端查询不到这些字段。→ Mitigation：在文档中明确这是本期边界；若后续需要展示或过滤，再新增后端持久化变更。
+- [Risk] 只在脚本状态中保存 `pages/sourceUrl`，后端查询不到这些字段。→ Mitigation：在文档中明确这是本期边界；若后续需要展示或过滤，再新增后端持久化变更。

@@ -1,6 +1,6 @@
 package com.example.aimilvusweb.service.retrieval;
 
-import com.example.aimilvusweb.service.ReportRetrievalService.RetrievedChunk;
+import com.example.aimilvusweb.service.retrieval.RetrievedChunk;
 
 import java.util.Comparator;
 import java.util.List;

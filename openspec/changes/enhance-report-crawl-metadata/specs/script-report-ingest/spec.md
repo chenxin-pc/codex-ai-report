@@ -56,7 +56,7 @@
 
 ### Requirement: 脚本 MUST 透传后端已支持的导入标签字段
 
-脚本 MUST 在上传研报时透传后端上传接口已支持的 `themeTags`、`industryTags`、`companyTags` 和 `tickerTags` 字段。脚本 MUST NOT 将 `authors`、`pages` 或 `sourceUrl` 当作后端必填字段上传，也 MUST NOT 要求后端为这些字段新增持久化能力。上传后，系统 MUST 保持既有 OCR、语义切片、chunk 标签抽取、向量入库和推荐检索逻辑不变。
+脚本 MUST 在上传研报时透传后端上传接口已支持的 `themeTags`、`industryTags`、`companyTags` 和 `tickerTags` 字段，并在 `authors` 非空时提交作者字段。脚本 MUST NOT 将 `authors`、`pages` 或 `sourceUrl` 当作后端必填字段，也 MUST NOT 要求后端为 `pages` 或 `sourceUrl` 新增持久化能力。上传后，系统 MUST 保持既有 OCR、语义切片、chunk 标签抽取、向量入库和推荐检索逻辑不变。
 
 #### Scenario: 清单包含四类导入标签
 
@@ -75,6 +75,7 @@
 #### Scenario: 新增爬取元数据不改变导入后链路
 
 - **GIVEN** 脚本输入清单包含 `authors`、`pages` 和四类可选标签
-- **WHEN** 后端导入任务进入 OCR、CHUNK 和 VECTOR 阶段
+- **WHEN** 脚本上传该研报且后端导入任务进入 OCR、CHUNK 和 VECTOR 阶段
 - **THEN** 系统 MUST 使用既有 OCR、语义切片、chunk 标签抽取和向量入库逻辑
+- **AND** 脚本 MUST 在 `authors` 非空时上传作者字段
 - **AND** 系统 MUST NOT 因为 `authors` 或 `pages` 字段而新增 OCR 提取、chunk 级主题抽取或 Milvus metadata 写入行为

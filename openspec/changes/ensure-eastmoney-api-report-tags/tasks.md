@@ -16,7 +16,7 @@
 
 ## 3. 上传与运行状态
 
-- [x] 3.1 确认上传逻辑继续透传非空 `companyTags`、`tickerTags`、`industryTags`、`themeTags`。
+- [x] 3.1 确认上传逻辑继续透传非空 `companyTags`、`tickerTags`、`industryTags`、`themeTags` 和 `authors`。
 - [x] 3.2 在 `state.json` 和运行结果中保存东方财富 API 模式归一化后的公司、代码、行业、主题、作者和页数字段。
 - [x] 3.3 在运行摘要中统计总采集数、下载成功数、导入成功数、核心标签缺失跳过数和 `themeTags` 覆盖率。
 - [x] 3.4 确保幂等逻辑仍可基于 PDF 指纹、来源 URL 或报告元数据跳过已成功导入项。

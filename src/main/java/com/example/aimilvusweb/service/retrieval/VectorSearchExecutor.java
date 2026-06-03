@@ -2,7 +2,7 @@ package com.example.aimilvusweb.service.retrieval;
 
 import com.example.aimilvusweb.repository.ReportChunkTagMapper;
 import com.example.aimilvusweb.repository.ReportDocumentTagMapper;
-import com.example.aimilvusweb.service.ResearchQueryAnchorService.QueryAnchors;
+import com.example.aimilvusweb.service.taxonomy.ResearchQueryAnchorService.QueryAnchors;
 import org.springframework.ai.document.Document;
 
 import java.util.List;

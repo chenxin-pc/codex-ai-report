@@ -1,7 +1,7 @@
 package com.example.aimilvusweb.service.retrieval;
 
 import com.example.aimilvusweb.config.MilvusHybridProperties;
-import com.example.aimilvusweb.service.ResearchQueryAnchorService.QueryAnchors;
+import com.example.aimilvusweb.service.taxonomy.ResearchQueryAnchorService.QueryAnchors;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import io.milvus.common.clientenum.FunctionType;

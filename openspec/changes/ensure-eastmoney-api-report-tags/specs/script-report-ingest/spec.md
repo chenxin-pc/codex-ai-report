@@ -39,6 +39,7 @@
 - **WHEN** 脚本处理并上传该记录
 - **THEN** 脚本 MUST 将 `themeTags` 记录为空值
 - **AND** 脚本 MUST 上传非空的 `companyTags`、`tickerTags` 和 `industryTags`
+- **AND** 脚本 MUST 在 `authors` 非空时上传作者字段
 - **AND** 脚本 MUST NOT 通过 OCR、正文解析、标题规则、LLM 或 chunk 标签抽取补齐 `themeTags`
 
 #### Scenario: 运行摘要展示标签覆盖情况

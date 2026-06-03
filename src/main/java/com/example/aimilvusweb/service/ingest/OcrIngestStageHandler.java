@@ -3,10 +3,10 @@ package com.example.aimilvusweb.service.ingest;
 import com.example.aimilvusweb.entity.IngestJob;
 import com.example.aimilvusweb.enums.IngestStageEnum;
 import com.example.aimilvusweb.repository.IngestJobMapper;
-import com.example.aimilvusweb.service.ReportDocumentTagService;
-import com.example.aimilvusweb.service.ReportIngestService;
-import com.example.aimilvusweb.service.ResearchTaxonomySnapshotService;
-import com.example.aimilvusweb.service.StoredPdfMultipartFile;
+import com.example.aimilvusweb.service.tag.ReportDocumentTagService;
+import com.example.aimilvusweb.service.ingest.ReportIngestService;
+import com.example.aimilvusweb.service.taxonomy.ResearchTaxonomySnapshotService;
+import com.example.aimilvusweb.service.ingest.StoredPdfMultipartFile;
 import org.springframework.stereotype.Component;
 import org.springframework.web.multipart.MultipartFile;
 

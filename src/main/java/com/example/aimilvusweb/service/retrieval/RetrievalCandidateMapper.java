@@ -1,6 +1,6 @@
 package com.example.aimilvusweb.service.retrieval;
 
-import com.example.aimilvusweb.service.ReportRetrievalService.RetrievedChunk;
+import com.example.aimilvusweb.service.retrieval.RetrievedChunk;
 import org.springframework.ai.document.Document;
 
 import java.util.ArrayList;

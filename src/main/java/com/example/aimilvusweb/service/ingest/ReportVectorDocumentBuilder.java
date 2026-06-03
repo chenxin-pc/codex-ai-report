@@ -2,9 +2,9 @@ package com.example.aimilvusweb.service.ingest;
 
 import com.example.aimilvusweb.entity.ReportChunk;
 import com.example.aimilvusweb.entity.ReportDocument;
-import com.example.aimilvusweb.service.ReportAuthorService;
-import com.example.aimilvusweb.service.ReportAuthorService.AuthorMetadata;
-import com.example.aimilvusweb.service.ReportVectorMetadataSyncJobService;
+import com.example.aimilvusweb.service.ingest.ReportAuthorService;
+import com.example.aimilvusweb.service.ingest.ReportAuthorService.AuthorMetadata;
+import com.example.aimilvusweb.service.ingest.ReportVectorMetadataSyncJobService;
 import org.springframework.ai.document.Document;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.ObjectProvider;

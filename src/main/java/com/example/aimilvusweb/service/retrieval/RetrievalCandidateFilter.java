@@ -1,7 +1,7 @@
 package com.example.aimilvusweb.service.retrieval;
 
 import com.example.aimilvusweb.config.ReportQualityProperties;
-import com.example.aimilvusweb.service.ReportRetrievalService.RetrievedChunk;
+import com.example.aimilvusweb.service.retrieval.RetrievedChunk;
 
 import java.util.List;
 

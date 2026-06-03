@@ -24,6 +24,6 @@
 
 - 影响脚本输入采集模块：`scripts/report-ingest-analysis/lib/inputs.py` 与主入口配置解析。
 - 影响脚本模型和状态输出：`ReportInput`、`ReportResult`、`state.json`、运行摘要需要保存并统计必备标签状态。
-- 影响上传请求：继续复用现有 multipart 字段 `companyTags`、`tickerTags`、`industryTags`、`themeTags`。
+- 影响上传请求：继续复用现有 multipart 字段 `companyTags`、`tickerTags`、`industryTags`、`themeTags`，并在 `authors` 非空时提交作者字段。
 - 影响配置样例和 README：新增东方财富 API 模式示例、时间范围、limit 和必备元数据校验说明。
 - 依赖东方财富公开研报 API `https://reportapi.eastmoney.com/report/list`，需要设置合适的 `Referer`、`User-Agent`、分页、时间范围和失败重试策略。

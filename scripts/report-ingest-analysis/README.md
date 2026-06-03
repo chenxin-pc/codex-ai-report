@@ -80,7 +80,7 @@ https://example.test/report.pdf,Report Title,Example,Institution,2026-05-01,12,A
 | `stockName` | `companyTags` | 必填，缺失则跳过该条 |
 | `stockCode` | `tickerTags` | 必填，缺失则跳过该条 |
 | `indvInduName` / `industryName` | `industryTags` | 必填，优先 `indvInduName`，缺失则跳过该条 |
-| `researcher` / `author` | `authors` | 可选记录 |
+| `researcher` / `author` | `authors` | 有值则上传 |
 | `attachPages` | `pages` | 可选记录 |
 | 主题、概念或同义字段 | `themeTags` | 有就上传，没有就留空 |
 
@@ -99,7 +99,7 @@ https://example.test/report.pdf,Report Title,Example,Institution,2026-05-01,12,A
 }
 ```
 
-该模式下，成功上传的研报必须具备公司、代码和行业；主题只使用东方财富 API 或页面直接返回的字段。脚本不会从 PDF、OCR 文本、标题、chunk 文本中提取或推断主题，也不会调用 LLM 补齐主题。
+该模式下，成功上传的研报必须具备公司、代码和行业；作者有值时会随上传接口提交；主题只使用东方财富 API 或页面直接返回的字段。脚本不会从 PDF、OCR 文本、标题、chunk 文本中提取或推断主题，也不会调用 LLM 补齐主题。
 
 运行摘要会额外展示 `input`、`downloaded`、`coreMetadataMissing` 和 `themeTagsPresent`，用于每次爬取后检查标签覆盖情况。
 

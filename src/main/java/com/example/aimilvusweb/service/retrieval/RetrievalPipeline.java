@@ -1,8 +1,8 @@
 package com.example.aimilvusweb.service.retrieval;
 
 import com.example.aimilvusweb.config.ReportQualityProperties;
-import com.example.aimilvusweb.service.ReportRetrievalService.RetrievedChunk;
-import com.example.aimilvusweb.service.ResearchQueryAnchorService.QueryAnchors;
+import com.example.aimilvusweb.service.retrieval.RetrievedChunk;
+import com.example.aimilvusweb.service.taxonomy.ResearchQueryAnchorService.QueryAnchors;
 import org.springframework.ai.document.Document;
 
 import java.util.List;

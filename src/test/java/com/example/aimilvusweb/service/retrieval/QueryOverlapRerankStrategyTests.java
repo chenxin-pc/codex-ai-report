@@ -1,6 +1,6 @@
 package com.example.aimilvusweb.service.retrieval;
 
-import com.example.aimilvusweb.service.ReportRetrievalService;
+import com.example.aimilvusweb.service.retrieval.ReportRetrievalService;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.document.Document;
@@ -30,7 +30,7 @@ class QueryOverlapRerankStrategyTests {
     void shouldSortCandidatesByQueryOverlapDescending() {
         QueryOverlapRerankStrategy strategy = new QueryOverlapRerankStrategy();
 
-        List<ReportRetrievalService.RetrievedChunk> reranked = strategy.rerank("储能风险", List.of(
+        List<RetrievedChunk> reranked = strategy.rerank("储能风险", List.of(
                 chunk("港口吞吐量改善"),
                 chunk("储能系统需求改善"),
                 chunk("储能风险包括价格波动")
@@ -53,7 +53,7 @@ class QueryOverlapRerankStrategyTests {
     void shouldKeepStableOrderWhenOverlapScoresTie() {
         QueryOverlapRerankStrategy strategy = new QueryOverlapRerankStrategy();
 
-        List<ReportRetrievalService.RetrievedChunk> reranked = strategy.rerank("abc", List.of(
+        List<RetrievedChunk> reranked = strategy.rerank("abc", List.of(
                 chunk("a"),
                 chunk("b")
         ));
@@ -70,7 +70,7 @@ class QueryOverlapRerankStrategyTests {
      * @author: cx
      * @Date: 2026-05-30 16:20:00
      */
-    private ReportRetrievalService.RetrievedChunk chunk(String text) {
-        return new ReportRetrievalService.RetrievedChunk(new Document(text, Map.of("chunkUid", text)), 0.9D, text, text);
+    private RetrievedChunk chunk(String text) {
+        return new RetrievedChunk(new Document(text, Map.of("chunkUid", text)), 0.9D, text, text);
     }
 }

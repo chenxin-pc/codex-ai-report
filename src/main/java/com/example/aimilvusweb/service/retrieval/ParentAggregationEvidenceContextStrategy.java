@@ -4,9 +4,9 @@ import com.example.aimilvusweb.common.util.SemanticChunkUtils;
 import com.example.aimilvusweb.config.ReportQualityProperties;
 import com.example.aimilvusweb.entity.ReportChunk;
 import com.example.aimilvusweb.repository.ReportChunkMapper;
-import com.example.aimilvusweb.service.ReportRetrievalService.EvidenceContextType;
-import com.example.aimilvusweb.service.ReportRetrievalService.RetrievedChild;
-import com.example.aimilvusweb.service.ReportRetrievalService.RetrievedChunk;
+import com.example.aimilvusweb.service.retrieval.EvidenceContextType;
+import com.example.aimilvusweb.service.retrieval.RetrievedChild;
+import com.example.aimilvusweb.service.retrieval.RetrievedChunk;
 
 import java.util.ArrayList;
 import java.util.Comparator;

@@ -1,7 +1,7 @@
 package com.example.aimilvusweb.service.retrieval;
 
 import com.example.aimilvusweb.config.ReportQualityProperties;
-import com.example.aimilvusweb.service.ReportRetrievalService;
+import com.example.aimilvusweb.service.retrieval.ReportRetrievalService;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.document.Document;
@@ -33,7 +33,7 @@ class RetrievalCandidateFilterTests {
         properties.getRetrieval().setMinSimilarityScore(0.8D);
         RetrievalCandidateFilter filter = new RetrievalCandidateFilter(properties);
 
-        List<ReportRetrievalService.RetrievedChunk> filtered = filter.filter(List.of(
+        List<RetrievedChunk> filtered = filter.filter(List.of(
                 chunk("high", 0.9D),
                 chunk("low", 0.7D),
                 chunk("missing", null)
@@ -56,7 +56,7 @@ class RetrievalCandidateFilterTests {
     void shouldKeepAllCandidatesWhenThresholdDisabled() {
         RetrievalCandidateFilter filter = new RetrievalCandidateFilter(new ReportQualityProperties());
 
-        List<ReportRetrievalService.RetrievedChunk> filtered = filter.filter(List.of(
+        List<RetrievedChunk> filtered = filter.filter(List.of(
                 chunk("first", 0.1D),
                 chunk("second", 0.2D)
         ));
@@ -74,7 +74,7 @@ class RetrievalCandidateFilterTests {
      * @author: cx
      * @Date: 2026-05-30 16:20:00
      */
-    private ReportRetrievalService.RetrievedChunk chunk(String text, Double score) {
-        return new ReportRetrievalService.RetrievedChunk(new Document(text, Map.of("chunkUid", text)), score, text, text);
+    private RetrievedChunk chunk(String text, Double score) {
+        return new RetrievedChunk(new Document(text, Map.of("chunkUid", text)), score, text, text);
     }
 }

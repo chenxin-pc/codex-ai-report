@@ -51,6 +51,8 @@ def upload_report(config: dict[str, Any], report: ReportInput) -> dict[str, Any]
     }
     if report.publish_date:
         fields["publishDate"] = report.publish_date
+    if report.authors:
+        fields["authors"] = report.authors
     if report.theme_tags:
         fields["themeTags"] = report.theme_tags
     if report.industry_tags:

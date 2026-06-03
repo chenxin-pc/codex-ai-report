@@ -508,7 +508,7 @@ class ReportIngestAnalysisPipelineTests(unittest.TestCase):
                 with self.assertRaises(RuntimeError):
                     pipeline.upload_report(config, report)
 
-    def test_upload_report_submits_tag_fields_but_not_observation_only_fields(self):
+    def test_upload_report_submits_tag_fields_and_authors_but_not_pages(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             pdf_path = Path(temp_dir) / "report.pdf"
             pdf_path.write_bytes(b"pdf")
@@ -550,7 +550,7 @@ class ReportIngestAnalysisPipelineTests(unittest.TestCase):
             self.assertIn('name="industryTags"', body)
             self.assertIn('name="companyTags"', body)
             self.assertIn('name="tickerTags"', body)
-            self.assertNotIn('name="authors"', body)
+            self.assertIn('name="authors"', body)
             self.assertNotIn('name="pages"', body)
 
 

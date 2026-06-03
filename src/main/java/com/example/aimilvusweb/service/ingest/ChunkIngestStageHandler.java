@@ -2,7 +2,7 @@ package com.example.aimilvusweb.service.ingest;
 
 import com.example.aimilvusweb.entity.IngestJob;
 import com.example.aimilvusweb.enums.IngestStageEnum;
-import com.example.aimilvusweb.service.ReportIngestService;
+import com.example.aimilvusweb.service.ingest.ReportIngestService;
 import org.springframework.stereotype.Component;
 
 /**

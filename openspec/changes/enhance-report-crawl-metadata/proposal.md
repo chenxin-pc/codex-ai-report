@@ -7,8 +7,8 @@
 - 扩展研报爬取/清单字段，支持 `pages`、`authors`、`tickerTags`、`companyTags`、`industryTags`、`themeTags` 等可选列。
 - 东方财富或 URL 清单模式从网站/API 元数据直接读取上述字段；字段不存在时保留空值，不做 OCR 提取、正文解析、LLM 推断或 chunk 级标签抽取。
 - 爬取导入的研报标题必须是网站/API 或用户显式清单提供的真实研报标题；不得用 PDF 文件名、URL 文件名、下载生成名或空标题伪造标题。
-- 脚本上传时仅透传后端上传接口已支持的 `themeTags`、`industryTags`、`companyTags`、`tickerTags`。
-- `authors`、`pages`、`sourceUrl` 第一阶段仅保留在脚本输入清单、运行状态和可观测输出中；不要求写入 `report_document`，不要求进入 Milvus metadata。
+- 脚本上传时透传后端上传接口已支持的 `themeTags`、`industryTags`、`companyTags`、`tickerTags`，并在 `authors` 非空时提交作者字段。
+- `pages`、`sourceUrl` 第一阶段仅保留在脚本输入清单、运行状态和可观测输出中；不要求写入 `report_document`，不要求进入 Milvus metadata。
 - 保持后端导入后链路不变：OCR、语义切片、`report_chunk_tag` 抽取、向量写入和推荐检索逻辑不在本变更中调整。
 
 ## Capabilities

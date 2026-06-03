@@ -1,6 +1,6 @@
 package com.example.aimilvusweb.service.retrieval;
 
-import com.example.aimilvusweb.service.ReportRetrievalService;
+import com.example.aimilvusweb.service.retrieval.ReportRetrievalService;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.document.Document;
@@ -30,7 +30,7 @@ class RetrievedChunkDeduplicatorTests {
     void shouldDeduplicateByChunkUidAndKeepFirstCandidate() {
         RetrievedChunkDeduplicator deduplicator = new RetrievedChunkDeduplicator();
 
-        List<ReportRetrievalService.RetrievedChunk> deduplicated = deduplicator.deduplicate(List.of(
+        List<RetrievedChunk> deduplicated = deduplicator.deduplicate(List.of(
                 chunk("first", Map.of("chunkUid", "c1")),
                 chunk("duplicate", Map.of("chunkUid", "c1")),
                 chunk("second", Map.of("chunkUid", "c2"))
@@ -53,7 +53,7 @@ class RetrievedChunkDeduplicatorTests {
     void shouldDeduplicateByContentWhenIdentityIsMissing() {
         RetrievedChunkDeduplicator deduplicator = new RetrievedChunkDeduplicator();
 
-        List<ReportRetrievalService.RetrievedChunk> deduplicated = deduplicator.deduplicate(List.of(
+        List<RetrievedChunk> deduplicated = deduplicator.deduplicate(List.of(
                 chunk("同一段正文", Map.of("title", "研报", "source", "券商", "sectionPath", "正文")),
                 chunk("同一段正文", Map.of("title", "研报", "source", "券商", "sectionPath", "正文")),
                 chunk("另一段正文", Map.of("title", "研报", "source", "券商", "sectionPath", "正文"))
@@ -72,7 +72,7 @@ class RetrievedChunkDeduplicatorTests {
      * @author: cx
      * @Date: 2026-05-30 16:20:00
      */
-    private ReportRetrievalService.RetrievedChunk chunk(String text, Map<String, Object> metadata) {
-        return new ReportRetrievalService.RetrievedChunk(new Document(text, metadata), 0.9D, text, text);
+    private RetrievedChunk chunk(String text, Map<String, Object> metadata) {
+        return new RetrievedChunk(new Document(text, metadata), 0.9D, text, text);
     }
 }

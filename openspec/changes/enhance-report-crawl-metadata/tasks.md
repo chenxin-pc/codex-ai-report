@@ -9,7 +9,7 @@
 ## 2. 上传与运行状态
 
 - [x] 2.1 扩展上传逻辑，将非空 `themeTags`、`industryTags`、`companyTags`、`tickerTags` 作为 multipart 表单字段提交
-- [x] 2.2 确认 `authors`、`pages`、`sourceUrl` 仅保留在脚本清单和运行状态中，不作为后端必填字段上传
+- [x] 2.2 确认 `authors` 非空时上传，`pages`、`sourceUrl` 仅保留在脚本清单和运行状态中，不作为后端必填字段上传
 - [x] 2.3 更新运行状态保存和摘要展示，确保新增可选字段可在 `state.json` 中追溯
 - [x] 2.4 确认导入后 OCR、CHUNK、VECTOR、chunk 标签抽取和检索逻辑无代码改动
 
@@ -25,6 +25,6 @@
 - [x] 4.1 增加脚本测试，覆盖 URL 清单完整可选字段可被读取并写入输入清单
 - [x] 4.2 增加脚本测试，覆盖可选字段缺失时保持空值且不判定采集失败
 - [x] 4.3 增加脚本测试，覆盖真实标题缺失或标题为生成文件名时不得上传导入
-- [x] 4.4 增加上传测试，确认四类导入标签会被提交，`authors/pages` 不作为必填上传字段
+- [x] 4.4 增加上传测试，确认四类导入标签和非空 `authors` 会被提交，`pages` 不作为必填上传字段
 - [x] 4.5 运行 `python3 -m unittest scripts/report-ingest-analysis/tests/test_pipeline.py`
 - [x] 4.6 执行 `openspec validate --all --strict`
