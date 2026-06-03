@@ -1,0 +1,440 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.aimilvusweb.evaluation.repository.EvaluationDatasetMapper">
+
+    <resultMap id="EvaluationCorpusResultMap" type="com.example.aimilvusweb.evaluation.entity.EvaluationCorpus">
+        <id property="id" column="id"/>
+        <result property="corpusCode" column="corpus_code"/>
+        <result property="name" column="name"/>
+        <result property="description" column="description"/>
+        <result property="corpusVersion" column="corpus_version"/>
+        <result property="dictionaryVersion" column="dictionary_version"/>
+        <result property="embeddingModel" column="embedding_model"/>
+        <result property="status" column="status"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="updatedAt" column="updated_at"/>
+    </resultMap>
+
+    <resultMap id="EvaluationCorpusReportResultMap" type="com.example.aimilvusweb.evaluation.entity.EvaluationCorpusReport">
+        <id property="id" column="id"/>
+        <result property="corpusId" column="corpus_id"/>
+        <result property="reportId" column="report_id"/>
+        <result property="reportFingerprint" column="report_fingerprint"/>
+        <result property="titleSnapshot" column="title_snapshot"/>
+        <result property="sourceSnapshot" column="source_snapshot"/>
+        <result property="institutionSnapshot" column="institution_snapshot"/>
+        <result property="publishDateSnapshot" column="publish_date_snapshot"/>
+        <result property="createdAt" column="created_at"/>
+    </resultMap>
+
+    <resultMap id="EvaluationCaseResultMap" type="com.example.aimilvusweb.evaluation.entity.EvaluationCase">
+        <id property="id" column="id"/>
+        <result property="corpusId" column="corpus_id"/>
+        <result property="caseId" column="case_id"/>
+        <result property="queryText" column="query_text"/>
+        <result property="caseType" column="case_type"/>
+        <result property="difficulty" column="difficulty"/>
+        <result property="expectedIntent" column="expected_intent"/>
+        <result property="expectedOutputLevel" column="expected_output_level"/>
+        <result property="expectedDegradationReasons" column="expected_degradation_reasons"/>
+        <result property="referenceAnswer" column="reference_answer"/>
+        <result property="requiredClaims" column="required_claims"/>
+        <result property="forbiddenClaims" column="forbidden_claims"/>
+        <result property="forbiddenTerms" column="forbidden_terms"/>
+        <result property="enabled" column="enabled"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="updatedAt" column="updated_at"/>
+    </resultMap>
+
+    <resultMap id="EvaluationCaseAnchorResultMap" type="com.example.aimilvusweb.evaluation.entity.EvaluationCaseAnchor">
+        <id property="id" column="id"/>
+        <result property="casePkId" column="case_pk_id"/>
+        <result property="anchorType" column="anchor_type"/>
+        <result property="anchorCode" column="anchor_code"/>
+        <result property="anchorName" column="anchor_name"/>
+        <result property="required" column="required"/>
+        <result property="createdAt" column="created_at"/>
+    </resultMap>
+
+    <resultMap id="EvaluationReferenceContextResultMap" type="com.example.aimilvusweb.evaluation.entity.EvaluationReferenceContext">
+        <id property="id" column="id"/>
+        <result property="corpusId" column="corpus_id"/>
+        <result property="reportId" column="report_id"/>
+        <result property="chunkUid" column="chunk_uid"/>
+        <result property="parentChunkUid" column="parent_chunk_uid"/>
+        <result property="contextType" column="context_type"/>
+        <result property="sectionPath" column="section_path"/>
+        <result property="pageStart" column="page_start"/>
+        <result property="pageEnd" column="page_end"/>
+        <result property="referenceText" column="reference_text"/>
+        <result property="themeCodes" column="theme_codes"/>
+        <result property="industryCodes" column="industry_codes"/>
+        <result property="companyNames" column="company_names"/>
+        <result property="tickers" column="tickers"/>
+        <result property="createdAt" column="created_at"/>
+    </resultMap>
+
+    <resultMap id="EvaluationCaseReferenceContextResultMap" type="com.example.aimilvusweb.evaluation.entity.EvaluationCaseReferenceContext">
+        <id property="id" column="id"/>
+        <result property="casePkId" column="case_pk_id"/>
+        <result property="referenceContextId" column="reference_context_id"/>
+        <result property="relevanceLevel" column="relevance_level"/>
+        <result property="required" column="required"/>
+        <result property="notes" column="notes"/>
+        <result property="createdAt" column="created_at"/>
+    </resultMap>
+
+    <resultMap id="EvaluationCaseForbiddenContextResultMap" type="com.example.aimilvusweb.evaluation.entity.EvaluationCaseForbiddenContext">
+        <id property="id" column="id"/>
+        <result property="casePkId" column="case_pk_id"/>
+        <result property="forbiddenType" column="forbidden_type"/>
+        <result property="forbiddenValue" column="forbidden_value"/>
+        <result property="createdAt" column="created_at"/>
+    </resultMap>
+
+    <insert id="insertCorpus" parameterType="com.example.aimilvusweb.evaluation.entity.EvaluationCorpus" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO eval_corpus(
+            corpus_code,
+            name,
+            description,
+            corpus_version,
+            dictionary_version,
+            embedding_model,
+            status,
+            created_at,
+            updated_at
+        )
+        VALUES(
+            #{corpusCode},
+            #{name},
+            #{description},
+            #{corpusVersion},
+            #{dictionaryVersion},
+            #{embeddingModel},
+            #{status},
+            #{createdAt},
+            #{updatedAt}
+        )
+    </insert>
+
+    <select id="selectCorpusById" parameterType="long" resultMap="EvaluationCorpusResultMap">
+        SELECT id,
+               corpus_code,
+               name,
+               description,
+               corpus_version,
+               dictionary_version,
+               embedding_model,
+               status,
+               created_at,
+               updated_at
+        FROM eval_corpus
+        WHERE id = #{id}
+    </select>
+
+    <select id="selectCorpusByCodeVersion" resultMap="EvaluationCorpusResultMap">
+        SELECT id,
+               corpus_code,
+               name,
+               description,
+               corpus_version,
+               dictionary_version,
+               embedding_model,
+               status,
+               created_at,
+               updated_at
+        FROM eval_corpus
+        WHERE corpus_code = #{corpusCode}
+          AND corpus_version = #{corpusVersion}
+    </select>
+
+    <insert id="insertCorpusReport" parameterType="com.example.aimilvusweb.evaluation.entity.EvaluationCorpusReport" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO eval_corpus_report(
+            corpus_id,
+            report_id,
+            report_fingerprint,
+            title_snapshot,
+            source_snapshot,
+            institution_snapshot,
+            publish_date_snapshot,
+            created_at
+        )
+        VALUES(
+            #{corpusId},
+            #{reportId},
+            #{reportFingerprint},
+            #{titleSnapshot},
+            #{sourceSnapshot},
+            #{institutionSnapshot},
+            #{publishDateSnapshot},
+            #{createdAt}
+        )
+    </insert>
+
+    <select id="selectCorpusReportsByCorpusId" parameterType="long" resultMap="EvaluationCorpusReportResultMap">
+        SELECT id,
+               corpus_id,
+               report_id,
+               report_fingerprint,
+               title_snapshot,
+               source_snapshot,
+               institution_snapshot,
+               publish_date_snapshot,
+               created_at
+        FROM eval_corpus_report
+        WHERE corpus_id = #{corpusId}
+        ORDER BY id ASC
+    </select>
+
+    <insert id="insertCase" parameterType="com.example.aimilvusweb.evaluation.entity.EvaluationCase" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO eval_case(
+            corpus_id,
+            case_id,
+            query_text,
+            case_type,
+            difficulty,
+            expected_intent,
+            expected_output_level,
+            expected_degradation_reasons,
+            reference_answer,
+            required_claims,
+            forbidden_claims,
+            forbidden_terms,
+            enabled,
+            created_at,
+            updated_at
+        )
+        VALUES(
+            #{corpusId},
+            #{caseId},
+            #{queryText},
+            #{caseType},
+            #{difficulty},
+            #{expectedIntent},
+            #{expectedOutputLevel},
+            #{expectedDegradationReasons},
+            #{referenceAnswer},
+            #{requiredClaims},
+            #{forbiddenClaims},
+            #{forbiddenTerms},
+            #{enabled},
+            #{createdAt},
+            #{updatedAt}
+        )
+    </insert>
+
+    <select id="selectCaseById" parameterType="long" resultMap="EvaluationCaseResultMap">
+        SELECT id,
+               corpus_id,
+               case_id,
+               query_text,
+               case_type,
+               difficulty,
+               expected_intent,
+               expected_output_level,
+               expected_degradation_reasons,
+               reference_answer,
+               required_claims,
+               forbidden_claims,
+               forbidden_terms,
+               enabled,
+               created_at,
+               updated_at
+        FROM eval_case
+        WHERE id = #{id}
+    </select>
+
+    <select id="selectEnabledCasesByCorpusId" parameterType="long" resultMap="EvaluationCaseResultMap">
+        SELECT id,
+               corpus_id,
+               case_id,
+               query_text,
+               case_type,
+               difficulty,
+               expected_intent,
+               expected_output_level,
+               expected_degradation_reasons,
+               reference_answer,
+               required_claims,
+               forbidden_claims,
+               forbidden_terms,
+               enabled,
+               created_at,
+               updated_at
+        FROM eval_case
+        WHERE corpus_id = #{corpusId}
+          AND enabled = TRUE
+        ORDER BY id ASC
+    </select>
+
+    <insert id="insertCaseAnchor" parameterType="com.example.aimilvusweb.evaluation.entity.EvaluationCaseAnchor" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO eval_case_anchor(
+            case_pk_id,
+            anchor_type,
+            anchor_code,
+            anchor_name,
+            required,
+            created_at
+        )
+        VALUES(
+            #{casePkId},
+            #{anchorType},
+            #{anchorCode},
+            #{anchorName},
+            #{required},
+            #{createdAt}
+        )
+    </insert>
+
+    <select id="selectAnchorsByCasePkId" parameterType="long" resultMap="EvaluationCaseAnchorResultMap">
+        SELECT id,
+               case_pk_id,
+               anchor_type,
+               anchor_code,
+               anchor_name,
+               required,
+               created_at
+        FROM eval_case_anchor
+        WHERE case_pk_id = #{casePkId}
+        ORDER BY id ASC
+    </select>
+
+    <insert id="insertReferenceContext" parameterType="com.example.aimilvusweb.evaluation.entity.EvaluationReferenceContext" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO eval_reference_context(
+            corpus_id,
+            report_id,
+            chunk_uid,
+            parent_chunk_uid,
+            context_type,
+            section_path,
+            page_start,
+            page_end,
+            reference_text,
+            theme_codes,
+            industry_codes,
+            company_names,
+            tickers,
+            created_at
+        )
+        VALUES(
+            #{corpusId},
+            #{reportId},
+            #{chunkUid},
+            #{parentChunkUid},
+            #{contextType},
+            #{sectionPath},
+            #{pageStart},
+            #{pageEnd},
+            #{referenceText},
+            #{themeCodes},
+            #{industryCodes},
+            #{companyNames},
+            #{tickers},
+            #{createdAt}
+        )
+    </insert>
+
+    <select id="selectReferenceContextById" parameterType="long" resultMap="EvaluationReferenceContextResultMap">
+        SELECT id,
+               corpus_id,
+               report_id,
+               chunk_uid,
+               parent_chunk_uid,
+               context_type,
+               section_path,
+               page_start,
+               page_end,
+               reference_text,
+               theme_codes,
+               industry_codes,
+               company_names,
+               tickers,
+               created_at
+        FROM eval_reference_context
+        WHERE id = #{id}
+    </select>
+
+    <select id="selectReferenceContextsByCasePkId" parameterType="long" resultMap="EvaluationReferenceContextResultMap">
+        SELECT erc.id,
+               erc.corpus_id,
+               erc.report_id,
+               erc.chunk_uid,
+               erc.parent_chunk_uid,
+               erc.context_type,
+               erc.section_path,
+               erc.page_start,
+               erc.page_end,
+               erc.reference_text,
+               erc.theme_codes,
+               erc.industry_codes,
+               erc.company_names,
+               erc.tickers,
+               erc.created_at
+        FROM eval_reference_context erc
+        INNER JOIN eval_case_reference_context ecrc
+            ON ecrc.reference_context_id = erc.id
+        WHERE ecrc.case_pk_id = #{casePkId}
+        ORDER BY ecrc.required DESC, ecrc.relevance_level DESC, erc.id ASC
+    </select>
+
+    <insert id="insertCaseReferenceContext" parameterType="com.example.aimilvusweb.evaluation.entity.EvaluationCaseReferenceContext" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO eval_case_reference_context(
+            case_pk_id,
+            reference_context_id,
+            relevance_level,
+            required,
+            notes,
+            created_at
+        )
+        VALUES(
+            #{casePkId},
+            #{referenceContextId},
+            #{relevanceLevel},
+            #{required},
+            #{notes},
+            #{createdAt}
+        )
+    </insert>
+
+    <select id="selectCaseReferenceLinksByCasePkId" parameterType="long" resultMap="EvaluationCaseReferenceContextResultMap">
+        SELECT id,
+               case_pk_id,
+               reference_context_id,
+               relevance_level,
+               required,
+               notes,
+               created_at
+        FROM eval_case_reference_context
+        WHERE case_pk_id = #{casePkId}
+        ORDER BY required DESC, relevance_level DESC, id ASC
+    </select>
+
+    <insert id="insertCaseForbiddenContext" parameterType="com.example.aimilvusweb.evaluation.entity.EvaluationCaseForbiddenContext" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO eval_case_forbidden_context(
+            case_pk_id,
+            forbidden_type,
+            forbidden_value,
+            created_at
+        )
+        VALUES(
+            #{casePkId},
+            #{forbiddenType},
+            #{forbiddenValue},
+            #{createdAt}
+        )
+    </insert>
+
+    <select id="selectForbiddenContextsByCasePkId" parameterType="long" resultMap="EvaluationCaseForbiddenContextResultMap">
+        SELECT id,
+               case_pk_id,
+               forbidden_type,
+               forbidden_value,
+               created_at
+        FROM eval_case_forbidden_context
+        WHERE case_pk_id = #{casePkId}
+        ORDER BY id ASC
+    </select>
+
+</mapper>

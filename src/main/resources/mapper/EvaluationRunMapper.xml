@@ -1,0 +1,309 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.aimilvusweb.evaluation.repository.EvaluationRunMapper">
+
+    <resultMap id="EvaluationRunResultMap" type="com.example.aimilvusweb.evaluation.entity.EvaluationRun">
+        <id property="id" column="id"/>
+        <result property="runId" column="run_id"/>
+        <result property="corpusId" column="corpus_id"/>
+        <result property="appCommit" column="app_commit"/>
+        <result property="promptVersion" column="prompt_version"/>
+        <result property="promptHash" column="prompt_hash"/>
+        <result property="embeddingModel" column="embedding_model"/>
+        <result property="llmModel" column="llm_model"/>
+        <result property="retrievalConfig" column="retrieval_config"/>
+        <result property="dictionaryVersion" column="dictionary_version"/>
+        <result property="status" column="status"/>
+        <result property="errorSummary" column="error_summary"/>
+        <result property="startedAt" column="started_at"/>
+        <result property="finishedAt" column="finished_at"/>
+        <result property="createdAt" column="created_at"/>
+    </resultMap>
+
+    <resultMap id="EvaluationCaseRunResultMap" type="com.example.aimilvusweb.evaluation.entity.EvaluationCaseRun">
+        <id property="id" column="id"/>
+        <result property="evalRunId" column="eval_run_id"/>
+        <result property="casePkId" column="case_pk_id"/>
+        <result property="queryText" column="query_text"/>
+        <result property="actualIntent" column="actual_intent"/>
+        <result property="actualAnchors" column="actual_anchors"/>
+        <result property="actualOutputLevel" column="actual_output_level"/>
+        <result property="actualDegradationReasons" column="actual_degradation_reasons"/>
+        <result property="responseText" column="response_text"/>
+        <result property="analysis" column="analysis"/>
+        <result property="recommendation" column="recommendation"/>
+        <result property="risks" column="risks"/>
+        <result property="citations" column="citations"/>
+        <result property="evidenceQuality" column="evidence_quality"/>
+        <result property="intentMatch" column="intent_match"/>
+        <result property="anchorMatch" column="anchor_match"/>
+        <result property="outputLevelMatch" column="output_level_match"/>
+        <result property="degradationReasonMatch" column="degradation_reason_match"/>
+        <result property="referenceContextHit" column="reference_context_hit"/>
+        <result property="forbiddenContextHit" column="forbidden_context_hit"/>
+        <result property="forbiddenClaimHit" column="forbidden_claim_hit"/>
+        <result property="evidenceQualityMatch" column="evidence_quality_match"/>
+        <result property="needsManualReview" column="needs_manual_review"/>
+        <result property="autoScores" column="auto_scores"/>
+        <result property="manualReviewStatus" column="manual_review_status"/>
+        <result property="status" column="status"/>
+        <result property="errorMessage" column="error_message"/>
+        <result property="startedAt" column="started_at"/>
+        <result property="finishedAt" column="finished_at"/>
+        <result property="createdAt" column="created_at"/>
+    </resultMap>
+
+    <resultMap id="EvaluationRetrievedContextResultMap" type="com.example.aimilvusweb.evaluation.entity.EvaluationRetrievedContext">
+        <id property="id" column="id"/>
+        <result property="caseRunId" column="case_run_id"/>
+        <result property="stage" column="stage"/>
+        <result property="rankNo" column="rank_no"/>
+        <result property="reportId" column="report_id"/>
+        <result property="chunkUid" column="chunk_uid"/>
+        <result property="parentChunkUid" column="parent_chunk_uid"/>
+        <result property="sectionPath" column="section_path"/>
+        <result property="score" column="score"/>
+        <result property="relevanceScore" column="relevance_score"/>
+        <result property="contextType" column="context_type"/>
+        <result property="diagnosticOnly" column="diagnostic_only"/>
+        <result property="truncated" column="truncated"/>
+        <result property="hitCount" column="hit_count"/>
+        <result property="retrievedText" column="retrieved_text"/>
+        <result property="metadataJson" column="metadata_json"/>
+        <result property="manualRelevanceLevel" column="manual_relevance_level"/>
+        <result property="manualIssueNotes" column="manual_issue_notes"/>
+        <result property="manualSuggestedAction" column="manual_suggested_action"/>
+        <result property="createdAt" column="created_at"/>
+    </resultMap>
+
+    <insert id="insertRun" parameterType="com.example.aimilvusweb.evaluation.entity.EvaluationRun" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO eval_run(
+            run_id,
+            corpus_id,
+            app_commit,
+            prompt_version,
+            prompt_hash,
+            embedding_model,
+            llm_model,
+            retrieval_config,
+            dictionary_version,
+            status,
+            error_summary,
+            started_at,
+            finished_at,
+            created_at
+        )
+        VALUES(
+            #{runId},
+            #{corpusId},
+            #{appCommit},
+            #{promptVersion},
+            #{promptHash},
+            #{embeddingModel},
+            #{llmModel},
+            #{retrievalConfig},
+            #{dictionaryVersion},
+            #{status},
+            #{errorSummary},
+            #{startedAt},
+            #{finishedAt},
+            #{createdAt}
+        )
+    </insert>
+
+    <select id="selectRunByRunId" parameterType="string" resultMap="EvaluationRunResultMap">
+        SELECT id,
+               run_id,
+               corpus_id,
+               app_commit,
+               prompt_version,
+               prompt_hash,
+               embedding_model,
+               llm_model,
+               retrieval_config,
+               dictionary_version,
+               status,
+               error_summary,
+               started_at,
+               finished_at,
+               created_at
+        FROM eval_run
+        WHERE run_id = #{runId}
+    </select>
+
+    <update id="updateRunStatus">
+        UPDATE eval_run
+        SET status = #{status},
+            finished_at = #{finishedAt},
+            error_summary = #{errorSummary}
+        WHERE id = #{id}
+    </update>
+
+    <insert id="insertCaseRun" parameterType="com.example.aimilvusweb.evaluation.entity.EvaluationCaseRun" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO eval_case_run(
+            eval_run_id,
+            case_pk_id,
+            query_text,
+            status,
+            started_at,
+            finished_at,
+            created_at
+        )
+        VALUES(
+            #{evalRunId},
+            #{casePkId},
+            #{queryText},
+            #{status},
+            #{startedAt},
+            #{finishedAt},
+            #{createdAt}
+        )
+    </insert>
+
+    <update id="updateCaseRunResult" parameterType="com.example.aimilvusweb.evaluation.entity.EvaluationCaseRun">
+        UPDATE eval_case_run
+        SET actual_intent = #{actualIntent},
+            actual_anchors = #{actualAnchors},
+            actual_output_level = #{actualOutputLevel},
+            actual_degradation_reasons = #{actualDegradationReasons},
+            response_text = #{responseText},
+            analysis = #{analysis},
+            recommendation = #{recommendation},
+            risks = #{risks},
+            citations = #{citations},
+            evidence_quality = #{evidenceQuality},
+            intent_match = #{intentMatch},
+            anchor_match = #{anchorMatch},
+            output_level_match = #{outputLevelMatch},
+            degradation_reason_match = #{degradationReasonMatch},
+            reference_context_hit = #{referenceContextHit},
+            forbidden_context_hit = #{forbiddenContextHit},
+            forbidden_claim_hit = #{forbiddenClaimHit},
+            evidence_quality_match = #{evidenceQualityMatch},
+            needs_manual_review = #{needsManualReview},
+            auto_scores = #{autoScores},
+            manual_review_status = #{manualReviewStatus},
+            status = #{status},
+            error_message = #{errorMessage},
+            finished_at = #{finishedAt}
+        WHERE id = #{id}
+    </update>
+
+    <update id="updateCaseRunFailure">
+        UPDATE eval_case_run
+        SET status = 'FAILED',
+            error_message = #{errorMessage},
+            finished_at = #{finishedAt}
+        WHERE id = #{id}
+    </update>
+
+    <select id="selectCaseRunsByEvalRunId" parameterType="long" resultMap="EvaluationCaseRunResultMap">
+        SELECT id,
+               eval_run_id,
+               case_pk_id,
+               query_text,
+               actual_intent,
+               actual_anchors,
+               actual_output_level,
+               actual_degradation_reasons,
+               response_text,
+               analysis,
+               recommendation,
+               risks,
+               citations,
+               evidence_quality,
+               intent_match,
+               anchor_match,
+               output_level_match,
+               degradation_reason_match,
+               reference_context_hit,
+               forbidden_context_hit,
+               forbidden_claim_hit,
+               evidence_quality_match,
+               needs_manual_review,
+               auto_scores,
+               manual_review_status,
+               status,
+               error_message,
+               started_at,
+               finished_at,
+               created_at
+        FROM eval_case_run
+        WHERE eval_run_id = #{evalRunId}
+        ORDER BY id ASC
+    </select>
+
+    <insert id="insertRetrievedContext" parameterType="com.example.aimilvusweb.evaluation.entity.EvaluationRetrievedContext" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO eval_retrieved_context(
+            case_run_id,
+            stage,
+            rank_no,
+            report_id,
+            chunk_uid,
+            parent_chunk_uid,
+            section_path,
+            score,
+            relevance_score,
+            context_type,
+            diagnostic_only,
+            truncated,
+            hit_count,
+            retrieved_text,
+            metadata_json,
+            manual_relevance_level,
+            manual_issue_notes,
+            manual_suggested_action,
+            created_at
+        )
+        VALUES(
+            #{caseRunId},
+            #{stage},
+            #{rankNo},
+            #{reportId},
+            #{chunkUid},
+            #{parentChunkUid},
+            #{sectionPath},
+            #{score},
+            #{relevanceScore},
+            #{contextType},
+            #{diagnosticOnly},
+            #{truncated},
+            #{hitCount},
+            #{retrievedText},
+            #{metadataJson},
+            #{manualRelevanceLevel},
+            #{manualIssueNotes},
+            #{manualSuggestedAction},
+            #{createdAt}
+        )
+    </insert>
+
+    <select id="selectRetrievedContextsByCaseRunId" parameterType="long" resultMap="EvaluationRetrievedContextResultMap">
+        SELECT id,
+               case_run_id,
+               stage,
+               rank_no,
+               report_id,
+               chunk_uid,
+               parent_chunk_uid,
+               section_path,
+               score,
+               relevance_score,
+               context_type,
+               diagnostic_only,
+               truncated,
+               hit_count,
+               retrieved_text,
+               metadata_json,
+               manual_relevance_level,
+               manual_issue_notes,
+               manual_suggested_action,
+               created_at
+        FROM eval_retrieved_context
+        WHERE case_run_id = #{caseRunId}
+        ORDER BY stage ASC, rank_no ASC, id ASC
+    </select>
+
+</mapper>

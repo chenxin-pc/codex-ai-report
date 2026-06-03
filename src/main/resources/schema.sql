@@ -346,6 +346,210 @@ CREATE TABLE IF NOT EXISTS report_vector_metadata_sync_job (
     KEY idx_vector_metadata_sync_job_report_id (report_id)
 );
 
+CREATE TABLE IF NOT EXISTS eval_corpus (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    corpus_code VARCHAR(128) NOT NULL,
+    name VARCHAR(255) NOT NULL,
+    description TEXT NULL,
+    corpus_version VARCHAR(64) NOT NULL DEFAULT 'v1',
+    dictionary_version VARCHAR(32) NOT NULL DEFAULT 'v1',
+    embedding_model VARCHAR(128) NULL,
+    status VARCHAR(32) NOT NULL DEFAULT 'ACTIVE',
+    created_at TIMESTAMP NOT NULL,
+    updated_at TIMESTAMP NOT NULL,
+    UNIQUE KEY uk_eval_corpus_code_version (corpus_code, corpus_version),
+    KEY idx_eval_corpus_status (status)
+);
+
+CREATE TABLE IF NOT EXISTS eval_corpus_report (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    corpus_id BIGINT NOT NULL,
+    report_id BIGINT NOT NULL,
+    report_fingerprint VARCHAR(128) NULL,
+    title_snapshot VARCHAR(255) NOT NULL,
+    source_snapshot VARCHAR(255) NULL,
+    institution_snapshot VARCHAR(255) NULL,
+    publish_date_snapshot DATE NULL,
+    created_at TIMESTAMP NOT NULL,
+    CONSTRAINT fk_eval_corpus_report_corpus_id FOREIGN KEY (corpus_id) REFERENCES eval_corpus(id),
+    UNIQUE KEY uk_eval_corpus_report_report (corpus_id, report_id),
+    KEY idx_eval_corpus_report_report_id (report_id),
+    KEY idx_eval_corpus_report_fingerprint (report_fingerprint)
+);
+
+CREATE TABLE IF NOT EXISTS eval_case (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    corpus_id BIGINT NOT NULL,
+    case_id VARCHAR(128) NOT NULL,
+    query_text TEXT NOT NULL,
+    case_type VARCHAR(64) NOT NULL,
+    difficulty VARCHAR(32) NULL,
+    expected_intent VARCHAR(64) NULL,
+    expected_output_level VARCHAR(64) NULL,
+    expected_degradation_reasons TEXT NULL,
+    reference_answer MEDIUMTEXT NULL,
+    required_claims TEXT NULL,
+    forbidden_claims TEXT NULL,
+    forbidden_terms TEXT NULL,
+    enabled BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMP NOT NULL,
+    updated_at TIMESTAMP NOT NULL,
+    CONSTRAINT fk_eval_case_corpus_id FOREIGN KEY (corpus_id) REFERENCES eval_corpus(id),
+    UNIQUE KEY uk_eval_case_case_id (case_id),
+    KEY idx_eval_case_corpus_enabled (corpus_id, enabled),
+    KEY idx_eval_case_type (case_type)
+);
+
+CREATE TABLE IF NOT EXISTS eval_case_anchor (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    case_pk_id BIGINT NOT NULL,
+    anchor_type VARCHAR(32) NOT NULL,
+    anchor_code VARCHAR(128) NOT NULL,
+    anchor_name VARCHAR(255) NULL,
+    required BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMP NOT NULL,
+    CONSTRAINT fk_eval_case_anchor_case_id FOREIGN KEY (case_pk_id) REFERENCES eval_case(id),
+    KEY idx_eval_case_anchor_case (case_pk_id),
+    KEY idx_eval_case_anchor_type_code (anchor_type, anchor_code)
+);
+
+CREATE TABLE IF NOT EXISTS eval_reference_context (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    corpus_id BIGINT NOT NULL,
+    report_id BIGINT NULL,
+    chunk_uid VARCHAR(64) NULL,
+    parent_chunk_uid VARCHAR(64) NULL,
+    context_type VARCHAR(32) NOT NULL DEFAULT 'CHILD',
+    section_path VARCHAR(512) NULL,
+    page_start INT NULL,
+    page_end INT NULL,
+    reference_text MEDIUMTEXT NOT NULL,
+    theme_codes TEXT NULL,
+    industry_codes TEXT NULL,
+    company_names TEXT NULL,
+    tickers TEXT NULL,
+    created_at TIMESTAMP NOT NULL,
+    CONSTRAINT fk_eval_reference_context_corpus_id FOREIGN KEY (corpus_id) REFERENCES eval_corpus(id),
+    KEY idx_eval_reference_context_corpus (corpus_id),
+    KEY idx_eval_reference_context_report (report_id),
+    KEY idx_eval_reference_context_chunk_uid (chunk_uid),
+    KEY idx_eval_reference_context_parent_uid (parent_chunk_uid)
+);
+
+CREATE TABLE IF NOT EXISTS eval_case_reference_context (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    case_pk_id BIGINT NOT NULL,
+    reference_context_id BIGINT NOT NULL,
+    relevance_level INT NOT NULL DEFAULT 1,
+    required BOOLEAN NOT NULL DEFAULT TRUE,
+    notes VARCHAR(512) NULL,
+    created_at TIMESTAMP NOT NULL,
+    CONSTRAINT fk_eval_case_ref_case_id FOREIGN KEY (case_pk_id) REFERENCES eval_case(id),
+    CONSTRAINT fk_eval_case_ref_context_id FOREIGN KEY (reference_context_id) REFERENCES eval_reference_context(id),
+    UNIQUE KEY uk_eval_case_ref_context (case_pk_id, reference_context_id),
+    KEY idx_eval_case_ref_case (case_pk_id),
+    KEY idx_eval_case_ref_context (reference_context_id)
+);
+
+CREATE TABLE IF NOT EXISTS eval_case_forbidden_context (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    case_pk_id BIGINT NOT NULL,
+    forbidden_type VARCHAR(32) NOT NULL,
+    forbidden_value VARCHAR(255) NOT NULL,
+    created_at TIMESTAMP NOT NULL,
+    CONSTRAINT fk_eval_case_forbidden_case_id FOREIGN KEY (case_pk_id) REFERENCES eval_case(id),
+    KEY idx_eval_case_forbidden_case (case_pk_id),
+    KEY idx_eval_case_forbidden_type_value (forbidden_type, forbidden_value)
+);
+
+CREATE TABLE IF NOT EXISTS eval_run (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    run_id VARCHAR(128) NOT NULL,
+    corpus_id BIGINT NOT NULL,
+    app_commit VARCHAR(128) NULL,
+    prompt_version VARCHAR(64) NULL,
+    prompt_hash VARCHAR(128) NULL,
+    embedding_model VARCHAR(128) NULL,
+    llm_model VARCHAR(128) NULL,
+    retrieval_config TEXT NULL,
+    dictionary_version VARCHAR(32) NULL,
+    status VARCHAR(32) NOT NULL DEFAULT 'RUNNING',
+    error_summary VARCHAR(512) NULL,
+    started_at TIMESTAMP NOT NULL,
+    finished_at TIMESTAMP NULL,
+    created_at TIMESTAMP NOT NULL,
+    CONSTRAINT fk_eval_run_corpus_id FOREIGN KEY (corpus_id) REFERENCES eval_corpus(id),
+    UNIQUE KEY uk_eval_run_run_id (run_id),
+    KEY idx_eval_run_corpus_status (corpus_id, status),
+    KEY idx_eval_run_started_at (started_at)
+);
+
+CREATE TABLE IF NOT EXISTS eval_case_run (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    eval_run_id BIGINT NOT NULL,
+    case_pk_id BIGINT NOT NULL,
+    query_text TEXT NOT NULL,
+    actual_intent VARCHAR(64) NULL,
+    actual_anchors TEXT NULL,
+    actual_output_level VARCHAR(64) NULL,
+    actual_degradation_reasons TEXT NULL,
+    response_text MEDIUMTEXT NULL,
+    analysis MEDIUMTEXT NULL,
+    recommendation MEDIUMTEXT NULL,
+    risks TEXT NULL,
+    citations TEXT NULL,
+    evidence_quality TEXT NULL,
+    intent_match BOOLEAN NULL,
+    anchor_match BOOLEAN NULL,
+    output_level_match BOOLEAN NULL,
+    degradation_reason_match BOOLEAN NULL,
+    reference_context_hit BOOLEAN NULL,
+    forbidden_context_hit BOOLEAN NULL,
+    forbidden_claim_hit BOOLEAN NULL,
+    evidence_quality_match BOOLEAN NULL,
+    needs_manual_review BOOLEAN NOT NULL DEFAULT FALSE,
+    auto_scores TEXT NULL,
+    manual_review_status VARCHAR(32) NOT NULL DEFAULT 'UNREVIEWED',
+    status VARCHAR(32) NOT NULL DEFAULT 'RUNNING',
+    error_message VARCHAR(512) NULL,
+    started_at TIMESTAMP NOT NULL,
+    finished_at TIMESTAMP NULL,
+    created_at TIMESTAMP NOT NULL,
+    CONSTRAINT fk_eval_case_run_run_id FOREIGN KEY (eval_run_id) REFERENCES eval_run(id),
+    CONSTRAINT fk_eval_case_run_case_id FOREIGN KEY (case_pk_id) REFERENCES eval_case(id),
+    KEY idx_eval_case_run_run (eval_run_id),
+    KEY idx_eval_case_run_case (case_pk_id),
+    KEY idx_eval_case_run_status (status)
+);
+
+CREATE TABLE IF NOT EXISTS eval_retrieved_context (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    case_run_id BIGINT NOT NULL,
+    stage VARCHAR(32) NOT NULL DEFAULT 'FINAL',
+    rank_no INT NOT NULL DEFAULT 0,
+    report_id BIGINT NULL,
+    chunk_uid VARCHAR(64) NULL,
+    parent_chunk_uid VARCHAR(64) NULL,
+    section_path VARCHAR(512) NULL,
+    score DECIMAL(18,8) NULL,
+    relevance_score DECIMAL(18,8) NULL,
+    context_type VARCHAR(32) NULL,
+    diagnostic_only BOOLEAN NOT NULL DEFAULT FALSE,
+    truncated BOOLEAN NOT NULL DEFAULT FALSE,
+    hit_count INT NULL,
+    retrieved_text MEDIUMTEXT NULL,
+    metadata_json TEXT NULL,
+    manual_relevance_level INT NULL,
+    manual_issue_notes VARCHAR(512) NULL,
+    manual_suggested_action VARCHAR(255) NULL,
+    created_at TIMESTAMP NOT NULL,
+    CONSTRAINT fk_eval_retrieved_context_case_run FOREIGN KEY (case_run_id) REFERENCES eval_case_run(id),
+    KEY idx_eval_retrieved_context_case_run (case_run_id),
+    KEY idx_eval_retrieved_context_stage_rank (case_run_id, stage, rank_no),
+    KEY idx_eval_retrieved_context_chunk_uid (chunk_uid),
+    KEY idx_eval_retrieved_context_parent_uid (parent_chunk_uid)
+);
+
 INSERT INTO theme_dictionary(theme_code, theme_name, version, status, description, created_at, updated_at)
 SELECT 'STORAGE', '储能', 'v1', 'ACTIVE', '储能、电化学储能、新型储能和储能系统主题', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
 WHERE NOT EXISTS (SELECT 1 FROM theme_dictionary WHERE theme_code = 'STORAGE' AND version = 'v1');

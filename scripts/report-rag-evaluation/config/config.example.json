@@ -1,0 +1,43 @@
+{
+  "api": {
+    "base_url": "http://localhost:8080",
+    "recommend_path": "/api/reports/recommend"
+  },
+  "corpus": {
+    "corpus_code": "core-v1",
+    "corpus_version": "v1"
+  },
+  "run_snapshot": {
+    "app_commit": "${APP_COMMIT:unknown}",
+    "prompt_version": "${PROMPT_VERSION:unknown}",
+    "prompt_hash": "${PROMPT_HASH:unknown}",
+    "embedding_model": "${EMBEDDING_MODEL:unknown}",
+    "llm_model": "${LLM_MODEL:unknown}",
+    "dictionary_version": "v1",
+    "retrieval_config_summary": {
+      "final_top_k": 5,
+      "source": "config.example"
+    }
+  },
+  "evaluation": {
+    "source": "file",
+    "cases_file": "scripts/report-rag-evaluation/config/eval-cases.example.jsonl",
+    "db_cases_sql": "",
+    "queries": []
+  },
+  "database": {
+    "mysql_command": "mysql",
+    "host": "localhost",
+    "port": 3306,
+    "username": "${MYSQL_USERNAME:root}",
+    "password": "${MYSQL_PASSWORD:123456}",
+    "database": "ai_report_rag"
+  },
+  "runtime": {
+    "continue_on_error": true
+  },
+  "output": {
+    "dir": "./outputs/report-rag-evaluation",
+    "max_text_length": 2000
+  }
+}
