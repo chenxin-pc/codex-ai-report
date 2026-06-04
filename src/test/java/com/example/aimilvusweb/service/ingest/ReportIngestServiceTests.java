@@ -1,6 +1,6 @@
 package com.example.aimilvusweb.service.ingest;
 
-import com.example.aimilvusweb.common.util.SemanticChunkUtils.ReportChunkSlice;
+import com.example.aimilvusweb.infra.chunk.SemanticChunkUtils.ReportChunkSlice;
 import com.example.aimilvusweb.config.ReportQualityProperties;
 import com.example.aimilvusweb.entity.ReportChunk;
 import com.example.aimilvusweb.entity.ReportDocument;
@@ -9,7 +9,7 @@ import com.example.aimilvusweb.repository.ReportChunkMapper;
 import com.example.aimilvusweb.repository.ReportDocumentMapper;
 import com.example.aimilvusweb.repository.ReportOcrPageMapper;
 import com.example.aimilvusweb.repository.ReportParagraphAtomMapper;
-import com.example.aimilvusweb.service.chunk.ReportSemanticChunkService;
+import com.example.aimilvusweb.infra.chunk.ReportSemanticChunkService;
 import com.example.aimilvusweb.service.ingest.ReportChunkFilterPolicy;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;

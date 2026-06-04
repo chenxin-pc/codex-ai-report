@@ -1,6 +1,6 @@
 package com.example.aimilvusweb.service.retrieval;
 
-import com.example.aimilvusweb.common.util.SemanticChunkUtils;
+import com.example.aimilvusweb.infra.chunk.SemanticChunkUtils;
 import com.example.aimilvusweb.config.ReportQualityProperties;
 import com.example.aimilvusweb.entity.ReportChunk;
 import com.example.aimilvusweb.repository.ReportChunkMapper;

@@ -1,13 +1,13 @@
-package com.example.aimilvusweb.service.chunk;
+package com.example.aimilvusweb.infra.chunk;
 
 import com.alibaba.fastjson2.JSON;
-import com.example.aimilvusweb.common.llm.QwenClient;
-import com.example.aimilvusweb.common.prompt.PromptTemplateService;
-import com.example.aimilvusweb.common.util.SemanticChunkUtils;
-import com.example.aimilvusweb.common.util.SemanticChunkUtils.ChunkingOptions;
-import com.example.aimilvusweb.common.util.SemanticChunkUtils.ParagraphAtom;
-import com.example.aimilvusweb.common.util.SemanticChunkUtils.ReportSemanticChunks;
-import com.example.aimilvusweb.common.util.SemanticChunkUtils.SemanticSegment;
+import com.example.aimilvusweb.infra.ai.QwenClient;
+import com.example.aimilvusweb.infra.ai.PromptTemplateService;
+import com.example.aimilvusweb.infra.chunk.SemanticChunkUtils;
+import com.example.aimilvusweb.infra.chunk.SemanticChunkUtils.ChunkingOptions;
+import com.example.aimilvusweb.infra.chunk.SemanticChunkUtils.ParagraphAtom;
+import com.example.aimilvusweb.infra.chunk.SemanticChunkUtils.ReportSemanticChunks;
+import com.example.aimilvusweb.infra.chunk.SemanticChunkUtils.SemanticSegment;
 import com.example.aimilvusweb.config.ReportQualityProperties;
 import com.example.aimilvusweb.dto.LlmChunkPlanRespDTO;
 import com.example.aimilvusweb.dto.LlmChunkSegmentRespDTO;

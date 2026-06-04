@@ -1,7 +1,7 @@
 package com.example.aimilvusweb.service.ingest;
 
 import org.springframework.ai.document.Document;
-import com.example.aimilvusweb.service.retrieval.ReportHybridVectorStore;
+import com.example.aimilvusweb.infra.vector.ReportHybridVectorStore;
 import org.springframework.stereotype.Component;
 
 import java.util.List;

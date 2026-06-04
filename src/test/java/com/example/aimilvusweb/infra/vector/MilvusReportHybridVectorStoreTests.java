@@ -1,4 +1,4 @@
-package com.example.aimilvusweb.service.retrieval;
+package com.example.aimilvusweb.infra.vector;
 
 import com.example.aimilvusweb.config.MilvusHybridProperties;
 import io.milvus.common.clientenum.FunctionType;

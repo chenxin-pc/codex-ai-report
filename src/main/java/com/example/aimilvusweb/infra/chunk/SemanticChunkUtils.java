@@ -1,4 +1,4 @@
-package com.example.aimilvusweb.common.util;
+package com.example.aimilvusweb.infra.chunk;
 
 import java.util.ArrayList;
 import java.util.List;

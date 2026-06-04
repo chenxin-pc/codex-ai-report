@@ -1,10 +1,10 @@
 package com.example.aimilvusweb.service.ingest;
 
 import com.alibaba.fastjson2.JSON;
-import com.example.aimilvusweb.common.ocr.OcrClient;
-import com.example.aimilvusweb.common.ocr.OcrRecognizedDocument;
-import com.example.aimilvusweb.common.util.SemanticChunkUtils;
-import com.example.aimilvusweb.common.util.SemanticChunkUtils.ParagraphAtom;
+import com.example.aimilvusweb.infra.ocr.OcrClient;
+import com.example.aimilvusweb.infra.ocr.OcrRecognizedDocument;
+import com.example.aimilvusweb.infra.chunk.SemanticChunkUtils;
+import com.example.aimilvusweb.infra.chunk.SemanticChunkUtils.ParagraphAtom;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 

@@ -1,10 +1,10 @@
-package com.example.aimilvusweb.service.chunk;
+package com.example.aimilvusweb.infra.chunk;
 
-import com.example.aimilvusweb.common.util.SemanticChunkUtils;
-import com.example.aimilvusweb.common.util.SemanticChunkUtils.ChunkingOptions;
-import com.example.aimilvusweb.common.util.SemanticChunkUtils.ParagraphAtom;
-import com.example.aimilvusweb.common.util.SemanticChunkUtils.ReportSemanticChunks;
-import com.example.aimilvusweb.common.util.SemanticChunkUtils.SemanticSegment;
+import com.example.aimilvusweb.infra.chunk.SemanticChunkUtils;
+import com.example.aimilvusweb.infra.chunk.SemanticChunkUtils.ChunkingOptions;
+import com.example.aimilvusweb.infra.chunk.SemanticChunkUtils.ParagraphAtom;
+import com.example.aimilvusweb.infra.chunk.SemanticChunkUtils.ReportSemanticChunks;
+import com.example.aimilvusweb.infra.chunk.SemanticChunkUtils.SemanticSegment;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 

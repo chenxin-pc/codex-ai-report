@@ -1,6 +1,7 @@
 package com.example.aimilvusweb.service.retrieval;
 
 import com.example.aimilvusweb.config.ReportQualityProperties;
+import com.example.aimilvusweb.infra.vector.ReportHybridSearchRequest;
 import com.example.aimilvusweb.service.retrieval.RetrievedChunk;
 import com.example.aimilvusweb.service.taxonomy.ResearchQueryAnchorService.QueryAnchors;
 import org.springframework.ai.document.Document;

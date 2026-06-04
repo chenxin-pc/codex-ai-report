@@ -1,4 +1,4 @@
-package com.example.aimilvusweb.service.retrieval;
+package com.example.aimilvusweb.infra.vector;
 
 import org.springframework.ai.vectorstore.filter.Filter;
 

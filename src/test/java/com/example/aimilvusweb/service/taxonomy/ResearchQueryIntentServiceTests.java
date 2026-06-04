@@ -1,7 +1,7 @@
 package com.example.aimilvusweb.service.taxonomy;
 
-import com.example.aimilvusweb.common.llm.QwenClient;
-import com.example.aimilvusweb.common.prompt.PromptTemplateService;
+import com.example.aimilvusweb.infra.ai.QwenClient;
+import com.example.aimilvusweb.infra.ai.PromptTemplateService;
 import com.example.aimilvusweb.config.ReportQualityProperties;
 import com.example.aimilvusweb.dto.LlmQueryIntentRespDTO;
 import com.example.aimilvusweb.enums.QueryIntentEnum;

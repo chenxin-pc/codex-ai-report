@@ -7,7 +7,7 @@ import com.example.aimilvusweb.repository.ReportChunkMapper;
 import com.example.aimilvusweb.repository.ReportDocumentMapper;
 import com.example.aimilvusweb.repository.ReportVectorMetadataSyncJobMapper;
 import com.example.aimilvusweb.service.ingest.ReportAuthorService.AuthorMetadata;
-import com.example.aimilvusweb.service.retrieval.ReportHybridVectorStore;
+import com.example.aimilvusweb.infra.vector.ReportHybridVectorStore;
 import com.example.aimilvusweb.service.tag.ReportTagMetadataService;
 import com.example.aimilvusweb.service.tag.ReportTagMetadataService.TagMetadata;
 import org.springframework.ai.document.Document;

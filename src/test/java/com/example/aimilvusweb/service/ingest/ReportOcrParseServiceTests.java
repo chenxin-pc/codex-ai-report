@@ -1,7 +1,7 @@
 package com.example.aimilvusweb.service.ingest;
 
-import com.example.aimilvusweb.common.ocr.OcrClient;
-import com.example.aimilvusweb.common.ocr.OcrRecognizedDocument;
+import com.example.aimilvusweb.infra.ocr.OcrClient;
+import com.example.aimilvusweb.infra.ocr.OcrRecognizedDocument;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockMultipartFile;

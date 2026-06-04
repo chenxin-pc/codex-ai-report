@@ -1,7 +1,7 @@
 package com.example.aimilvusweb.service.ingest;
 
 import com.alibaba.fastjson2.JSON;
-import com.example.aimilvusweb.common.util.SemanticChunkUtils.ReportChunkSlice;
+import com.example.aimilvusweb.infra.chunk.SemanticChunkUtils.ReportChunkSlice;
 import com.example.aimilvusweb.config.ReportQualityProperties;
 import org.springframework.stereotype.Component;
 

@@ -1,4 +1,4 @@
-package com.example.aimilvusweb.common.llm;
+package com.example.aimilvusweb.infra.ai;
 
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.beans.factory.ObjectProvider;

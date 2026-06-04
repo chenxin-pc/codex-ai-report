@@ -2,6 +2,8 @@ package com.example.aimilvusweb.service.retrieval;
 
 import com.example.aimilvusweb.config.MilvusHybridProperties;
 import com.example.aimilvusweb.config.ReportQualityProperties;
+import com.example.aimilvusweb.infra.vector.ReportHybridVectorStore;
+import com.example.aimilvusweb.infra.vector.SpringVectorStoreReportHybridVectorStore;
 import com.example.aimilvusweb.repository.ReportChunkMapper;
 import com.example.aimilvusweb.repository.ReportChunkTagMapper;
 import com.example.aimilvusweb.repository.ReportDocumentTagMapper;

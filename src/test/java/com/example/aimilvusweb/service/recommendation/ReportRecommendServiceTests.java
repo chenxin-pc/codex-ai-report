@@ -1,7 +1,7 @@
 package com.example.aimilvusweb.service.recommendation;
 
-import com.example.aimilvusweb.common.llm.QwenClient;
-import com.example.aimilvusweb.common.prompt.PromptTemplateService;
+import com.example.aimilvusweb.infra.ai.QwenClient;
+import com.example.aimilvusweb.infra.ai.PromptTemplateService;
 import com.example.aimilvusweb.dto.RecommendStreamEventDTO;
 import com.example.aimilvusweb.dto.RecommendRespDTO;
 import com.example.aimilvusweb.enums.QueryIntentEnum;

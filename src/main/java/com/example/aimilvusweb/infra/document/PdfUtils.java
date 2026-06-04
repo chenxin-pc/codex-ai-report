@@ -1,4 +1,4 @@
-package com.example.aimilvusweb.common.util;
+package com.example.aimilvusweb.infra.document;
 
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;

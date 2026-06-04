@@ -1,5 +1,7 @@
 package com.example.aimilvusweb.service.retrieval;
 
+import com.example.aimilvusweb.infra.vector.ReportHybridSearchRequest;
+import com.example.aimilvusweb.infra.vector.ReportHybridVectorStore;
 import com.example.aimilvusweb.repository.ReportChunkTagMapper;
 import com.example.aimilvusweb.repository.ReportDocumentTagMapper;
 import com.example.aimilvusweb.service.taxonomy.ResearchQueryAnchorService.QueryAnchors;

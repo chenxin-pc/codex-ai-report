@@ -2,7 +2,7 @@ package com.example.aimilvusweb.service.ingest;
 
 import com.example.aimilvusweb.dto.ReportIngestDataResetRespDTO;
 import com.example.aimilvusweb.repository.ReportIngestDataResetMapper;
-import com.example.aimilvusweb.service.retrieval.ReportHybridVectorStore;
+import com.example.aimilvusweb.infra.vector.ReportHybridVectorStore;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 

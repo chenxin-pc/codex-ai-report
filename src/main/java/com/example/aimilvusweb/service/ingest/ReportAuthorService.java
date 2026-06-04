@@ -1,6 +1,6 @@
 package com.example.aimilvusweb.service.ingest;
 
-import com.example.aimilvusweb.common.util.TextEncodingRepairUtils;
+import com.example.aimilvusweb.infra.text.TextEncodingRepairUtils;
 import com.example.aimilvusweb.entity.ReportDocumentAuthor;
 import com.example.aimilvusweb.repository.ReportDocumentAuthorMapper;
 import org.springframework.stereotype.Service;

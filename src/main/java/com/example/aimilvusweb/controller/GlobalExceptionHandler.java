@@ -1,6 +1,6 @@
 package com.example.aimilvusweb.controller;
 
-import com.example.aimilvusweb.service.chunk.LlmSemanticChunkException;
+import com.example.aimilvusweb.infra.chunk.LlmSemanticChunkException;
 import jakarta.validation.ConstraintViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;

@@ -1,4 +1,4 @@
-package com.example.aimilvusweb.common.util;
+package com.example.aimilvusweb.infra.text;
 
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;

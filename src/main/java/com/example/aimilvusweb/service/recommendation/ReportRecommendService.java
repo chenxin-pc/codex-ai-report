@@ -1,8 +1,8 @@
 package com.example.aimilvusweb.service.recommendation;
 
 import com.alibaba.fastjson2.JSON;
-import com.example.aimilvusweb.common.llm.QwenClient;
-import com.example.aimilvusweb.common.prompt.PromptTemplateService;
+import com.example.aimilvusweb.infra.ai.QwenClient;
+import com.example.aimilvusweb.infra.ai.PromptTemplateService;
 import com.example.aimilvusweb.dto.LlmRecommendRespDTO;
 import com.example.aimilvusweb.dto.RecommendRespDTO;
 import com.example.aimilvusweb.dto.RecommendStreamEventDTO;

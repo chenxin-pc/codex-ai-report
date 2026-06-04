@@ -1,6 +1,6 @@
 package com.example.aimilvusweb.service.ingest;
 
-import com.example.aimilvusweb.common.util.TextEncodingRepairUtils;
+import com.example.aimilvusweb.infra.text.TextEncodingRepairUtils;
 import com.example.aimilvusweb.config.ReportIngestAsyncProperties;
 import com.example.aimilvusweb.dto.IngestJobStatusRespDTO;
 import com.example.aimilvusweb.dto.IngestMetricsRespDTO;

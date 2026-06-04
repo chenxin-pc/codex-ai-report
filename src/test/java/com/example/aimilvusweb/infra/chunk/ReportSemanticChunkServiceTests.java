@@ -1,8 +1,8 @@
-package com.example.aimilvusweb.service.chunk;
+package com.example.aimilvusweb.infra.chunk;
 
-import com.example.aimilvusweb.common.llm.QwenClient;
-import com.example.aimilvusweb.common.prompt.PromptTemplateService;
-import com.example.aimilvusweb.common.util.SemanticChunkUtils.ReportSemanticChunks;
+import com.example.aimilvusweb.infra.ai.QwenClient;
+import com.example.aimilvusweb.infra.ai.PromptTemplateService;
+import com.example.aimilvusweb.infra.chunk.SemanticChunkUtils.ReportSemanticChunks;
 import com.example.aimilvusweb.config.ReportQualityProperties;
 import com.example.aimilvusweb.dto.LlmChunkPlanRespDTO;
 import com.example.aimilvusweb.dto.LlmChunkSegmentRespDTO;

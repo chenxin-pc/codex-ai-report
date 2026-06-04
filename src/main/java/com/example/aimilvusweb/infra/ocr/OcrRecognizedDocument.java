@@ -1,4 +1,4 @@
-package com.example.aimilvusweb.common.ocr;
+package com.example.aimilvusweb.infra.ocr;
 
 import java.util.List;
 

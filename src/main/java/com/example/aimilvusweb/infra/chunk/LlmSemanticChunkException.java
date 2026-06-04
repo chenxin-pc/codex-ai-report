@@ -1,4 +1,4 @@
-package com.example.aimilvusweb.service.chunk;
+package com.example.aimilvusweb.infra.chunk;
 
 /**
  * @Description: LlmSemanticChunkException类，负责相关业务能力的组织与实现。

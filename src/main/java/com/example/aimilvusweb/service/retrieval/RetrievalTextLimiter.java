@@ -1,6 +1,6 @@
 package com.example.aimilvusweb.service.retrieval;
 
-import com.example.aimilvusweb.common.util.SemanticChunkUtils;
+import com.example.aimilvusweb.infra.chunk.SemanticChunkUtils;
 
 /**
  * @Description: 召回证据文本 token 预算限制工具。
