@@ -16,8 +16,8 @@ import java.time.Instant;
 /**
  * @Description: OCR 入库阶段 handler，负责将暂存 PDF 交给 OCR 阶段入库并绑定 reportId。
  * @Logic: 包装 spool 文件为 MultipartFile，调用 ReportIngestService 写入主档/OCR/段落数据，再刷新导入元数据标签。
- * @Param: 详见方法签名；无入参时为无。
- * @Return: 详见返回类型；void 时为无（仅副作用）。
+ * @Param: 无。
+ * @Return: OCR 阶段处理器，供阶段执行器按阶段枚举调用。
  * @author: cx
  * @Date: 2026-05-30 16:00:00
  */
@@ -45,9 +45,13 @@ public class OcrIngestStageHandler implements IngestStageHandler {
                                  IngestJobMapper ingestJobMapper,
                                  ReportDocumentTagService reportDocumentTagService,
                                  ResearchTaxonomySnapshotService taxonomySnapshotService) {
+        // 保存导入服务引用，OCR 阶段主流程由它完成。
         this.reportIngestService = reportIngestService;
+        // 保存任务 Mapper，OCR 成功后需要把 reportId 写回 ingest_job。
         this.ingestJobMapper = ingestJobMapper;
+        // 保存报告标签服务，上传表单带入的标签在 reportId 生成后落库。
         this.reportDocumentTagService = reportDocumentTagService;
+        // 保存词库快照服务，显式标签落库需要绑定当前词库版本。
         this.taxonomySnapshotService = taxonomySnapshotService;
     }
 
@@ -61,6 +65,7 @@ public class OcrIngestStageHandler implements IngestStageHandler {
      */
     @Override
     public IngestStageEnum stage() {
+        // 固定声明当前 handler 只处理 OCR 阶段。
         return IngestStageEnum.OCR;
     }
 
@@ -74,7 +79,9 @@ public class OcrIngestStageHandler implements IngestStageHandler {
      */
     @Override
     public int execute(IngestJob job) throws Exception {
+        // 将 spool 文件路径包装成 MultipartFile，复用同步导入阶段已有入参形态。
         MultipartFile file = new StoredPdfMultipartFile(job.getOriginalFilename(), Path.of(job.getFilePath()));
+        // 执行 OCR 主链路：创建/复用 report_document，写入 OCR 页和段落 atom。
         Long reportId = reportIngestService.ingestOcrStage(file,
                 job.getReportTitleSnapshot(),
                 job.getSource(),
@@ -82,14 +89,18 @@ public class OcrIngestStageHandler implements IngestStageHandler {
                 job.getPublishDate(),
                 job.getAuthorTags(),
                 job.getReportId());
+        // 将 OCR 阶段生成的 reportId 绑定回导入任务，供后续 CHUNK/VECTOR 使用。
         ingestJobMapper.bindReportId(job.getJobUid(), reportId, Instant.now());
+        // 按上传元数据刷新报告级显式标签，保证导入任务标签进入检索 metadata。
         reportDocumentTagService.refreshFromImportMetadata(reportId,
                 taxonomySnapshotService.currentSnapshot().dictionaryVersion(),
                 job.getThemeTags(),
                 job.getIndustryTags(),
                 job.getCompanyTags(),
                 job.getTickerTags());
+        // 同步更新当前任务对象，后续成功事件可直接读取 reportId。
         job.setReportId(reportId);
+        // OCR 阶段以“绑定一篇报告”为输出单位，固定返回 1。
         return 1;
     }
 }

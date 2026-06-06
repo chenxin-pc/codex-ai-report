@@ -6,8 +6,8 @@ import com.example.aimilvusweb.enums.IngestStageEnum;
 /**
  * @Description: 单个入库阶段业务动作接口，封装 OCR、CHUNK、VECTOR 各自的具体执行逻辑。
  * @Logic: 阶段执行模板负责通用状态流，handler 只负责执行当前阶段并返回输出规模。
- * @Param: 详见方法签名；无入参时为无。
- * @Return: 详见返回类型；void 时为无（仅副作用）。
+ * @Param: 无。
+ * @Return: 阶段处理器契约，供 IngestStageExecutor 统一调度具体阶段。
  * @author: cx
  * @Date: 2026-05-30 16:00:00
  */

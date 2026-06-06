@@ -8,8 +8,8 @@ import org.springframework.stereotype.Component;
 /**
  * @Description: CHUNK 入库阶段 handler，负责调用语义切片阶段生成并持久化 PARENT/CHILD chunk。
  * @Logic: 校验 OCR 阶段已回填 reportId，再委托 ReportIngestService 读取段落 atom 并执行切片落库。
- * @Param: 详见方法签名；无入参时为无。
- * @Return: 详见返回类型；void 时为无（仅副作用）。
+ * @Param: 无。
+ * @Return: CHUNK 阶段处理器，供阶段执行器按阶段枚举调用。
  * @author: cx
  * @Date: 2026-05-30 16:00:00
  */
@@ -28,6 +28,7 @@ public class ChunkIngestStageHandler implements IngestStageHandler {
      * @Date: 2026-05-30 16:00:00
      */
     public ChunkIngestStageHandler(ReportIngestService reportIngestService) {
+        // 保存导入服务引用，execute 时复用其中的 chunk 阶段幂等逻辑。
         this.reportIngestService = reportIngestService;
     }
 
@@ -41,6 +42,7 @@ public class ChunkIngestStageHandler implements IngestStageHandler {
      */
     @Override
     public IngestStageEnum stage() {
+        // 固定声明当前 handler 只处理 CHUNK 阶段。
         return IngestStageEnum.CHUNK;
     }
 
@@ -54,9 +56,11 @@ public class ChunkIngestStageHandler implements IngestStageHandler {
      */
     @Override
     public int execute(IngestJob job) {
+        // CHUNK 阶段依赖 OCR 阶段生成 reportId，缺失时说明前置链路未完成。
         if (job.getReportId() == null) {
             throw new IllegalStateException("Missing reportId for chunk stage");
         }
+        // 委托导入服务从段落 atom 生成 PARENT/CHILD chunk，并返回 CHILD 数量。
         return reportIngestService.ingestChunkStage(job.getReportId());
     }
 }

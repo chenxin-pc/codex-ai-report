@@ -8,8 +8,8 @@ import org.springframework.stereotype.Component;
 /**
  * @Description: VECTOR 入库阶段 handler，负责将已落库 CHILD chunk 写入 Milvus。
  * @Logic: 校验 reportId 后委托 ReportIngestService 执行向量阶段，保持只处理未向量化 CHILD 的幂等语义。
- * @Param: 详见方法签名；无入参时为无。
- * @Return: 详见返回类型；void 时为无（仅副作用）。
+ * @Param: 无。
+ * @Return: VECTOR 阶段处理器，供阶段执行器按阶段枚举调用。
  * @author: cx
  * @Date: 2026-05-30 16:00:00
  */
@@ -28,6 +28,7 @@ public class VectorIngestStageHandler implements IngestStageHandler {
      * @Date: 2026-05-30 16:00:00
      */
     public VectorIngestStageHandler(ReportIngestService reportIngestService) {
+        // 保存导入服务引用，execute 时复用其中的向量阶段幂等逻辑。
         this.reportIngestService = reportIngestService;
     }
 
@@ -41,6 +42,7 @@ public class VectorIngestStageHandler implements IngestStageHandler {
      */
     @Override
     public IngestStageEnum stage() {
+        // 固定声明当前 handler 只处理 VECTOR 阶段。
         return IngestStageEnum.VECTOR;
     }
 
@@ -54,9 +56,11 @@ public class VectorIngestStageHandler implements IngestStageHandler {
      */
     @Override
     public int execute(IngestJob job) {
+        // VECTOR 阶段依赖 OCR 阶段生成 reportId，缺失时说明前置链路未完成。
         if (job.getReportId() == null) {
             throw new IllegalStateException("Missing reportId for vector stage");
         }
+        // 委托导入服务写入未向量化 CHILD chunk，并返回本次写入数量。
         return reportIngestService.ingestVectorStage(job.getReportId());
     }
 }

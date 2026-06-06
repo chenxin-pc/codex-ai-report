@@ -8,8 +8,8 @@ import java.util.Locale;
 /**
  * @Description: 入库阶段重试策略，统一判断异常是否可重试并计算退避时间与错误摘要。
  * @Logic: 基于异常消息识别超时、限流和临时服务不可用；按 attempt 映射配置中的三档退避时间。
- * @Param: 详见方法签名；无入参时为无。
- * @Return: 详见返回类型；void 时为无（仅副作用）。
+ * @Param: 无。
+ * @Return: 重试策略组件，供阶段失败收尾时决定是否回到 PENDING。
  * @author: cx
  * @Date: 2026-05-30 16:00:00
  */
@@ -28,6 +28,7 @@ public class IngestStageRetryPolicy {
      * @Date: 2026-05-30 16:00:00
      */
     public IngestStageRetryPolicy(ReportIngestAsyncProperties properties) {
+        // 保存异步导入配置，重试次数和退避毫秒值都从该配置读取。
         this.properties = properties;
     }
 
@@ -40,7 +41,9 @@ public class IngestStageRetryPolicy {
      * @Date: 2026-05-30 16:00:00
      */
     public boolean isRetryable(Exception ex) {
+        // 异常消息可能为空，先归一为空字符串并转小写，便于关键词匹配。
         String message = ex.getMessage() == null ? "" : ex.getMessage().toLowerCase(Locale.ROOT);
+        // 命中网络超时、限流或网关临时错误关键词时认为可以重试。
         return message.contains("timeout")
                 || message.contains("timed out")
                 || message.contains("429")
@@ -59,6 +62,7 @@ public class IngestStageRetryPolicy {
      * @Date: 2026-05-30 16:00:00
      */
     public boolean canRetry(Exception ex, int attempt) {
+        // 只有异常类型可重试且未达到最大尝试次数，才允许进入下一轮调度。
         return isRetryable(ex) && attempt < properties.getMaxAttempts();
     }
 
@@ -71,6 +75,7 @@ public class IngestStageRetryPolicy {
      * @Date: 2026-05-30 16:00:00
      */
     public long backoffMs(int attempt) {
+        // 按当前 attempt 选择退避档位，第 3 次及以后使用最后一档。
         return switch (attempt) {
             case 1 -> properties.getBackoffFirstMs();
             case 2 -> properties.getBackoffSecondMs();
@@ -87,7 +92,9 @@ public class IngestStageRetryPolicy {
      * @Date: 2026-05-30 16:00:00
      */
     public String errorCode(Exception ex) {
+        // 使用异常类简单名作为错误码，便于观测页面按异常类型聚合。
         String name = ex.getClass().getSimpleName();
+        // 极端情况下类名为空时使用统一兜底码。
         return name == null || name.isBlank() ? "UNKNOWN_ERROR" : name;
     }
 
@@ -100,10 +107,12 @@ public class IngestStageRetryPolicy {
      * @Date: 2026-05-30 16:00:00
      */
     public String shortMessage(Exception ex) {
+        // 原始异常消息可能为空，空消息时回退到错误码。
         String message = ex.getMessage();
         if (message == null || message.isBlank()) {
             return errorCode(ex);
         }
+        // 观测字段长度有限，超过 500 字符时截断，避免写入过长错误详情。
         return message.length() > 500 ? message.substring(0, 500) : message;
     }
 }
